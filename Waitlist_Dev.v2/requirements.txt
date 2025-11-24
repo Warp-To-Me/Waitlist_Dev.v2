@@ -1,0 +1,24 @@
+# Core framework
+Django==5.0
+python-dotenv
+
+# ESI integration and OAuth
+django-esi
+
+# MySQL database driver
+PyMySQL==1.1.1
+
+# For making generic HTTP requests
+requests==2.32.3
+
+# For SDE CSV Processing
+pandas
+
+# ASGI & Real-time Events
+daphne
+channels
+django-eventstream
+
+# Task Scheduling
+django-apscheduler
+apscheduler

@@ -1,0 +1,136 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Fleet Command{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #e2e8f0;
+            background-image: radial-gradient(circle at 50% 50%, #1e293b 0%, #0f172a 100%);
+            background-attachment: fixed;
+        }
+        /* Smooth fade for content swapping */
+        .fade-in {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(5px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Persistent Navbar -->
+    <nav class="bg-slate-900/95 backdrop-blur border-b border-slate-700 sticky top-0 z-50 shadow-lg">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <!-- Brand -->
+            <div class="flex items-center gap-4">
+                <a href="{% url 'landing_page' %}" class="spa-link text-xl md:text-2xl font-bold text-amber-500 tracking-wider hover:text-amber-400 transition flex items-center gap-2">
+                    <span class="text-2xl">🚀</span> FLEET COMMAND
+                </a>
+                {% if user.is_staff or user.is_superuser %}
+                <span class="bg-red-900/40 text-red-400 text-[10px] px-2 py-0.5 rounded border border-red-900/50 tracking-widest uppercase hidden md:inline-block">System Admin</span>
+                {% endif %}
+            </div>
+
+            <!-- Right Side Controls -->
+            <div class="flex items-center gap-4">
+                {% if user.is_authenticated %}
+                {% if navbar_char %}
+                <!-- Active Character Chip -->
+                <a href="{% url 'profile' %}" class="spa-link flex items-center gap-3 text-sm text-slate-300 bg-slate-800/50 py-1 px-3 rounded-full border border-slate-700 hover:bg-slate-700 hover:border-amber-500 hover:text-white transition group shadow-md">
+                    <img src="https://images.evetech.net/characters/{{ navbar_char.character_id }}/portrait?size=64" class="w-8 h-8 rounded-full group-hover:ring-2 ring-amber-500/50 transition" alt="Portrait">
+                    <div class="flex flex-col text-left">
+                        <span class="font-bold leading-none">{{ navbar_char.character_name }}</span>
+                        {% if navbar_char.is_main %}
+                        <span class="text-[10px] text-amber-500 leading-none mt-0.5">MAIN</span>
+                        {% else %}
+                        <span class="text-[10px] text-slate-500 leading-none mt-0.5">ALT</span>
+                        {% endif %}
+                    </div>
+                </a>
+                {% endif %}
+
+                <div class="flex items-center gap-3 pl-2 border-l border-slate-700 ml-2">
+                    {% if user.is_staff or user.is_superuser %}
+                    <a href="{% url 'custom_admin' %}" class="spa-link text-blue-400 hover:text-blue-300 text-sm font-semibold transition border border-blue-900/50 px-3 py-1 rounded hover:bg-blue-900/20" title="Management Dashboard">Mgmt</a>
+                    <a href="{% url 'admin:index' %}" target="_blank" class="text-purple-400 hover:text-purple-300 text-sm font-semibold transition border border-purple-900/50 px-3 py-1 rounded hover:bg-purple-900/20" title="Database Backend">DB</a>
+                    {% endif %}
+                    <a href="{% url 'logout' %}" class="text-red-400 hover:text-red-300 text-sm transition font-bold">Logout</a>
+                </div>
+                {% else %}
+                <!-- ADDED: data-no-spa to prevent AJAX interception for Login -->
+                <a href="{% url 'sso_login' %}" data-no-spa class="bg-amber-600 hover:bg-amber-500 text-white font-bold px-4 py-1.5 rounded text-sm transition shadow-lg shadow-amber-900/20">Log In</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content Block (Target for SPA Swapping) -->
+    <main class="flex-grow" id="main-content">
+        {% block content %}
+        {% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-slate-900 p-6 text-center text-slate-600 text-sm border-t border-slate-800 mt-auto">
+        &copy; 2024 Eve Community Fleet. Data provided by ESI.
+    </footer>
+
+    <!-- SPA Router Script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            document.body.addEventListener('click', e => {
+                const link = e.target.closest('a');
+                // Intercept internal links only
+                // ADDED CHECK: !link.hasAttribute('data-no-spa')
+                if (link && link.href && link.host === window.location.host && !link.target && !link.hasAttribute('download') && !link.href.includes('/admin/') && !link.hasAttribute('data-no-spa')) {
+                    e.preventDefault();
+                    navigateTo(link.href);
+                }
+            });
+
+            window.addEventListener('popstate', () => {
+                navigateTo(window.location.href, false);
+            });
+        });
+
+        function navigateTo(url, push = true) {
+            if (push) history.pushState(null, null, url);
+
+            fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(response => response.text())
+                .then(html => {
+                    const mainContent = document.getElementById('main-content');
+                    mainContent.innerHTML = html;
+                    mainContent.classList.remove('fade-in');
+                    void mainContent.offsetWidth; // Trigger reflow
+                    mainContent.classList.add('fade-in');
+
+                    // Re-execute scripts in the new content
+                    mainContent.querySelectorAll('script').forEach(oldScript => {
+                        const newScript = document.createElement('script');
+                        Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
+                        newScript.appendChild(document.createTextNode(oldScript.innerHTML));
+                        oldScript.parentNode.replaceChild(newScript, oldScript);
+                    });
+                })
+                .catch(err => console.error('SPA Navigation Error:', err));
+        }
+    </script>
+
+</body>
+</html>

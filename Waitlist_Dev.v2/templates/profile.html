@@ -1,0 +1,107 @@
+﻿{% extends base_template|default:"base.html" %}
+{% load humanize %}
+
+{% block title %}Pilot Profile - {{ active_char.character_name }}{% endblock %}
+
+{% block content %}
+<div class="container mx-auto p-4 md:p-8 relative" id="profile-content-area">
+    {% include 'partials/profile_content.html' %}
+</div>
+
+<!-- Scripts -->
+<script>
+    function initProfilePage() {
+        console.log("Initializing Profile Page...");
+        const lastUpdatedStr = "{{ active_char.last_updated|date:'c' }}";
+        if (!lastUpdatedStr) return; // Exit if no char loaded
+
+        const lastUpdated = new Date(lastUpdatedStr);
+        const now = new Date();
+        const diffMinutes = (now - lastUpdated) / 1000 / 60;
+
+        const isStale = diffMinutes > 5;
+        const isEmpty = {{ active_char.total_sp|default:0 }} === 0;
+
+        const justRefreshed = sessionStorage.getItem("just_refreshed");
+        if (justRefreshed) {
+            sessionStorage.removeItem("just_refreshed");
+            return;
+        }
+
+        if (isStale || isEmpty) {
+            triggerRefresh();
+        }
+    }
+
+    function triggerRefresh() {
+        const overlay = document.getElementById('refresh-overlay');
+        if(overlay) overlay.classList.remove('hidden');
+
+        fetch("{% url 'api_refresh_profile' active_char.character_id %}")
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log("Data refreshed successfully.");
+                    // Fetch Partial specifically using 'partial=true' to distinguish from full page nav
+                    return fetch("{% url 'profile' %}?partial=true", {
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    })
+                    .then(htmlResp => htmlResp.text())
+                    .then(html => {
+                        const contentArea = document.getElementById('profile-content-area');
+                        if (contentArea) {
+                            contentArea.innerHTML = html;
+                            // Re-init tabs if needed or just assume default 'current skills' is fine
+                            sessionStorage.setItem("just_refreshed", "true");
+                        }
+                    });
+                } else {
+                    if(overlay) overlay.classList.add('hidden');
+                }
+            })
+            .catch(err => {
+                console.error("API Error", err);
+                if(overlay) overlay.classList.add('hidden');
+            });
+    }
+
+    // Global scope UI functions
+    window.scrollContainer = function(direction) {
+        const container = document.getElementById('char-scroll-container');
+        if (container) {
+            const scrollAmount = 300;
+            if (direction === 'left') { container.scrollLeft -= scrollAmount; }
+            else { container.scrollLeft += scrollAmount; }
+        }
+    };
+
+    window.openTab = function(tabId) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+        document.querySelectorAll('.tab-btn').forEach(el => {
+            el.classList.remove('border-amber-500', 'text-amber-500');
+            el.classList.add('border-transparent', 'text-slate-400');
+        });
+        const content = document.getElementById(tabId);
+        if(content) content.classList.remove('hidden');
+        const btn = document.getElementById('btn-' + tabId);
+        if(btn) {
+            btn.classList.remove('border-transparent', 'text-slate-400');
+            btn.classList.add('border-amber-500', 'text-amber-500');
+        }
+    };
+
+    // Run Init
+    initProfilePage();
+</script>
+
+<style>
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+
+    .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+</style>
+{% endblock %}

@@ -1,0 +1,51 @@
+{% extends 'management/base_management.html' %}
+
+{% block management_content %}
+<div class="flex justify-between items-center mb-6">
+    <h1 class="text-2xl font-bold text-white">User Management</h1>
+    <span class="text-slate-400 text-sm">Last 100 logins</span>
+</div>
+
+<div class="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden shadow-xl">
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left text-slate-400">
+            <thead class="text-xs uppercase bg-slate-900/50 text-slate-300">
+                <tr>
+                    <th class="px-6 py-3">Character</th>
+                    <th class="px-6 py-3">Corp ID</th>
+                    <th class="px-6 py-3">Last Seen</th>
+                    <th class="px-6 py-3">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in users %}
+                <tr class="border-b border-slate-700 hover:bg-slate-700/50 transition">
+                    <td class="px-6 py-4 font-medium text-white flex items-center gap-3">
+                        <img src="https://images.evetech.net/characters/{{ u.eve_character.character_id }}/portrait?size=32"
+                             class="w-8 h-8 rounded border border-slate-600" alt="">
+                        {{ u.eve_character.character_name }}
+                    </td>
+                    <td class="px-6 py-4">
+                        {{ u.eve_character.corporation_id }}
+                    </td>
+                    <td class="px-6 py-4">
+                        {{ u.last_login|date:"M d, H:i" }}
+                    </td>
+                    <td class="px-6 py-4">
+                        {% if u.is_superuser %}
+                        <span class="text-red-400 font-bold bg-red-900/20 px-2 py-1 rounded border border-red-900/30">Admin</span>
+                        {% else %}
+                        <span class="text-green-400 bg-green-900/20 px-2 py-1 rounded border border-green-900/30">Pilot</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" class="px-6 py-4 text-center">No pilots found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

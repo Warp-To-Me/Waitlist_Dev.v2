@@ -1,0 +1,31 @@
+{% extends 'management/base_management.html' %}
+
+{% block management_content %}
+<h1 class="text-2xl font-bold text-white mb-6">System Overview</h1>
+
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <!-- Stat Card 1 -->
+    <div class="bg-slate-800 p-6 rounded-lg border border-slate-700 shadow-lg">
+        <div class="text-slate-400 text-sm uppercase font-bold">Total Pilots</div>
+        <div class="text-3xl font-bold text-white mt-2">{{ total_users }}</div>
+    </div>
+
+    <!-- Stat Card 2 -->
+    <div class="bg-slate-800 p-6 rounded-lg border border-slate-700 shadow-lg">
+        <div class="text-slate-400 text-sm uppercase font-bold">Total Fleets</div>
+        <div class="text-3xl font-bold text-amber-500 mt-2">{{ total_fleets }}</div>
+    </div>
+
+    <!-- Stat Card 3 -->
+    <div class="bg-slate-800 p-6 rounded-lg border border-slate-700 shadow-lg">
+        <div class="text-slate-400 text-sm uppercase font-bold">Active Fleets</div>
+        <div class="text-3xl font-bold text-green-400 mt-2">{{ active_fleets_count }}</div>
+    </div>
+
+    <!-- Stat Card 4 -->
+    <div class="bg-slate-800 p-6 rounded-lg border border-slate-700 shadow-lg">
+        <div class="text-slate-400 text-sm uppercase font-bold">SDE Items</div>
+        <div class="text-3xl font-bold text-purple-400 mt-2">{{ sde_count }}</div>
+    </div>
+</div>
+{% endblock %}
