@@ -5,6 +5,11 @@ from django.db.models import Count, Q, Sum
 from django.http import JsonResponse
 from django.utils import timezone
 from datetime import timedelta
+from django.conf import settings
+from core.utils import get_system_status  # Import the new helper
+
+# Import Celery App
+from waitlist_project.celery import app as celery_app
 
 from pilot_data.models import EveCharacter, ItemType, ItemGroup
 from waitlist_data.models import Fleet
@@ -120,7 +125,6 @@ def profile_view(request):
                      active_char.ship_type_name = "Unknown Hull"
 
     # Calculate Totals using DB Aggregation
-    # This ensures we get the true sum from the database, handling Decimal types correctly
     totals = characters.aggregate(
         wallet_sum=Sum('wallet_balance'),
         lp_sum=Sum('concord_lp')
@@ -139,7 +143,6 @@ def profile_view(request):
         'base_template': get_template_base(request) 
     }
 
-    # If specifically asking for the partial refresh (Profile specific logic)
     if request.headers.get('x-requested-with') == 'XMLHttpRequest' and request.GET.get('partial') == 'true':
         return render(request, 'partials/profile_content.html', context)
 
@@ -149,7 +152,6 @@ def profile_view(request):
 def api_refresh_profile(request, char_id):
     character = get_object_or_404(EveCharacter, character_id=char_id, user=request.user)
     
-    # If no token, fail immediately
     if not character.refresh_token:
         return JsonResponse({'success': False, 'error': 'No refresh token'})
 
@@ -174,17 +176,16 @@ def make_main(request, char_id):
 def is_management(user):
     return user.groups.filter(name='Management').exists() or user.is_superuser
 
+# --- MANAGEMENT VIEWS ---
+
 @login_required
 @user_passes_test(is_management)
 def management_dashboard(request):
     # --- ESI / Token Statistics ---
     total_characters = EveCharacter.objects.count()
     
-    # "Stale" means not updated in the last 60 minutes
     threshold = timezone.now() - timedelta(minutes=60)
     stale_count = EveCharacter.objects.filter(last_updated__lt=threshold).count()
-    
-    # "Invalid" means missing refresh token entirely
     invalid_token_count = EveCharacter.objects.filter(Q(refresh_token__isnull=True) | Q(refresh_token='')).count()
     
     # --- SDE Statistics ---
@@ -193,24 +194,16 @@ def management_dashboard(request):
     sde_status = "ONLINE" if sde_items_count > 0 else "OFFLINE"
 
     context = {
-        # User Stats
         'total_users': User.objects.count(),
-        
-        # Fleet Stats
         'total_fleets': Fleet.objects.count(),
         'active_fleets_count': Fleet.objects.filter(is_active=True).count(),
-        
-        # ESI Stats
         'total_characters': total_characters,
         'stale_count': stale_count,
         'invalid_token_count': invalid_token_count,
         'esi_health_percent': int(((total_characters - stale_count) / total_characters * 100)) if total_characters > 0 else 0,
-        
-        # SDE Stats
         'sde_status': sde_status,
         'sde_items_count': sde_items_count,
         'sde_groups_count': sde_groups_count,
-        
         'base_template': get_template_base(request)
     }
     return render(request, 'management/dashboard.html', context)
@@ -244,3 +237,16 @@ def management_sde(request):
         'base_template': get_template_base(request)
     }
     return render(request, 'management/sde.html', context)
+
+@login_required
+@user_passes_test(is_management)
+def management_celery(request):
+    # Use the shared helper function
+    context = get_system_status()
+    context['base_template'] = get_template_base(request)
+    
+    # Handle Partial Render (For HTTP fallback or initial load)
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest' and request.GET.get('partial') == 'true':
+        return render(request, 'partials/celery_content.html', context)
+        
+    return render(request, 'management/celery_status.html', context)

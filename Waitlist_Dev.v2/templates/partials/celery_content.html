@@ -1,0 +1,148 @@
+﻿<div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
+
+    <!-- REDIS CARD -->
+    <div class="bg-slate-800 rounded-lg border border-slate-700 p-6 shadow-xl relative overflow-hidden group">
+        <div class="absolute top-0 right-0 p-4 opacity-10 text-6xl text-red-500 group-hover:opacity-20 transition">🧱</div>
+        <h2 class="text-slate-400 text-xs uppercase font-bold mb-2 tracking-wider">Redis Broker</h2>
+
+        <div class="flex items-center gap-3 mb-4">
+            {% if redis_status == "ONLINE" %}
+            <span class="w-3 h-3 bg-green-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.5)]"></span>
+            <span class="text-xl font-bold text-green-400">ONLINE</span>
+            {% else %}
+            <span class="w-3 h-3 bg-red-600 rounded-full animate-pulse"></span>
+            <span class="text-xl font-bold text-red-400">OFFLINE</span>
+            {% endif %}
+        </div>
+
+        {% if redis_error %}
+        <div class="text-[10px] text-red-400 bg-red-900/20 p-2 rounded border border-red-900/30 break-all">
+            {{ redis_error }}
+        </div>
+        {% else %}
+        <div class="text-[10px] text-slate-500 font-mono">Lat: {{ redis_latency|default:"<1" }}ms</div>
+        {% endif %}
+    </div>
+
+    <!-- QUEUE DEPTH CARD (NEW) -->
+    <div class="bg-slate-800 rounded-lg border border-slate-700 p-6 shadow-xl relative overflow-hidden group">
+        <div class="absolute top-0 right-0 p-4 opacity-10 text-6xl text-amber-500 group-hover:opacity-20 transition">📚</div>
+        <h2 class="text-slate-400 text-xs uppercase font-bold mb-2 tracking-wider">Queue Depth</h2>
+
+        <div class="flex items-baseline gap-2">
+            <span class="text-4xl font-bold {% if queue_length > 100 %}text-red-500{% elif queue_length > 20 %}text-amber-500{% else %}text-white{% endif %}">
+                {{ queue_length }}
+            </span>
+            <span class="text-xs text-slate-500">Pending Tasks</span>
+        </div>
+        <div class="w-full bg-slate-700 h-1 mt-4 rounded-full overflow-hidden">
+            <!-- Visual bar capping at 100 tasks -->
+            <div class="bg-amber-500 h-full transition-all duration-500" style="width: {% widthratio queue_length 100 100 %}%"></div>
+        </div>
+    </div>
+
+    <!-- WORKER COUNT CARD -->
+    <div class="bg-slate-800 rounded-lg border border-slate-700 p-6 shadow-xl relative overflow-hidden group">
+        <div class="absolute top-0 right-0 p-4 opacity-10 text-6xl text-green-500 group-hover:opacity-20 transition">🐝</div>
+        <h2 class="text-slate-400 text-xs uppercase font-bold mb-2 tracking-wider">Active Workers</h2>
+        <div class="text-4xl font-bold text-white">{{ worker_count }}</div>
+        <p class="text-slate-500 text-[10px] mt-1">Nodes Detected</p>
+    </div>
+
+    <!-- TOTAL TASKS CARD (NEW) -->
+    <div class="bg-slate-800 rounded-lg border border-slate-700 p-6 shadow-xl relative overflow-hidden group">
+        <div class="absolute top-0 right-0 p-4 opacity-10 text-6xl text-blue-500 group-hover:opacity-20 transition">✅</div>
+        <h2 class="text-slate-400 text-xs uppercase font-bold mb-2 tracking-wider">Processed Total</h2>
+        <div class="text-4xl font-bold text-white">{{ total_processed }}</div>
+        <p class="text-slate-500 text-[10px] mt-1">Since Restart</p>
+    </div>
+
+</div>
+
+<!-- WORKER DETAILS -->
+<h2 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
+    <span>Worker Nodes</span>
+    <span class="text-xs font-normal text-slate-500 bg-slate-800 px-2 py-1 rounded border border-slate-700">Auto-refreshing (5s)</span>
+</h2>
+
+{% if workers %}
+<div class="grid grid-cols-1 gap-6 animate-fade-in">
+    {% for worker in workers %}
+    <div class="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden shadow-lg hover:border-slate-600 transition">
+        <!-- Worker Header -->
+        <div class="bg-slate-900/50 p-4 border-b border-slate-700 flex flex-col md:flex-row justify-between md:items-center gap-2">
+            <div class="flex items-center gap-4">
+                <div class="bg-slate-800 p-2 rounded border border-slate-700">
+                    <span class="text-2xl">🤖</span>
+                </div>
+                <div>
+                    <h3 class="font-bold text-lg text-white font-mono leading-none">{{ worker.name }}</h3>
+                    <div class="text-xs text-slate-500 flex gap-3 mt-1 font-mono">
+                        <span>PID: {{ worker.pid }}</span>
+                        <span class="text-slate-600">|</span>
+                        <span>Conc: {{ worker.concurrency }}</span>
+                        <span class="text-slate-600">|</span>
+                        <span class="text-blue-400">Processed: {{ worker.processed }}</span>
+                    </div>
+                </div>
+            </div>
+            <span class="bg-green-900/20 text-green-400 px-3 py-1 rounded text-xs border border-green-900/50 font-bold self-start md:self-center uppercase tracking-wider">
+                {{ worker.status }}
+            </span>
+        </div>
+
+        <!-- Tasks Grid -->
+        <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- Active Tasks -->
+            <div>
+                <h4 class="text-xs uppercase text-amber-500 font-bold mb-3 flex items-center gap-2">
+                    <span class="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></span> Active Tasks ({{ worker.active_count }})
+                </h4>
+                {% if worker.active_tasks %}
+                <ul class="space-y-2">
+                    {% for task in worker.active_tasks %}
+                    <li class="bg-slate-900/80 p-3 rounded border-l-2 border-amber-500 text-sm shadow-sm">
+                        <div class="flex justify-between text-slate-200 font-bold mb-1">
+                            <span class="truncate pr-2">{{ task.name }}</span>
+                            <span class="text-xs text-slate-500 whitespace-nowrap">{{ task.time_start|date:"H:i:s" }}</span>
+                        </div>
+                        <div class="text-[10px] text-slate-500 font-mono truncate" title="{{ task.id }}">
+                            ID: {{ task.id }}
+                        </div>
+                        <div class="text-[10px] text-slate-400 font-mono mt-1 bg-black/20 p-1 rounded truncate">
+                            Args: {{ task.args }}
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="text-slate-600 text-xs italic border-l-2 border-slate-700 pl-3 py-2">Idle. Waiting for work...</div>
+                {% endif %}
+            </div>
+
+            <!-- Reserved/Scheduled Tasks -->
+            <div>
+                <h4 class="text-xs uppercase text-blue-500 font-bold mb-3 flex items-center gap-2">
+                    <span class="w-2 h-2 bg-blue-500 rounded-full"></span> Reserved / Prefetched ({{ worker.reserved_count }})
+                </h4>
+                {% if worker.reserved_count > 0 %}
+                <div class="text-sm text-slate-300 bg-slate-900/50 p-3 rounded border border-slate-700/50">
+                    <p class="font-bold text-blue-400 text-xl mb-1">{{ worker.reserved_count }}</p>
+                    <p class="text-xs text-slate-500">Tasks buffered in memory.</p>
+                </div>
+                {% else %}
+                <div class="text-slate-600 text-xs italic border-l-2 border-slate-700 pl-3 py-2">No reserved tasks.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="bg-slate-800/50 border-2 border-slate-700 border-dashed rounded-lg p-12 text-center text-slate-500 animate-pulse">
+    <div class="text-4xl mb-4">💤</div>
+    <p class="font-bold text-lg">No Active Workers</p>
+    <p class="text-sm mt-2 mb-4">Start a worker to process the queue.</p>
+    <code class="bg-black/30 px-3 py-2 rounded text-amber-500 font-mono text-xs">celery -A waitlist_project worker -l info -P gevent</code>
+</div>
+{% endif %}

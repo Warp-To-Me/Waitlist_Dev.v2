@@ -24,7 +24,10 @@
   <ItemGroup>
     <Compile Include="core\admin.py" />
     <Compile Include="core\apps.py" />
+    <Compile Include="core\consumers.py" />
     <Compile Include="core\context_processors.py" />
+    <Compile Include="core\routing.py" />
+    <Compile Include="core\utils.py" />
     <Compile Include="core\__init__.py" />
     <Compile Include="esi_auth\apps.py" />
     <Compile Include="esi_calls\apps.py" />
@@ -69,10 +72,12 @@
     <Content Include="templates\landing.html" />
     <Content Include="requirements.txt" />
     <Content Include="templates\management\base_management.html" />
+    <Content Include="templates\management\celery_status.html" />
     <Content Include="templates\management\dashboard.html" />
     <Content Include="templates\management\fleets.html" />
     <Content Include="templates\management\sde.html" />
     <Content Include="templates\management\users.html" />
+    <Content Include="templates\partials\celery_content.html" />
     <Content Include="templates\partials\profile_content.html" />
     <Content Include="templates\profile.html" />
   </ItemGroup>

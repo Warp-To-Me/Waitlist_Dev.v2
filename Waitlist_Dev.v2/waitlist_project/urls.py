@@ -10,6 +10,7 @@ urlpatterns = [
     path('management/users/', core_views.management_users, name='management_users'),
     path('management/fleets/', core_views.management_fleets, name='management_fleets'),
     path('management/sde/', core_views.management_sde, name='management_sde'),
+    path('management/system/', core_views.management_celery, name='management_celery'), # New Route
 
     # --- Public Area ---
     path('', core_views.landing_page, name='landing_page'),

@@ -18,6 +18,7 @@ pandas
 daphne
 channels
 django-eventstream
+channels_redis
 
 # Task Scheduling
 #django-apscheduler

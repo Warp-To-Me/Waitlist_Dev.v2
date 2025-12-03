@@ -43,7 +43,7 @@ def dispatch_stale_characters():
 # RATE LIMIT PROTECTION:
 # rate_limit='50/m' ensures THIS specific task is not executed more than 
 # 50 times per minute per worker node. This prevents the "Fire Hose" effect.
-@shared_task(rate_limit='50/m')
+@shared_task(rate_limit='300/m')
 def refresh_character_task(char_id):
     """
     Refreshes a single character.

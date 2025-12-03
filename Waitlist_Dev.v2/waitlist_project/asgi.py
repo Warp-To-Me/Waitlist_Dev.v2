@@ -2,6 +2,7 @@ import os
 from django.core.asgi import get_asgi_application
 from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.auth import AuthMiddlewareStack
+import core.routing
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'waitlist_project.settings')
 
@@ -11,10 +12,9 @@ django_asgi_app = get_asgi_application()
 
 application = ProtocolTypeRouter({
     "http": django_asgi_app,
-    # WebSocket handlers will be added here in URLRouter
     "websocket": AuthMiddlewareStack(
-        URLRouter([
-            # path("ws/waitlist/", consumers.WaitlistConsumer.as_asgi()),
-        ])
+        URLRouter(
+            core.routing.websocket_urlpatterns
+        )
     ),
 })
