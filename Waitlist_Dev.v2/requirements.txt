@@ -20,5 +20,8 @@ channels
 django-eventstream
 
 # Task Scheduling
-django-apscheduler
-apscheduler
+#django-apscheduler
+#apscheduler
+celery
+redis
+gevent  # Required for running Celery on Windows

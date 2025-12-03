@@ -52,6 +52,7 @@
     <Compile Include="esi_auth\views.py" />
     <Compile Include="esi_calls\management\commands\sde_import.py" />
     <Compile Include="pilot_data\models.py" />
+    <Compile Include="waitlist_project\celery.py" />
     <Compile Include="waitlist_project\settings.py" />
     <Compile Include="waitlist_data\models.py" />
     <Compile Include="waitlist_project\urls.py" />

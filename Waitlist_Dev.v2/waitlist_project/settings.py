@@ -35,7 +35,7 @@ INSTALLED_APPS = [
     
     # Third party
     'channels',
-    'django_apscheduler',
+    #'django_apscheduler',
     
     # Local Apps
     'core',
@@ -122,12 +122,43 @@ EVE_SCOPES = (
     "esi-characters.read_loyalty.v1"
 )
 
+# CHANNEL LAYERS
 CHANNEL_LAYERS = {
     "default": {
-        "BACKEND": "channels.layers.InMemoryChannelLayer"
-    }
+        "BACKEND": "channels_redis.core.RedisChannelLayer", # Recommended to switch to Redis here too eventually
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],
+        },
+    },
 }
 
+# --- CELERY SETTINGS ---
+# 1. Connection to Redis (Running in WSL)
+CELERY_BROKER_URL = 'redis://127.0.0.1:6379/0'
+CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/0'
+
+# 2. Timezone matches Django
+CELERY_TIMEZONE = "UTC"
+
+# 3. Connection Retry (Required for newer Celery versions)
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+
+# 4. Beat Schedule (Replaces APScheduler)
+from celery.schedules import crontab
+
+CELERY_BEAT_SCHEDULE = {
+    'dispatch-stale-characters-every-15-min': {
+        'task': 'scheduler.tasks.dispatch_stale_characters',
+        'schedule': crontab(minute='*/15'), # Runs every 15 minutes
+    },
+}
+
+# 5. SAFETY & RATE LIMITS
+# This limits the worker to only grabbing 1 task at a time, preventing it from hoarding tasks if ESI is slow.
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1 
+
 # Scheduler Formatting
-APSCHEDULER_DATETIME_FORMAT = "N j, Y, f:s a"
-APSCHEDULER_RUN_NOW_TIMEOUT = 25
+
+# APSCHEDULER_DATETIME_FORMAT = "N j, Y, f:s a"
+
+# APSCHEDULER_RUN_NOW_TIMEOUT = 25

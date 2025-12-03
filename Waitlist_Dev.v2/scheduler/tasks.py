@@ -1,50 +1,71 @@
+from celery import shared_task
 from django.utils import timezone
 from datetime import timedelta
 from pilot_data.models import EveCharacter
 from esi_calls.token_manager import update_character_data
-import time
+import logging
 
-def background_token_refresh():
+logger = logging.getLogger(__name__)
+
+# ----------------------------------------------------------------------
+# TASK 1: THE DISPATCHER (The Boss)
+# Runs every 15 minutes (via Celery Beat)
+# ----------------------------------------------------------------------
+@shared_task
+def dispatch_stale_characters():
     """
-    Finds characters with stale data and refreshes them via ESI.
-    Uses the refresh token to get a new access token if needed.
+    Finds characters not updated in 60 minutes and queues them for refresh.
     """
-    # Define 'Stale': Not updated in the last 60 minutes
     threshold = timezone.now() - timedelta(minutes=60)
     
-    # Find characters that need updating
-    # LIMIT the batch size to 50 to prevent API timeouts or rate limits if the queue is huge.
-    # We order by 'last_updated' to prioritize those waiting the longest.
-    stale_characters = EveCharacter.objects.filter(last_updated__lt=threshold).order_by('last_updated')[:50]
-    
-    count = stale_characters.count()
-    if count > 0:
-        print(f"[Scheduler] Found {count} stale characters (Batch Limit: 50). Starting refresh cycle...")
-        
-        success_count = 0
-        for char in stale_characters:
-            try:
-                # Update ESI Data
-                result = update_character_data(char)
-                
-                if result:
-                    success_count += 1
-                    print(f" - Refreshed: {char.character_name}")
-                else:
-                    print(f" - Failed: {char.character_name}")
-                    # CRITICAL: Touch 'last_updated' even on failure.
-                    # This prevents the scheduler from retrying the same broken character 
-                    # every 15 minutes forever. It pushes them to the back of the queue.
-                    char.save() 
-                    
-                # Polite sleep to avoid hammering ESI too hard in a loop
-                time.sleep(0.1)
+    # NOTE: We removed the limit of [:50]. 
+    # Since we are async now, we can queue 1000s of tasks if needed.
+    # We only fetch the ID to keep memory usage low.
+    stale_ids = EveCharacter.objects.filter(
+        last_updated__lt=threshold
+    ).values_list('character_id', flat=True)
 
-            except Exception as e:
-                print(f" - Error processing {char.character_name}: {e}")
-                # Touch timestamp on crash to prevent infinite loop
-                char.save()
-                
-        print(f"[Scheduler] Cycle complete. Updated {success_count}/{count} characters.")
+    count = len(stale_ids)
+    if count > 0:
+        logger.info(f"[Dispatcher] Found {count} stale characters. Queuing tasks...")
+        
+        for char_id in stale_ids:
+            # Send to the queue. 
+            refresh_character_task.delay(char_id)
+            
     else:
-        print("[Scheduler] No stale characters found.")
+        logger.info("[Dispatcher] No stale characters found.")
+
+# ----------------------------------------------------------------------
+# TASK 2: THE WORKER (The Employee)
+# Picked up by Celery Workers
+# ----------------------------------------------------------------------
+# RATE LIMIT PROTECTION:
+# rate_limit='50/m' ensures THIS specific task is not executed more than 
+# 50 times per minute per worker node. This prevents the "Fire Hose" effect.
+@shared_task(rate_limit='50/m')
+def refresh_character_task(char_id):
+    """
+    Refreshes a single character.
+    """
+    try:
+        # Re-fetch character from DB to ensure we have latest data
+        char = EveCharacter.objects.get(character_id=char_id)
+        
+        logger.info(f"[Worker] Updating {char.character_name}...")
+        
+        success = update_character_data(char)
+        
+        if success:
+            logger.info(f"[Worker] Success: {char.character_name}")
+        else:
+            logger.warning(f"[Worker] Failed to update: {char.character_name}")
+            # IMPORTANT: We still touch last_updated in the token_manager or here
+            # to prevent immediate re-queueing by the dispatcher in 15 mins.
+            char.last_updated = timezone.now()
+            char.save(update_fields=['last_updated'])
+
+    except EveCharacter.DoesNotExist:
+        logger.error(f"[Worker] Character ID {char_id} not found.")
+    except Exception as e:
+        logger.error(f"[Worker] Crash on {char_id}: {e}")
