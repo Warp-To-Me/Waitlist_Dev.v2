@@ -36,6 +36,10 @@
     <Compile Include="esi_calls\management\__init__.py" />
     <Compile Include="esi_calls\token_manager.py" />
     <Compile Include="pilot_data\admin.py" />
+    <Compile Include="pilot_data\management\commands\refresh_all_characters.py" />
+    <Compile Include="pilot_data\management\commands\wipe_all_characters.py" />
+    <Compile Include="pilot_data\management\commands\__init__.py" />
+    <Compile Include="pilot_data\management\__init__.py" />
     <Compile Include="scheduler\apps.py" />
     <Compile Include="scheduler\management\commands\run_apscheduler.py" />
     <Compile Include="scheduler\tasks.py" />
@@ -87,6 +91,8 @@
     <Folder Include="esi_calls\" />
     <Folder Include="esi_calls\management\" />
     <Folder Include="esi_calls\management\commands\" />
+    <Folder Include="pilot_data\management\" />
+    <Folder Include="pilot_data\management\commands\" />
     <Folder Include="scheduler\" />
     <Folder Include="scheduler\management\" />
     <Folder Include="scheduler\management\commands\" />

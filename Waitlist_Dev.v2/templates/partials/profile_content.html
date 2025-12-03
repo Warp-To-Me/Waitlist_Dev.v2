@@ -1,50 +1,77 @@
 ﻿{% load humanize %}
 
-<!-- HEADER: Alt Management & Totals -->
-<div class="bg-slate-900 border-b border-slate-700 mb-8 p-6">
-    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-        <!-- Title & Link Button -->
-        <div>
-            <h2 class="text-xl font-bold text-white flex items-center gap-2 mb-2">👥 Character Management</h2>
-            <a href="{% url 'add_alt' %}" data-no-spa class="bg-amber-600 hover:bg-amber-500 text-white text-xs px-3 py-1.5 rounded font-bold transition shadow-lg shadow-amber-900/20 inline-flex items-center gap-2"><span>+</span> Link Alt Character</a>
+<!-- HEADER & CHARACTER SELECTION WRAPPER -->
+<div class="flex flex-col xl:flex-row gap-6 mb-8 items-start">
+
+    <!-- LEFT: Character List Area -->
+    <div class="flex-grow w-full bg-slate-900/50 rounded-xl border border-slate-700/50 p-6 relative shadow-lg">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                👥 Pilots
+                <span class="text-xs font-normal text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full border border-slate-700">{{ characters|length }}</span>
+            </h2>
+            <a href="{% url 'add_alt' %}" data-no-spa class="bg-amber-600 hover:bg-amber-500 text-white text-xs px-3 py-1.5 rounded font-bold transition shadow-lg shadow-amber-900/20 inline-flex items-center gap-2">
+                <span>+</span> Link Alt
+            </a>
         </div>
 
-        <!-- Account Wide Totals -->
-        <div class="flex gap-4 md:gap-8 bg-slate-800/50 p-3 rounded-lg border border-slate-700">
-            <div>
-                <div class="text-[10px] uppercase text-slate-500 font-bold">Total Fleet Funds</div>
-                <div class="text-green-400 font-mono font-bold">{{ total_wallet|intcomma }} ISK</div>
+        <!-- Scrollable Character List -->
+        <div class="relative group-container">
+            <button onclick="scrollContainer('left')" class="absolute left-0 top-1/2 -translate-y-1/2 -ml-2 lg:-ml-4 z-10 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white p-2 rounded-full border border-slate-600 shadow-xl hidden md:flex items-center justify-center transition hover:scale-110"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg></button>
+            <div id="char-scroll-container" class="flex gap-4 overflow-x-auto pb-4 pt-2 scroll-smooth no-scrollbar">
+                {% for char in characters %}
+                <!-- ID for auto-scroll targeting -->
+                <div class="relative group flex-shrink-0" id="char-card-{{ char.character_id }}">
+                    <a href="{% url 'switch_character' char.character_id %}" data-no-spa class="flex items-center gap-3 p-2 pr-4 rounded-lg border transition w-48 {% if char == active_char %}bg-slate-800 border-amber-500 ring-1 ring-amber-500/50 shadow-lg{% else %}bg-slate-800/50 border-slate-700 hover:bg-slate-700{% endif %}">
+                        <img src="https://images.evetech.net/characters/{{ char.character_id }}/portrait?size=64" class="w-10 h-10 rounded-full border border-slate-600" alt="">
+                        <div class="text-left overflow-hidden">
+                            <div class="text-sm font-bold truncate {% if char == active_char %}text-white{% else %}text-slate-400{% endif %}">{{ char.character_name }}</div>
+                            <div class="text-xs text-slate-500 flex gap-2">{% if char.is_main %}<span class="text-amber-500 font-bold">MAIN</span>{% else %}<span>Alt</span>{% endif %}</div>
+                        </div>
+                    </a>
+                    {% if not char.is_main %}
+                    <a href="{% url 'make_main' char.character_id %}" data-no-spa class="absolute -top-2 -right-2 bg-slate-700 hover:bg-green-600 text-slate-400 hover:text-white rounded-full p-1 border border-slate-600 opacity-0 group-hover:opacity-100 transition text-[10px] w-6 h-6 flex items-center justify-center shadow-md z-20" title="Set as Main">★</a>
+                    {% endif %}
+                </div>
+                {% endfor %}
             </div>
-            <div class="w-px bg-slate-700 h-8 self-center"></div>
-            <div>
-                <div class="text-[10px] uppercase text-slate-500 font-bold">Total CONCORD LP</div>
-                <div class="text-purple-400 font-mono font-bold">{{ total_lp|intcomma }} LP</div>
+            <button onclick="scrollContainer('right')" class="absolute right-0 top-1/2 -translate-y-1/2 -mr-2 lg:-mr-4 z-10 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white p-2 rounded-full border border-slate-600 shadow-xl hidden md:flex items-center justify-center transition hover:scale-110"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg></button>
+        </div>
+    </div>
+
+    <!-- RIGHT: Account Totals Card -->
+    <div class="w-full xl:w-80 flex-shrink-0 bg-slate-800 rounded-xl border border-slate-700 p-6 shadow-xl flex flex-col justify-center">
+        <h3 class="text-xs uppercase font-bold text-slate-500 mb-4 tracking-wider border-b border-slate-700 pb-2 flex items-center gap-2">
+            <span>📊</span> Account Aggregate
+        </h3>
+
+        <div class="space-y-4">
+            <!-- Total Characters -->
+            <div class="flex justify-between items-center group">
+                <span class="text-slate-400 text-sm group-hover:text-white transition">Total Pilots</span>
+                <span class="text-white font-bold bg-slate-900/50 px-2 py-0.5 rounded border border-slate-700/50">{{ characters|length }}</span>
+            </div>
+
+            <!-- Total SP -->
+            <div class="flex justify-between items-center group">
+                <span class="text-slate-400 text-sm group-hover:text-white transition">Total Skillpoints</span>
+                <span class="text-amber-400 font-mono font-bold">{{ account_total_sp|intcomma }}</span>
+            </div>
+
+            <!-- Total ISK -->
+            <div class="flex justify-between items-center group">
+                <span class="text-slate-400 text-sm group-hover:text-white transition">Total Wealth</span>
+                <span class="text-green-400 font-mono font-bold">{{ total_wallet|intcomma }} <span class="text-[10px] text-slate-500">ISK</span></span>
+            </div>
+
+            <!-- Total LP -->
+            <div class="flex justify-between items-center group">
+                <span class="text-slate-400 text-sm group-hover:text-white transition">Concord LP</span>
+                <span class="text-purple-400 font-mono font-bold">{{ total_lp|intcomma }} <span class="text-[10px] text-slate-500">LP</span></span>
             </div>
         </div>
     </div>
 
-    <!-- Scrollable Character List -->
-    <div class="relative group-container">
-        <button onclick="scrollContainer('left')" class="absolute left-0 top-1/2 -translate-y-1/2 -ml-2 lg:-ml-6 z-10 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white p-2 rounded-full border border-slate-600 shadow-xl hidden md:flex items-center justify-center transition hover:scale-110"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg></button>
-        <div id="char-scroll-container" class="flex gap-4 overflow-x-auto pb-4 pt-2 scroll-smooth no-scrollbar">
-            {% for char in characters %}
-            <!-- ID for auto-scroll targeting -->
-            <div class="relative group flex-shrink-0" id="char-card-{{ char.character_id }}">
-                <a href="{% url 'switch_character' char.character_id %}" data-no-spa class="flex items-center gap-3 p-2 pr-4 rounded-lg border transition w-48 {% if char == active_char %}bg-slate-800 border-amber-500 ring-1 ring-amber-500/50 shadow-lg{% else %}bg-slate-800/50 border-slate-700 hover:bg-slate-700{% endif %}">
-                    <img src="https://images.evetech.net/characters/{{ char.character_id }}/portrait?size=64" class="w-10 h-10 rounded-full border border-slate-600" alt="">
-                    <div class="text-left overflow-hidden">
-                        <div class="text-sm font-bold truncate {% if char == active_char %}text-white{% else %}text-slate-400{% endif %}">{{ char.character_name }}</div>
-                        <div class="text-xs text-slate-500 flex gap-2">{% if char.is_main %}<span class="text-amber-500 font-bold">MAIN</span>{% else %}<span>Alt</span>{% endif %}</div>
-                    </div>
-                </a>
-                {% if not char.is_main %}
-                <a href="{% url 'make_main' char.character_id %}" data-no-spa class="absolute -top-2 -right-2 bg-slate-700 hover:bg-green-600 text-slate-400 hover:text-white rounded-full p-1 border border-slate-600 opacity-0 group-hover:opacity-100 transition text-[10px] w-6 h-6 flex items-center justify-center shadow-md z-20" title="Set as Main">★</a>
-                {% endif %}
-            </div>
-            {% endfor %}
-        </div>
-        <button onclick="scrollContainer('right')" class="absolute right-0 top-1/2 -translate-y-1/2 -mr-2 lg:-mr-6 z-10 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white p-2 rounded-full border border-slate-600 shadow-xl hidden md:flex items-center justify-center transition hover:scale-110"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg></button>
-    </div>
 </div>
 
 <!-- TOKEN MISSING WARNING -->
@@ -104,7 +131,7 @@
                     </div>
                 </div>
 
-                <!-- Wallet & LP (New) -->
+                <!-- Wallet & LP (Individual) -->
                 <div class="bg-slate-900/50 p-2 rounded border border-slate-700/50 flex flex-col justify-center space-y-1">
                     <div>
                         <div class="text-[10px] text-slate-500 uppercase font-bold">Wallet</div>

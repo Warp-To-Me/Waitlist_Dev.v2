@@ -26,3 +26,6 @@ channels_redis
 celery
 redis
 gevent  # Required for running Celery on Windows
+
+# Security
+django-fernet-fields-v2

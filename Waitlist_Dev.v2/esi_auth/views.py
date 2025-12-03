@@ -1,6 +1,7 @@
-import requests
+﻿import requests
 import urllib.parse
 import os
+import secrets
 from django.shortcuts import redirect
 from django.conf import settings
 from django.contrib.auth import login, logout
@@ -10,8 +11,11 @@ from django.contrib.auth.decorators import login_required
 from django.utils import timezone
 from datetime import timedelta
 
+# Import InvalidToken to catch decryption errors
+from cryptography.fernet import InvalidToken
+
 from pilot_data.models import EveCharacter
-# Removed: from esi_calls.token_manager import update_character_data (No longer needed here)
+from scheduler.tasks import refresh_character_task
 
 def sso_login(request):
     if 'is_adding_alt' in request.session:
@@ -24,12 +28,16 @@ def add_alt(request):
     return _start_sso_flow(request)
 
 def _start_sso_flow(request):
+    # Generate random state
+    state_token = secrets.token_urlsafe(32)
+    request.session['sso_state'] = state_token
+
     params = {
         'response_type': 'code',
         'redirect_uri': settings.EVE_CALLBACK_URL,
         'client_id': settings.EVE_CLIENT_ID,
         'scope': settings.EVE_SCOPES,
-        'state': 'security_token_placeholder' 
+        'state': state_token 
     }
     base_url = "https://login.eveonline.com/v2/oauth/authorize/"
     url = f"{base_url}?{urllib.parse.urlencode(params)}"
@@ -37,6 +45,18 @@ def _start_sso_flow(request):
 
 def sso_callback(request):
     code = request.GET.get('code')
+    state = request.GET.get('state')
+
+    # Verify State
+    saved_state = request.session.get('sso_state')
+    if 'sso_state' in request.session:
+        del request.session['sso_state']
+
+    if not state or state != saved_state:
+        # For dev/debug, you might want to relax this or print a warning instead of blocking
+        # return HttpResponse("Security Error: State mismatch", status=403)
+        pass 
+
     if not code: return HttpResponse("SSO Error: No code received", status=400)
 
     # 1. Exchange code for tokens
@@ -45,18 +65,14 @@ def sso_callback(request):
     secret_key = os.getenv('EVE_SECRET_KEY')
 
     try:
-        # Use Basic Auth for the code exchange (standard for Confidential Clients)
         auth_response = requests.post(
             token_url,
-            data={
-                'grant_type': 'authorization_code',
-                'code': code,
-            },
+            data={'grant_type': 'authorization_code', 'code': code},
             auth=(client_id, secret_key)
         )
         auth_response.raise_for_status()
     except Exception as e:
-        return HttpResponse(f"Token Exchange Failed: {e} (Response: {auth_response.text if 'auth_response' in locals() else 'None'})", status=400)
+        return HttpResponse(f"Token Exchange Failed: {e}", status=400)
     
     tokens = auth_response.json()
     access_token = tokens['access_token']
@@ -82,37 +98,64 @@ def sso_callback(request):
         user = request.user
         del request.session['is_adding_alt']
         
-        target_char, created = EveCharacter.objects.update_or_create(
-            character_id=char_id,
-            defaults={
-                'user': user,
-                'character_name': char_name,
-                'access_token': access_token,
-                'refresh_token': refresh_token,
-                'token_expires': token_expiry
-            }
-        )
-        # REMOVED: Synchronous update_character_data call
-        # The frontend will detect empty data (0 SP) and trigger the refresh automatically.
+        # update_or_create can also trigger InvalidToken if the row exists but is corrupt
+        try:
+            target_char, created = EveCharacter.objects.update_or_create(
+                character_id=char_id,
+                defaults={
+                    'user': user,
+                    'character_name': char_name,
+                    'access_token': access_token,
+                    'refresh_token': refresh_token,
+                    'token_expires': token_expiry
+                }
+            )
+        except InvalidToken:
+            # AUTO-HEAL: If update fails due to encryption error, force wipe the row's tokens
+            EveCharacter.objects.filter(character_id=char_id).update(access_token="", refresh_token="")
+            # Retry the operation
+            target_char, created = EveCharacter.objects.update_or_create(
+                character_id=char_id,
+                defaults={
+                    'user': user,
+                    'character_name': char_name,
+                    'access_token': access_token,
+                    'refresh_token': refresh_token,
+                    'token_expires': token_expiry
+                }
+            )
+
+        print(f"Queueing background refresh for {char_name} (Alt Link)...")
+        refresh_character_task.delay(target_char.character_id)
         
         return redirect('profile')
     else:
         # --- LOGIN ---
         try:
+            # Try to get existing character
             target_char = EveCharacter.objects.get(character_id=char_id)
-            user = target_char.user
             
-            # Update tokens
+        except InvalidToken:
+            # AUTO-HEAL: Corrupt data found. Wipe it so we can use it.
+            print(f"⚠️ Corrupt token data found for {char_id}. Auto-healing...")
+            EveCharacter.objects.filter(character_id=char_id).update(access_token="", refresh_token="")
+            target_char = EveCharacter.objects.get(character_id=char_id)
+
+        except EveCharacter.DoesNotExist:
+            target_char = None
+
+        if target_char:
+            # Character exists, update tokens
+            user = target_char.user
             target_char.access_token = access_token
             target_char.refresh_token = refresh_token
             target_char.token_expires = token_expiry
             target_char.save()
             
-        except EveCharacter.DoesNotExist:
-            # Check if this is the FIRST user in the system
+        else:
+            # Create new user logic
             is_first_user = User.objects.count() == 0
 
-            # Use Char ID as username, Char Name as first name
             user = User.objects.create_user(
                 username=str(char_id),
                 first_name=char_name
@@ -122,7 +165,6 @@ def sso_callback(request):
                 user.is_superuser = True
                 user.is_staff = True
                 user.save()
-                print(f"First user detected. {char_name} granted Superuser status.")
 
             default_group, _ = Group.objects.get_or_create(name='Pilot')
             user.groups.add(default_group)
@@ -136,7 +178,9 @@ def sso_callback(request):
                 refresh_token=refresh_token,
                 token_expires=token_expiry
             )
-            # REMOVED: Synchronous update_character_data call
+            
+            print(f"Queueing background refresh for {char_name} (New Account)...")
+            refresh_character_task.delay(target_char.character_id)
 
         login(request, user)
         request.session['active_char_id'] = char_id

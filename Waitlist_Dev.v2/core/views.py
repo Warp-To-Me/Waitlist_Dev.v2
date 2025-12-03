@@ -127,10 +127,12 @@ def profile_view(request):
     # Calculate Totals using DB Aggregation
     totals = characters.aggregate(
         wallet_sum=Sum('wallet_balance'),
-        lp_sum=Sum('concord_lp')
+        lp_sum=Sum('concord_lp'),
+        sp_sum=Sum('total_sp')
     )
     total_wallet = totals['wallet_sum'] or 0
     total_lp = totals['lp_sum'] or 0
+    total_sp = totals['sp_sum'] or 0
 
     context = {
         'active_char': active_char,
@@ -140,6 +142,7 @@ def profile_view(request):
         'token_missing': token_missing,  # Pass flag to template
         'total_wallet': total_wallet,
         'total_lp': total_lp,
+        'account_total_sp': total_sp,
         'base_template': get_template_base(request) 
     }
 
@@ -186,7 +189,13 @@ def management_dashboard(request):
     
     threshold = timezone.now() - timedelta(minutes=60)
     stale_count = EveCharacter.objects.filter(last_updated__lt=threshold).count()
-    invalid_token_count = EveCharacter.objects.filter(Q(refresh_token__isnull=True) | Q(refresh_token='')).count()
+    
+    # FIX: EncryptedTextField does not support database-level filtering (exact/isnull).
+    # We must iterate in Python to check validity. Using iterator() for memory safety.
+    invalid_token_count = 0
+    for char in EveCharacter.objects.all().iterator():
+        if not char.refresh_token:
+            invalid_token_count += 1
     
     # --- SDE Statistics ---
     sde_items_count = ItemType.objects.count()
