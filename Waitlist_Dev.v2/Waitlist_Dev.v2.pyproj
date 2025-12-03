@@ -29,6 +29,7 @@
     <Compile Include="esi_auth\apps.py" />
     <Compile Include="esi_calls\apps.py" />
     <Compile Include="esi_calls\esi_network.py" />
+    <Compile Include="esi_calls\management\commands\__init__.py" />
     <Compile Include="esi_calls\management\__init__.py" />
     <Compile Include="esi_calls\token_manager.py" />
     <Compile Include="pilot_data\admin.py" />
