@@ -1,7 +1,7 @@
 ﻿{% extends 'management/base_management.html' %}
 
 {% block management_content %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- Note: The script tag for Chart.js has been moved inside the logic below to prevent SPA race conditions -->
 
 <div class="flex flex-col gap-6 animate-fade-in">
     <!-- HEADER -->
@@ -108,94 +108,118 @@
 </div>
 
 <script>
-    // --- COMMON CHART CONFIG ---
-    Chart.defaults.color = '#94a3b8';
-    Chart.defaults.font.family = 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial';
-    Chart.defaults.scale.grid.color = '#334155';
-    Chart.defaults.plugins.tooltip.backgroundColor = '#1e293b';
-    Chart.defaults.plugins.tooltip.borderColor = '#475569';
-    Chart.defaults.plugins.tooltip.borderWidth = 1;
-    Chart.defaults.plugins.tooltip.titleColor = '#f8fafc';
-    Chart.defaults.plugins.tooltip.bodyColor = '#cbd5e1';
+    // 1. Define the initialization function
+    function initDashboardCharts() {
+        console.log("Initializing Dashboard Charts...");
 
-    // --- LINE CHART (Growth) ---
-    const ctxGrowth = document.getElementById('growthChart').getContext('2d');
+        // --- COMMON CHART CONFIG ---
+        Chart.defaults.color = '#94a3b8';
+        Chart.defaults.font.family = 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial';
+        Chart.defaults.scale.grid.color = '#334155';
+        Chart.defaults.plugins.tooltip.backgroundColor = '#1e293b';
+        Chart.defaults.plugins.tooltip.borderColor = '#475569';
+        Chart.defaults.plugins.tooltip.borderWidth = 1;
+        Chart.defaults.plugins.tooltip.titleColor = '#f8fafc';
+        Chart.defaults.plugins.tooltip.bodyColor = '#cbd5e1';
 
-    // Create Gradient
-    const gradient = ctxGrowth.createLinearGradient(0, 0, 0, 300);
-    gradient.addColorStop(0, 'rgba(59, 130, 246, 0.5)'); // Blue top
-    gradient.addColorStop(1, 'rgba(59, 130, 246, 0.0)'); // Transparent bottom
+        // --- LINE CHART (Growth) ---
+        const growthEl = document.getElementById('growthChart');
+        if (growthEl) {
+            const ctxGrowth = growthEl.getContext('2d');
 
-    const growthChart = new Chart(ctxGrowth, {
-        type: 'line',
-        data: {
-            labels: {{ growth_labels|safe }},
-            datasets: [{
-                label: 'New Users',
-                data: {{ growth_data|safe }},
-                borderColor: '#3b82f6',
-                backgroundColor: gradient,
-                borderWidth: 3,
-                tension: 0.4, // Smooth curves
-                pointBackgroundColor: '#1e293b',
-                pointBorderColor: '#3b82f6',
-                pointBorderWidth: 2,
-                pointRadius: 4,
-                pointHoverRadius: 6,
-                fill: true
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    grid: { borderDash: [5, 5] }
+            // Create Gradient
+            const gradient = ctxGrowth.createLinearGradient(0, 0, 0, 300);
+            gradient.addColorStop(0, 'rgba(59, 130, 246, 0.5)'); // Blue top
+            gradient.addColorStop(1, 'rgba(59, 130, 246, 0.0)'); // Transparent bottom
+
+            new Chart(ctxGrowth, {
+                type: 'line',
+                data: {
+                    labels: {{ growth_labels|safe }},
+                    datasets: [{
+                        label: 'New Users',
+                        data: {{ growth_data|safe }},
+                        borderColor: '#3b82f6',
+                        backgroundColor: gradient,
+                        borderWidth: 3,
+                        tension: 0.4, // Smooth curves
+                        pointBackgroundColor: '#1e293b',
+                        pointBorderColor: '#3b82f6',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        fill: true
+                    }]
                 },
-                x: {
-                    grid: { display: false }
-                }
-            }
-        }
-    });
-
-    // --- DOUGHNUT CHART (Corps) ---
-    const ctxCorp = document.getElementById('corpChart').getContext('2d');
-    const corpChart = new Chart(ctxCorp, {
-        type: 'doughnut',
-        data: {
-            labels: {{ corp_labels|safe }},
-            datasets: [{
-                data: {{ corp_data|safe }},
-                backgroundColor: [
-                    '#3b82f6', // Blue
-                    '#8b5cf6', // Purple
-                    '#f59e0b', // Amber
-                    '#10b981', // Emerald
-                    '#ec4899'  // Pink
-                ],
-                borderWidth: 0,
-                hoverOffset: 4
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            cutout: '70%', // Thinner ring
-            plugins: {
-                legend: {
-                    position: 'bottom',
-                    labels: {
-                        usePointStyle: true,
-                        padding: 20
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { borderDash: [5, 5] }
+                        },
+                        x: {
+                            grid: { display: false }
+                        }
                     }
                 }
-            }
+            });
         }
-    });
+
+        // --- DOUGHNUT CHART (Corps) ---
+        const corpEl = document.getElementById('corpChart');
+        if (corpEl) {
+            const ctxCorp = corpEl.getContext('2d');
+            new Chart(ctxCorp, {
+                type: 'doughnut',
+                data: {
+                    labels: {{ corp_labels|safe }},
+                    datasets: [{
+                        data: {{ corp_data|safe }},
+                        backgroundColor: [
+                            '#3b82f6', // Blue
+                            '#8b5cf6', // Purple
+                            '#f59e0b', // Amber
+                            '#10b981', // Emerald
+                            '#ec4899'  // Pink
+                        ],
+                        borderWidth: 0,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '70%', // Thinner ring
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                usePointStyle: true,
+                                padding: 20
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    // 2. Load Check Logic
+    // If Chart is already defined (from previous navigation), just run.
+    if (typeof Chart !== 'undefined') {
+        initDashboardCharts();
+    } else {
+        // Otherwise, manually load the script and wait for onload
+        // This prevents the SPA from racing ahead of the download
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/chart.js';
+        script.onload = () => {
+            initDashboardCharts();
+        };
+        document.head.appendChild(script);
+    }
 </script>
 {% endblock %}

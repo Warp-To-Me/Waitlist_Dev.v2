@@ -1,51 +1,246 @@
-﻿{% extends base_template|default:"base.html" %}
+﻿{% extends 'management/base_management.html' %}
 
-{% block title %}Management Console{% endblock %}
-
-{% block content %}
-<div class="flex flex-col md:flex-row min-h-[calc(100vh-64px)]">
-
-    <!-- Sidebar -->
-    <aside class="w-full md:w-64 bg-slate-800 border-r border-slate-700 flex-shrink-0">
-        <div class="p-6 border-b border-slate-700">
-            <h2 class="text-sm uppercase tracking-widest text-slate-500 font-bold">Console</h2>
-            <p class="text-white font-bold text-lg">Fleet Command</p>
+{% block management_content %}
+<div class="flex flex-col gap-6 h-full">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-2xl font-bold text-white">Role Management</h1>
+            <p class="text-slate-400 text-sm">Search for a pilot to view or modify their access rights.</p>
         </div>
-
-        <nav class="p-4 space-y-2">
-            <a href="{% url 'custom_admin' %}"
-               class="block px-4 py-2 rounded transition {% if request.resolver_match.url_name == 'custom_admin' %}bg-blue-600 text-white{% else %}text-slate-400 hover:bg-slate-700 hover:text-white{% endif %}">
-                📊 Statistics
-            </a>
-            <a href="{% url 'management_users' %}"
-               class="block px-4 py-2 rounded transition {% if request.resolver_match.url_name == 'management_users' %}bg-blue-600 text-white{% else %}text-slate-400 hover:bg-slate-700 hover:text-white{% endif %}">
-                👥 Users
-            </a>
-            <a href="{% url 'management_roles' %}"
-               class="block px-4 py-2 rounded transition {% if request.resolver_match.url_name == 'management_roles' %}bg-blue-600 text-white{% else %}text-slate-400 hover:bg-slate-700 hover:text-white{% endif %}">
-                🛡️ Role Management
-            </a>
-            <a href="{% url 'management_fleets' %}"
-               class="block px-4 py-2 rounded transition {% if request.resolver_match.url_name == 'management_fleets' %}bg-blue-600 text-white{% else %}text-slate-400 hover:bg-slate-700 hover:text-white{% endif %}">
-                🛸 Fleets
-            </a>
-            <div class="my-4 border-t border-slate-700 mx-4"></div>
-            <a href="{% url 'management_sde' %}"
-               class="block px-4 py-2 rounded transition {% if request.resolver_match.url_name == 'management_sde' %}bg-blue-600 text-white{% else %}text-slate-400 hover:bg-slate-700 hover:text-white{% endif %}">
-                💾 SDE Status
-            </a>
-            <a href="{% url 'management_celery' %}"
-               class="block px-4 py-2 rounded transition {% if request.resolver_match.url_name == 'management_celery' %}bg-blue-600 text-white{% else %}text-slate-400 hover:bg-slate-700 hover:text-white{% endif %}">
-                🐝 System Status
-            </a>
-        </nav>
-    </aside>
-
-    <!-- Main Content Area -->
-    <div class="flex-grow bg-slate-900 p-4 md:p-8 overflow-y-auto">
-        {% block management_content %}
-        {% endblock %}
     </div>
 
+    <!-- Search Area -->
+    <div class="bg-slate-800 p-6 rounded-lg border border-slate-700 shadow-xl">
+        <div class="relative max-w-xl">
+            <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            </div>
+            <input type="text"
+                   id="user-search"
+                   class="block w-full p-4 pl-10 text-sm text-white border border-slate-600 rounded-lg bg-slate-900 focus:ring-blue-500 focus:border-blue-500 placeholder-slate-500"
+                   placeholder="Search by Character Name..."
+                   autocomplete="off">
+        </div>
+    </div>
+
+    <!-- Content Split: Results & Editor -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-grow items-start">
+
+        <!-- Left: Search Results List -->
+        <div class="bg-slate-800 rounded-lg border border-slate-700 shadow-xl overflow-hidden min-h-[300px]">
+            <div class="p-4 bg-slate-900/50 border-b border-slate-700">
+                <h3 class="font-bold text-slate-300 text-sm uppercase tracking-wide">Select Pilot</h3>
+            </div>
+            <div id="search-results" class="divide-y divide-slate-700/50 max-h-[600px] overflow-y-auto">
+                <!-- Javascript populates this -->
+                <div class="p-8 text-center text-slate-500 italic">
+                    Type a name above to begin...
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Role Editor (Hidden by default) -->
+        <div id="role-editor" class="lg:col-span-2 bg-slate-800 rounded-lg border border-slate-700 shadow-xl overflow-hidden hidden transition-all duration-300">
+            <!-- Selected User Header -->
+            <div class="p-6 bg-slate-900/50 border-b border-slate-700 flex items-center gap-4">
+                <img id="editor-avatar" src="" class="w-16 h-16 rounded border-2 border-slate-600" alt="">
+                <div>
+                    <h2 id="editor-name" class="text-2xl font-bold text-white"></h2>
+                    <p id="editor-corp" class="text-slate-400 text-sm"></p>
+                    <input type="hidden" id="editor-user-id" value="">
+                </div>
+            </div>
+
+            <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Current Roles -->
+                <div>
+                    <h3 class="text-green-400 font-bold mb-4 flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-green-500"></span> Current Roles
+                    </h3>
+                    <div id="current-roles-list" class="space-y-2">
+                        <!-- JS Populated -->
+                    </div>
+                </div>
+
+                <!-- Available Roles -->
+                <div>
+                    <h3 class="text-blue-400 font-bold mb-4 flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-blue-500"></span> Available to Assign
+                    </h3>
+                    <div id="available-roles-list" class="space-y-2">
+                        <!-- JS Populated -->
+                    </div>
+                    <p class="text-xs text-slate-500 mt-4 italic">
+                        Note: You can only assign roles that are below your own rank in the hierarchy.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+    </div>
 </div>
+
+<script>// --- UTILS ---
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    const csrftoken = getCookie('csrftoken');
+
+    // --- DOM ELEMENTS ---
+    const searchInput = document.getElementById('user-search');
+    const resultsContainer = document.getElementById('search-results');
+    const editorContainer = document.getElementById('role-editor');
+
+    // Editor Fields
+    const edName = document.getElementById('editor-name');
+    const edCorp = document.getElementById('editor-corp');
+    const edImg = document.getElementById('editor-avatar');
+    const edId = document.getElementById('editor-user-id');
+    const currentList = document.getElementById('current-roles-list');
+    const availableList = document.getElementById('available-roles-list');
+
+    // --- SEARCH LOGIC ---
+    searchInput.addEventListener('input', debounce((e) => {
+        const query = e.target.value;
+        if (query.length < 3) {
+            resultsContainer.innerHTML = '<div class="p-8 text-center text-slate-500 italic">Type at least 3 characters...</div>';
+            return;
+        }
+
+        fetch(`{% url 'api_search_users' %}?q=${encodeURIComponent(query)}`)
+            .then(res => res.json())
+            .then(data => {
+                resultsContainer.innerHTML = '';
+                if (data.results.length === 0) {
+                    resultsContainer.innerHTML = '<div class="p-8 text-center text-slate-500">No pilots found.</div>';
+                    return;
+                }
+
+                data.results.forEach(user => {
+                    const el = document.createElement('div');
+                    el.className = 'p-4 hover:bg-slate-700 cursor-pointer transition flex items-center gap-3 group';
+                    el.innerHTML = `
+                        <img src="https://images.evetech.net/characters/${user.char_id}/portrait?size=64" class="w-10 h-10 rounded border border-slate-600 group-hover:border-white transition" alt="">
+                        <div>
+                            <div class="text-white font-bold group-hover:text-blue-400 transition">${user.username}</div>
+                            <div class="text-xs text-slate-500">${user.corp}</div>
+                        </div>
+                    `;
+                    el.onclick = () => loadUserRoles(user);
+                    resultsContainer.appendChild(el);
+                });
+            });
+    }, 400));
+
+    // --- LOAD EDITOR ---
+    function loadUserRoles(user) {
+        // 1. Set Header Info
+        edName.textContent = user.username;
+        edCorp.textContent = user.corp;
+        edImg.src = `https://images.evetech.net/characters/${user.char_id}/portrait?size=128`;
+        edId.value = user.id;
+
+        // 2. Show Editor
+        editorContainer.classList.remove('hidden');
+
+        // 3. Fetch Roles
+        refreshRoles(user.id);
+    }
+
+    function refreshRoles(userId) {
+        currentList.innerHTML = '<div class="text-slate-500 animate-pulse">Loading...</div>';
+        availableList.innerHTML = '<div class="text-slate-500 animate-pulse">Loading...</div>';
+
+        fetch(`/api/mgmt/user_roles/${userId}/`)
+            .then(res => res.json())
+            .then(data => {
+                renderRoles(data);
+            });
+    }
+
+    function renderRoles(data) {
+        // Clear Lists
+        currentList.innerHTML = '';
+        availableList.innerHTML = '';
+
+        // Render Current
+        if (data.current_roles.length === 0) {
+            currentList.innerHTML = '<div class="text-sm text-slate-500 italic">No special roles assigned.</div>';
+        } else {
+            data.current_roles.forEach(role => {
+                const btn = document.createElement('button');
+                btn.className = "w-full text-left bg-slate-900 hover:bg-red-900/30 border border-slate-700 hover:border-red-500/50 p-3 rounded flex justify-between items-center group transition";
+                btn.innerHTML = `
+                    <span class="text-slate-200 font-bold group-hover:text-red-200">${role}</span>
+                    <span class="text-xs text-red-500 opacity-0 group-hover:opacity-100 uppercase font-bold">Remove</span>
+                `;
+                btn.onclick = () => updateRole(data.user_id, role, 'remove');
+                currentList.appendChild(btn);
+            });
+        }
+
+        // Render Available
+        if (data.available_roles.length === 0) {
+            availableList.innerHTML = '<div class="text-sm text-slate-500 italic">No roles available to assign.</div>';
+        } else {
+            data.available_roles.forEach(role => {
+                // Don't show if already has it
+                if (data.current_roles.includes(role)) return;
+
+                const btn = document.createElement('button');
+                btn.className = "w-full text-left bg-slate-900 hover:bg-blue-900/30 border border-slate-700 hover:border-blue-500/50 p-3 rounded flex justify-between items-center group transition";
+                btn.innerHTML = `
+                    <span class="text-slate-200 font-bold group-hover:text-blue-200">${role}</span>
+                    <span class="text-xs text-blue-500 opacity-0 group-hover:opacity-100 uppercase font-bold">Add</span>
+                `;
+                btn.onclick = () => updateRole(data.user_id, role, 'add');
+                availableList.appendChild(btn);
+            });
+        }
+    }
+
+    // --- UPDATE ACTION ---
+    function updateRole(userId, role, action) {
+        fetch("{% url 'api_update_user_role' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken
+            },
+            body: JSON.stringify({
+                user_id: userId,
+                role: role,
+                action: action
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                refreshRoles(userId);
+            } else {
+                alert("Error: " + (data.error || "Unknown error"));
+            }
+        })
+        .catch(err => console.error("Update failed", err));
+    }</script>
 {% endblock %}

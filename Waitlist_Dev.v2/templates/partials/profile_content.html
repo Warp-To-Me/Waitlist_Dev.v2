@@ -3,16 +3,25 @@
 <!-- HEADER & CHARACTER SELECTION WRAPPER -->
 <div class="bg-slate-800 rounded-xl border border-slate-700 mb-8 shadow-xl relative overflow-hidden flex flex-col lg:flex-row">
 
+    <!-- INSPECTION BANNER -->
+    {% if is_inspection_mode %}
+    <div class="absolute top-0 left-0 w-full bg-blue-600/90 text-white text-xs font-bold px-2 py-0.5 z-50 text-center">
+        READ-ONLY INSPECTION MODE
+    </div>
+    {% endif %}
+
     <!-- LEFT: Character List Area -->
-    <div class="w-full lg:w-auto lg:flex-1 lg:min-w-0 p-6 border-b lg:border-b-0 lg:border-r border-slate-700 relative">
+    <div class="w-full lg:w-auto lg:flex-1 lg:min-w-0 p-6 border-b lg:border-b-0 lg:border-r border-slate-700 relative pt-8">
         <div class="flex justify-between items-center mb-4">
             <h2 class="text-xl font-bold text-white flex items-center gap-2">
                 👥 Pilots
                 <span class="text-xs font-normal text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full border border-slate-700">{{ characters|length }}</span>
             </h2>
+            {% if not is_inspection_mode %}
             <a href="{% url 'add_alt' %}" data-no-spa class="bg-amber-600 hover:bg-amber-500 text-white text-xs px-3 py-1.5 rounded font-bold transition shadow-lg shadow-amber-900/20 inline-flex items-center gap-2">
                 <span>+</span> Link Alt
             </a>
+            {% endif %}
         </div>
 
         <!-- Scrollable Character List -->
@@ -22,16 +31,24 @@
                 {% for char in characters %}
                 <!-- ID for auto-scroll targeting -->
                 <div class="relative group flex-shrink-0" id="char-card-{{ char.character_id }}">
-                    <a href="{% url 'switch_character' char.character_id %}" data-no-spa class="flex items-center gap-3 p-2 pr-4 rounded-lg border transition w-48 {% if char == active_char %}bg-slate-800 border-amber-500 ring-1 ring-amber-500/50 shadow-lg{% else %}bg-slate-800/50 border-slate-700 hover:bg-slate-700{% endif %}">
-                        <img src="https://images.evetech.net/characters/{{ char.character_id }}/portrait?size=64" class="w-10 h-10 rounded-full border border-slate-600" alt="">
-                        <div class="text-left overflow-hidden">
-                            <div class="text-sm font-bold truncate {% if char == active_char %}text-white{% else %}text-slate-400{% endif %}">{{ char.character_name }}</div>
-                            <div class="text-xs text-slate-500 flex gap-2">{% if char.is_main %}<span class="text-amber-500 font-bold">MAIN</span>{% else %}<span>Alt</span>{% endif %}</div>
-                        </div>
-                    </a>
-                    {% if not char.is_main %}
-                    <a href="{% url 'make_main' char.character_id %}" data-no-spa class="absolute -top-2 -right-2 bg-slate-700 hover:bg-green-600 text-slate-400 hover:text-white rounded-full p-1 border border-slate-600 opacity-0 group-hover:opacity-100 transition text-[10px] w-6 h-6 flex items-center justify-center shadow-md z-20" title="Set as Main">★</a>
-                    {% endif %}
+                    <!-- Update Link URL based on Mode -->
+                    {% if is_inspection_mode %}
+                    <!-- FIXED: URL name changed to management_user_inspect_char -->
+                    <a href="{% url 'management_user_inspect_char' inspect_user_id char.character_id %}" class="flex items-center gap-3 p-2 pr-4 rounded-lg border transition w-48 {% if char == active_char %}bg-slate-800 border-amber-500 ring-1 ring-amber-500/50 shadow-lg{% else %}bg-slate-800/50 border-slate-700 hover:bg-slate-700{% endif %}">
+                        {% else %}
+                        <a href="{% url 'switch_character' char.character_id %}" data-no-spa class="flex items-center gap-3 p-2 pr-4 rounded-lg border transition w-48 {% if char == active_char %}bg-slate-800 border-amber-500 ring-1 ring-amber-500/50 shadow-lg{% else %}bg-slate-800/50 border-slate-700 hover:bg-slate-700{% endif %}">
+                            {% endif %}
+
+                            <img src="https://images.evetech.net/characters/{{ char.character_id }}/portrait?size=64" class="w-10 h-10 rounded-full border border-slate-600" alt="">
+                            <div class="text-left overflow-hidden">
+                                <div class="text-sm font-bold truncate {% if char == active_char %}text-white{% else %}text-slate-400{% endif %}">{{ char.character_name }}</div>
+                                <div class="text-xs text-slate-500 flex gap-2">{% if char.is_main %}<span class="text-amber-500 font-bold">MAIN</span>{% else %}<span>Alt</span>{% endif %}</div>
+                            </div>
+                        </a>
+
+                        {% if not char.is_main and not is_inspection_mode %}
+                        <a href="{% url 'make_main' char.character_id %}" data-no-spa class="absolute -top-2 -right-2 bg-slate-700 hover:bg-green-600 text-slate-400 hover:text-white rounded-full p-1 border border-slate-600 opacity-0 group-hover:opacity-100 transition text-[10px] w-6 h-6 flex items-center justify-center shadow-md z-20" title="Set as Main">★</a>
+                        {% endif %}
                 </div>
                 {% endfor %}
             </div>
@@ -40,7 +57,7 @@
     </div>
 
     <!-- RIGHT: Account Totals Card -->
-    <div class="w-full lg:w-80 flex-shrink-0 p-6 bg-slate-900/30 flex flex-col justify-center">
+    <div class="w-full lg:w-80 flex-shrink-0 p-6 bg-slate-900/30 flex flex-col justify-center pt-8">
         <h3 class="text-xs uppercase font-bold text-slate-500 mb-4 tracking-wider border-b border-slate-700 pb-2 flex items-center gap-2">
             <span>📊</span> Account Aggregate
         </h3>
@@ -61,21 +78,35 @@
             <!-- Total ISK -->
             <div class="flex justify-between items-center group">
                 <span class="text-slate-400 text-sm group-hover:text-white transition">Total Wealth</span>
-                <span class="text-green-400 font-mono font-bold">{{ total_wallet|intcomma }} <span class="text-[10px] text-slate-500">ISK</span></span>
+                <span class="text-green-400 font-mono font-bold">
+                    {% if obfuscate_financials %}
+                    <span class="blur-sm select-none">99,999,999,999</span>
+                    {% else %}
+                    {{ total_wallet|intcomma }}
+                    {% endif %}
+                    <span class="text-[10px] text-slate-500">ISK</span>
+                </span>
             </div>
 
             <!-- Total LP -->
             <div class="flex justify-between items-center group">
                 <span class="text-slate-400 text-sm group-hover:text-white transition">Concord LP</span>
-                <span class="text-purple-400 font-mono font-bold">{{ total_lp|intcomma }} <span class="text-[10px] text-slate-500">LP</span></span>
+                <span class="text-purple-400 font-mono font-bold">
+                    {% if obfuscate_financials %}
+                    <span class="blur-sm select-none">9,999,999</span>
+                    {% else %}
+                    {{ total_lp|intcomma }}
+                    {% endif %}
+                    <span class="text-[10px] text-slate-500">LP</span>
+                </span>
             </div>
         </div>
     </div>
 
 </div>
 
-<!-- TOKEN MISSING WARNING -->
-{% if token_missing %}
+<!-- TOKEN MISSING WARNING (Only show if NOT in inspection mode) -->
+{% if token_missing and not is_inspection_mode %}
 <div class="bg-slate-800 rounded-xl border border-slate-700 p-12 text-center shadow-2xl">
     <div class="inline-block p-4 bg-red-900/20 rounded-full mb-4 border border-red-900/50">
         <span class="text-4xl">⚠️</span>
@@ -93,16 +124,19 @@
 </div>
 
 {% else %}
-<!-- NORMAL PROFILE VIEW (Only show if token exists) -->
+<!-- NORMAL PROFILE VIEW (Only show if token exists OR in inspection mode) -->
 <!-- STATS & IMPLANTS BLOCK -->
 <div class="bg-slate-800 rounded-xl border border-slate-700 mb-8 shadow-2xl relative overflow-hidden flex flex-col lg:flex-row">
     <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-600"></div>
 
     <!-- MOVED: Loading Overlay is now contained specifically within this relative Card -->
+    <!-- Only render refresh overlay in normal mode -->
+    {% if not is_inspection_mode %}
     <div id="refresh-overlay" class="hidden absolute inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center transition-all duration-300">
         <div class="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-3"></div>
         <p class="text-white font-bold text-sm animate-pulse">Syncing...</p>
     </div>
+    {% endif %}
 
     <!-- Left: Character Stats -->
     <div class="p-6 flex-grow border-b lg:border-b-0 lg:border-r border-slate-700">
@@ -135,12 +169,24 @@
                 <div class="bg-slate-900/50 p-2 rounded border border-slate-700/50 flex flex-col justify-center space-y-1">
                     <div>
                         <div class="text-[10px] text-slate-500 uppercase font-bold">Wallet</div>
-                        <div class="text-green-400 font-mono font-medium truncate leading-tight">{{ active_char.wallet_balance|intcomma }} ISK</div>
+                        <div class="text-green-400 font-mono font-medium truncate leading-tight">
+                            {% if obfuscate_financials %}
+                            <span class="blur-sm select-none">******</span>
+                            {% else %}
+                            {{ active_char.wallet_balance|intcomma }} ISK
+                            {% endif %}
+                        </div>
                     </div>
                     <div class="h-px bg-slate-700/50 w-full"></div>
                     <div>
                         <div class="text-[10px] text-slate-500 uppercase font-bold">CONCORD LP</div>
-                        <div class="text-purple-400 font-mono font-medium truncate leading-tight">{{ active_char.concord_lp|intcomma }} LP</div>
+                        <div class="text-purple-400 font-mono font-medium truncate leading-tight">
+                            {% if obfuscate_financials %}
+                            <span class="blur-sm select-none">******</span>
+                            {% else %}
+                            {{ active_char.concord_lp|intcomma }} LP
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
 
@@ -222,7 +268,7 @@
         </div>
         {% else %}
         <div class="text-center py-12 text-slate-500 border-2 border-dashed border-slate-700 rounded bg-slate-900/20">
-            <p class="mb-4">No skills loaded yet. Syncing...</p>
+            <p class="mb-4">No skills loaded yet.</p>
         </div>
         {% endif %}
     </div>

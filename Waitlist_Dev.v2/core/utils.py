@@ -4,7 +4,7 @@ from django.conf import settings
 from waitlist_project.celery import app as celery_app
 
 # --- ROLE HIERARCHY DEFINITION ---
-# Index 0 is Highest (Admin), Index 10 is Lowest (Public)
+# Index 0 is Highest (Admin), Index 11 is Lowest (Public)
 ROLE_HIERARCHY = [
     'Admin',
     'Leadership',
@@ -16,7 +16,8 @@ ROLE_HIERARCHY = [
     'Assault FC',
     'Line Commander',
     'Resident',
-    'Public'
+    'Pilot',   # Standard registered user
+    'Public'   # Fallback/Anonymous
 ]
 
 def get_role_priority(group_name):

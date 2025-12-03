@@ -13,6 +13,7 @@
         </div>
 
         <nav class="p-4 space-y-2">
+            <!-- GENERAL (Resident+) -->
             <a href="{% url 'custom_admin' %}"
                class="block px-4 py-2 rounded transition {% if request.resolver_match.url_name == 'custom_admin' %}bg-blue-600 text-white{% else %}text-slate-400 hover:bg-slate-700 hover:text-white{% endif %}">
                 📊 Statistics
@@ -25,11 +26,17 @@
                class="block px-4 py-2 rounded transition {% if request.resolver_match.url_name == 'management_roles' %}bg-blue-600 text-white{% else %}text-slate-400 hover:bg-slate-700 hover:text-white{% endif %}">
                 🛡️ Role Management
             </a>
+
+            {% if can_view_fleets %}
+            <div class="my-4 border-t border-slate-700 mx-4" title="Assault FC and above"></div>
             <a href="{% url 'management_fleets' %}"
                class="block px-4 py-2 rounded transition {% if request.resolver_match.url_name == 'management_fleets' %}bg-blue-600 text-white{% else %}text-slate-400 hover:bg-slate-700 hover:text-white{% endif %}">
                 🛸 Fleets
             </a>
-            <div class="my-4 border-t border-slate-700 mx-4"></div>
+            {% endif %}
+
+            {% if can_view_admin %}
+            <div class="my-4 border-t border-slate-700 mx-4" title="Admin Only"></div>
             <a href="{% url 'management_sde' %}"
                class="block px-4 py-2 rounded transition {% if request.resolver_match.url_name == 'management_sde' %}bg-blue-600 text-white{% else %}text-slate-400 hover:bg-slate-700 hover:text-white{% endif %}">
                 💾 SDE Status
@@ -38,6 +45,7 @@
                class="block px-4 py-2 rounded transition {% if request.resolver_match.url_name == 'management_celery' %}bg-blue-600 text-white{% else %}text-slate-400 hover:bg-slate-700 hover:text-white{% endif %}">
                 🐝 System Status
             </a>
+            {% endif %}
         </nav>
     </aside>
 

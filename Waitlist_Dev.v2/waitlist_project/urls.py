@@ -3,11 +3,15 @@ from django.urls import path, include
 from core import views as core_views
 
 urlpatterns = [
+    # Django Admin
     path('admin/', admin.site.urls),
-
-    # --- Management Area ---
+    
+    # Custom Management (Core)
     path('management/', core_views.management_dashboard, name='custom_admin'),
     path('management/users/', core_views.management_users, name='management_users'),
+    path('management/users/<int:user_id>/inspect/', core_views.management_user_inspect, name='management_user_inspect'),
+    path('management/users/<int:user_id>/inspect/<int:char_id>/', core_views.management_user_inspect, name='management_user_inspect_char'),
+
     path('management/fleets/', core_views.management_fleets, name='management_fleets'),
     path('management/sde/', core_views.management_sde, name='management_sde'),
     path('management/system/', core_views.management_celery, name='management_celery'),
@@ -30,5 +34,5 @@ urlpatterns = [
     path('api/refresh_profile/<int:char_id>/', core_views.api_refresh_profile, name='api_refresh_profile'),
 
     # ESI Auth Routes
-    path('', include('esi_auth.urls')),
+    path('auth/', include('esi_auth.urls')),
 ]
