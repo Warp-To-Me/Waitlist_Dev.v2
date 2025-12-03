@@ -11,7 +11,7 @@ from django.utils import timezone
 from datetime import timedelta
 
 from pilot_data.models import EveCharacter
-from esi_calls.token_manager import update_character_data
+# Removed: from esi_calls.token_manager import update_character_data (No longer needed here)
 
 def sso_login(request):
     if 'is_adding_alt' in request.session:
@@ -92,9 +92,8 @@ def sso_callback(request):
                 'token_expires': token_expiry
             }
         )
-        # Force immediate update so data is ready
-        print(f"Linking complete. Fetching initial data for {char_name}...")
-        update_character_data(target_char)
+        # REMOVED: Synchronous update_character_data call
+        # The frontend will detect empty data (0 SP) and trigger the refresh automatically.
         
         return redirect('profile')
     else:
@@ -109,12 +108,22 @@ def sso_callback(request):
             target_char.token_expires = token_expiry
             target_char.save()
             
-            # Optional: Refresh data on login if it's very old
-            # update_character_data(target_char) 
-
         except EveCharacter.DoesNotExist:
-            # New User
-            user = User.objects.create_user(username=char_name)
+            # Check if this is the FIRST user in the system
+            is_first_user = User.objects.count() == 0
+
+            # Use Char ID as username, Char Name as first name
+            user = User.objects.create_user(
+                username=str(char_id),
+                first_name=char_name
+            )
+            
+            if is_first_user:
+                user.is_superuser = True
+                user.is_staff = True
+                user.save()
+                print(f"First user detected. {char_name} granted Superuser status.")
+
             default_group, _ = Group.objects.get_or_create(name='Pilot')
             user.groups.add(default_group)
             
@@ -127,9 +136,7 @@ def sso_callback(request):
                 refresh_token=refresh_token,
                 token_expires=token_expiry
             )
-            # Force immediate update for new user
-            print(f"New user created. Fetching initial data for {char_name}...")
-            update_character_data(target_char)
+            # REMOVED: Synchronous update_character_data call
 
         login(request, user)
         request.session['active_char_id'] = char_id

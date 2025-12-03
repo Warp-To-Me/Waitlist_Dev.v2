@@ -69,10 +69,10 @@
                     <a href="{% url 'custom_admin' %}" class="spa-link text-blue-400 hover:text-blue-300 text-sm font-semibold transition border border-blue-900/50 px-3 py-1 rounded hover:bg-blue-900/20" title="Management Dashboard">Mgmt</a>
                     <a href="{% url 'admin:index' %}" target="_blank" class="text-purple-400 hover:text-purple-300 text-sm font-semibold transition border border-purple-900/50 px-3 py-1 rounded hover:bg-purple-900/20" title="Database Backend">DB</a>
                     {% endif %}
-                    <a href="{% url 'logout' %}" class="text-red-400 hover:text-red-300 text-sm transition font-bold">Logout</a>
+                    <!-- ADDED data-no-spa HERE -->
+                    <a href="{% url 'logout' %}" data-no-spa class="text-red-400 hover:text-red-300 text-sm transition font-bold">Logout</a>
                 </div>
                 {% else %}
-                <!-- ADDED: data-no-spa to prevent AJAX interception for Login -->
                 <a href="{% url 'sso_login' %}" data-no-spa class="bg-amber-600 hover:bg-amber-500 text-white font-bold px-4 py-1.5 rounded text-sm transition shadow-lg shadow-amber-900/20">Log In</a>
                 {% endif %}
             </div>
@@ -96,7 +96,6 @@
             document.body.addEventListener('click', e => {
                 const link = e.target.closest('a');
                 // Intercept internal links only
-                // ADDED CHECK: !link.hasAttribute('data-no-spa')
                 if (link && link.href && link.host === window.location.host && !link.target && !link.hasAttribute('download') && !link.href.includes('/admin/') && !link.hasAttribute('data-no-spa')) {
                     e.preventDefault();
                     navigateTo(link.href);

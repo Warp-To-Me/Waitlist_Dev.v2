@@ -1,11 +1,27 @@
 import requests
 import email.utils
 from django.utils import timezone
-from datetime import datetime, timezone as dt_timezone # Fix: Import standard timezone as dt_timezone
+from datetime import datetime, timezone as dt_timezone
 from pilot_data.models import EsiHeaderCache
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # Standard HTTP Date Format for ESI
 DATE_FORMAT = '%a, %d %b %Y %H:%M:%S GMT'
+
+def get_esi_session():
+    """
+    Creates a requests session with automatic retries for server errors.
+    """
+    session = requests.Session()
+    retries = Retry(
+        total=3,
+        backoff_factor=0.3,
+        status_forcelist=[502, 503, 504],
+        allowed_methods=frozenset(['GET', 'POST'])
+    )
+    session.mount('https://', HTTPAdapter(max_retries=retries))
+    return session
 
 def call_esi(character, endpoint_name, url, method='GET', params=None, body=None):
     """
@@ -19,10 +35,9 @@ def call_esi(character, endpoint_name, url, method='GET', params=None, body=None
     cache_entry = EsiHeaderCache.objects.filter(character=character, endpoint_name=endpoint_name).first()
     
     if cache_entry and cache_entry.expires:
-        # django.utils.timezone.now() is still correct here
         if timezone.now() < cache_entry.expires:
             print(f"  -> [SKIP] {endpoint_name}: Cached until {cache_entry.expires.strftime('%H:%M:%S')}")
-            return {'status': 304, 'data': None} # Simulated 304 (Local Cache Hit)
+            return {'status': 304, 'data': None}
 
     # 2. Prepare Request
     headers = {
@@ -31,42 +46,46 @@ def call_esi(character, endpoint_name, url, method='GET', params=None, body=None
         'Accept': 'application/json'
     }
     
-    # Add ETag if we have one (for server-side 304 check)
     if cache_entry and cache_entry.etag:
         headers['If-None-Match'] = cache_entry.etag
 
     try:
         print(f"  -> [REQ] {endpoint_name}")
+        
+        # Use Session with Retry logic
+        session = get_esi_session()
+        
         if method == 'GET':
-            response = requests.get(url, headers=headers, params=params)
+            response = session.get(url, headers=headers, params=params, timeout=10)
         else:
-            response = requests.post(url, headers=headers, json=body)
+            response = session.post(url, headers=headers, json=body, timeout=10)
 
-        # --- RATE LIMIT HANDLING (Logging only for now) ---
-        # X-Ratelimit-Remaining: 150
-        # X-Ratelimit-Reset: 5 (seconds)
+        # --- RATE LIMIT HANDLING ---
         rem = response.headers.get('X-Ratelimit-Remaining')
         if rem and int(rem) < 20:
             print(f"  !!! WARNING: Rate Limit Low: {rem} !!!")
-            # Ideally, we could sleep here or raise an exception to back off
 
-        # 3. Handle 304 Not Modified (Server says: "Your data is still good")
+        # 3. Handle 304 Not Modified
         if response.status_code == 304:
             print(f"  -> [304] {endpoint_name}: Data Unchanged")
-            # Even on 304, ESI sends a new Expires header usually. Update it.
             _update_cache_headers(character, endpoint_name, response.headers, cache_entry)
             return {'status': 304, 'data': None}
 
-        # 4. Handle 200 OK (New Data)
+        # 4. Handle 200 OK
         if response.status_code == 200:
             print(f"  -> [200] {endpoint_name}: New Data")
             _update_cache_headers(character, endpoint_name, response.headers, cache_entry)
             return {'status': 200, 'data': response.json()}
             
-        # Handle Token Errors (401/403) explicitly
+        # Handle Token Errors
         if response.status_code in [401, 403]:
-            print(f"  -> [{response.status_code}] Token Invalid")
+            print(f"  -> [{response.status_code}] Token Invalid/Scope Missing")
             return {'status': response.status_code, 'data': None}
+
+        # Handle Server Errors explicitly (though RaiseForStatus catches them too)
+        if response.status_code >= 500:
+            print(f"  -> [{response.status_code}] ESI Server Error")
+            return {'status': response.status_code, 'error': 'Server Error'}
 
         # Other Errors
         response.raise_for_status()
@@ -87,22 +106,18 @@ def _update_cache_headers(character, endpoint_name, headers, existing_entry=None
 
     if expires_str:
         try:
-            # Parse GMT date string to datetime
-            # E.g., "Sat, 01 Jan 2022 00:00:00 GMT"
             dt_tuple = email.utils.parsedate_tz(expires_str)
             if dt_tuple:
                 dt_ts = email.utils.mktime_tz(dt_tuple)
-                # Fix: Use dt_timezone.utc (Standard Lib) instead of timezone.utc (Django)
                 expires_dt = datetime.fromtimestamp(dt_ts, dt_timezone.utc)
         except ValueError:
             pass
 
-    # Update or Create
     EsiHeaderCache.objects.update_or_create(
         character=character,
         endpoint_name=endpoint_name,
         defaults={
-            'etag': etag.strip('"') if etag else None, # ESI often quotes ETags
+            'etag': etag.strip('"') if etag else None,
             'expires': expires_dt
         }
     )

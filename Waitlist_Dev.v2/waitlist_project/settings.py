@@ -111,12 +111,15 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 EVE_CLIENT_ID = os.getenv('EVE_CLIENT_ID')
 EVE_CALLBACK_URL = os.getenv('EVE_CALLBACK_URL', 'http://localhost:8000/auth/sso/callback/')
 
+# Updated Scopes for Wallet and LP
 EVE_SCOPES = (
     "publicData "
     "esi-skills.read_skills.v1 "
     "esi-skills.read_skillqueue.v1 "
     "esi-clones.read_implants.v1 "
-    "esi-location.read_ship_type.v1"
+    "esi-location.read_ship_type.v1 "
+    "esi-wallet.read_character_wallet.v1 "
+    "esi-characters.read_loyalty.v1"
 )
 
 CHANNEL_LAYERS = {

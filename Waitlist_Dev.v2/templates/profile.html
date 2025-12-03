@@ -10,8 +10,26 @@
 
 <!-- Scripts -->
 <script>
+    // New Helper Function to handle scrolling
+    function scrollToActiveChar() {
+        // Allow a tiny delay for DOM rendering
+        setTimeout(() => {
+            const activeId = "{{ active_char.character_id }}";
+            const activeCard = document.getElementById("char-card-" + activeId);
+
+            if (activeCard) {
+                // 'inline: center' handles the horizontal scrolling
+                activeCard.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            }
+        }, 50);
+    }
+
     function initProfilePage() {
         console.log("Initializing Profile Page...");
+
+        // 1. Scroll on initial load
+        scrollToActiveChar();
+
         const lastUpdatedStr = "{{ active_char.last_updated|date:'c' }}";
         if (!lastUpdatedStr) return; // Exit if no char loaded
 
@@ -51,8 +69,10 @@
                         const contentArea = document.getElementById('profile-content-area');
                         if (contentArea) {
                             contentArea.innerHTML = html;
-                            // Re-init tabs if needed or just assume default 'current skills' is fine
                             sessionStorage.setItem("just_refreshed", "true");
+
+                            // 2. Scroll after content refresh
+                            scrollToActiveChar();
                         }
                     });
                 } else {

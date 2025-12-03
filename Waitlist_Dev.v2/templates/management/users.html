@@ -21,12 +21,14 @@
                 {% for u in users %}
                 <tr class="border-b border-slate-700 hover:bg-slate-700/50 transition">
                     <td class="px-6 py-4 font-medium text-white flex items-center gap-3">
-                        <img src="https://images.evetech.net/characters/{{ u.eve_character.character_id }}/portrait?size=32"
+                        <!-- Updated to use username (char_id) and first_name (char_name) -->
+                        <img src="https://images.evetech.net/characters/{{ u.username }}/portrait?size=32"
                              class="w-8 h-8 rounded border border-slate-600" alt="">
-                        {{ u.eve_character.character_name }}
+                        {{ u.first_name }}
                     </td>
                     <td class="px-6 py-4">
-                        {{ u.eve_character.corporation_id }}
+                        <!-- Fallback to first available character for corp ID -->
+                        {{ u.characters.all.0.corporation_id|default:"-" }}
                     </td>
                     <td class="px-6 py-4">
                         {{ u.last_login|date:"M d, H:i" }}

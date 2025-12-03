@@ -1,31 +1,81 @@
-{% extends 'management/base_management.html' %}
+﻿{% extends 'management/base_management.html' %}
 
 {% block management_content %}
-<h1 class="text-2xl font-bold text-white mb-6">System Overview</h1>
+<h1 class="text-2xl font-bold text-white mb-6">System Status</h1>
 
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-    <!-- Stat Card 1 -->
-    <div class="bg-slate-800 p-6 rounded-lg border border-slate-700 shadow-lg">
-        <div class="text-slate-400 text-sm uppercase font-bold">Total Pilots</div>
-        <div class="text-3xl font-bold text-white mt-2">{{ total_users }}</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+    <!-- CARD 1: USER BASE -->
+    <div class="bg-slate-800 p-6 rounded-lg border border-slate-700 shadow-lg relative overflow-hidden">
+        <div class="absolute top-0 right-0 p-4 opacity-10 text-6xl text-blue-500">👥</div>
+        <h3 class="text-slate-400 text-sm uppercase font-bold mb-2">User Base</h3>
+        <div class="flex items-baseline gap-2">
+            <span class="text-3xl font-bold text-white">{{ total_users }}</span>
+            <span class="text-sm text-slate-500">Registered Accounts</span>
+        </div>
+        <div class="mt-4 pt-4 border-t border-slate-700/50">
+            <div class="flex justify-between text-sm">
+                <span class="text-slate-400">Total Characters Linked</span>
+                <span class="text-white font-mono">{{ total_characters }}</span>
+            </div>
+        </div>
     </div>
 
-    <!-- Stat Card 2 -->
-    <div class="bg-slate-800 p-6 rounded-lg border border-slate-700 shadow-lg">
-        <div class="text-slate-400 text-sm uppercase font-bold">Total Fleets</div>
-        <div class="text-3xl font-bold text-amber-500 mt-2">{{ total_fleets }}</div>
+    <!-- CARD 2: ESI SERVICE HEALTH -->
+    <div class="bg-slate-800 p-6 rounded-lg border border-slate-700 shadow-lg relative overflow-hidden">
+        <div class="absolute top-0 right-0 p-4 opacity-10 text-6xl text-amber-500">⚡</div>
+        <h3 class="text-slate-400 text-sm uppercase font-bold mb-2">ESI Token Health</h3>
+
+        <div class="flex items-center gap-4 mb-2">
+            <span class="text-3xl font-bold {% if esi_health_percent > 80 %}text-green-400{% else %}text-amber-400{% endif %}">
+                {{ esi_health_percent }}%
+            </span>
+            <span class="text-xs bg-slate-900 px-2 py-1 rounded text-slate-400">Fresh Data</span>
+        </div>
+
+        <div class="space-y-2 mt-4">
+            <!-- Stale Bar -->
+            <div class="w-full bg-slate-700 rounded-full h-2">
+                <div class="bg-green-500 h-2 rounded-full" style="width: {{ esi_health_percent }}%"></div>
+            </div>
+
+            <div class="flex justify-between text-xs mt-1">
+                <span class="text-slate-400">Stale Tokens (>60m):</span>
+                <span class="{% if stale_count > 0 %}text-amber-500 font-bold{% else %}text-slate-500{% endif %}">{{ stale_count }}</span>
+            </div>
+            <div class="flex justify-between text-xs">
+                <span class="text-slate-400">Invalid/Missing Tokens:</span>
+                <span class="{% if invalid_token_count > 0 %}text-red-500 font-bold{% else %}text-slate-500{% endif %}">{{ invalid_token_count }}</span>
+            </div>
+        </div>
     </div>
 
-    <!-- Stat Card 3 -->
-    <div class="bg-slate-800 p-6 rounded-lg border border-slate-700 shadow-lg">
-        <div class="text-slate-400 text-sm uppercase font-bold">Active Fleets</div>
-        <div class="text-3xl font-bold text-green-400 mt-2">{{ active_fleets_count }}</div>
+    <!-- CARD 3: SDE STATUS -->
+    <div class="bg-slate-800 p-6 rounded-lg border border-slate-700 shadow-lg relative overflow-hidden">
+        <div class="absolute top-0 right-0 p-4 opacity-10 text-6xl text-purple-500">💾</div>
+        <h3 class="text-slate-400 text-sm uppercase font-bold mb-2">Static Data (SDE)</h3>
+
+        <div class="flex items-center gap-2 mb-4">
+            {% if sde_status == "ONLINE" %}
+            <span class="w-3 h-3 bg-green-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.5)]"></span>
+            <span class="text-green-400 font-bold text-lg">ONLINE</span>
+            {% else %}
+            <span class="w-3 h-3 bg-red-500 rounded-full"></span>
+            <span class="text-red-400 font-bold text-lg">OFFLINE</span>
+            {% endif %}
+        </div>
+
+        <div class="space-y-2 text-sm border-t border-slate-700/50 pt-4">
+            <div class="flex justify-between">
+                <span class="text-slate-400">Item Types:</span>
+                <span class="text-white font-mono">{{ sde_items_count }}</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-slate-400">Item Groups:</span>
+                <span class="text-white font-mono">{{ sde_groups_count }}</span>
+            </div>
+        </div>
     </div>
 
-    <!-- Stat Card 4 -->
-    <div class="bg-slate-800 p-6 rounded-lg border border-slate-700 shadow-lg">
-        <div class="text-slate-400 text-sm uppercase font-bold">SDE Items</div>
-        <div class="text-3xl font-bold text-purple-400 mt-2">{{ sde_count }}</div>
-    </div>
 </div>
 {% endblock %}

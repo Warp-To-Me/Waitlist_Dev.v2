@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.db.models import Count
+from django.db.models import Count, Q, Sum
 from django.http import JsonResponse
 from django.utils import timezone
 from datetime import timedelta
@@ -119,12 +119,23 @@ def profile_view(request):
                  except ItemType.DoesNotExist:
                      active_char.ship_type_name = "Unknown Hull"
 
+    # Calculate Totals using DB Aggregation
+    # This ensures we get the true sum from the database, handling Decimal types correctly
+    totals = characters.aggregate(
+        wallet_sum=Sum('wallet_balance'),
+        lp_sum=Sum('concord_lp')
+    )
+    total_wallet = totals['wallet_sum'] or 0
+    total_lp = totals['lp_sum'] or 0
+
     context = {
         'active_char': active_char,
         'characters': characters,
         'esi': esi_data,
         'grouped_skills': grouped_skills,
         'token_missing': token_missing,  # Pass flag to template
+        'total_wallet': total_wallet,
+        'total_lp': total_lp,
         'base_template': get_template_base(request) 
     }
 
@@ -166,11 +177,40 @@ def is_management(user):
 @login_required
 @user_passes_test(is_management)
 def management_dashboard(request):
+    # --- ESI / Token Statistics ---
+    total_characters = EveCharacter.objects.count()
+    
+    # "Stale" means not updated in the last 60 minutes
+    threshold = timezone.now() - timedelta(minutes=60)
+    stale_count = EveCharacter.objects.filter(last_updated__lt=threshold).count()
+    
+    # "Invalid" means missing refresh token entirely
+    invalid_token_count = EveCharacter.objects.filter(Q(refresh_token__isnull=True) | Q(refresh_token='')).count()
+    
+    # --- SDE Statistics ---
+    sde_items_count = ItemType.objects.count()
+    sde_groups_count = ItemGroup.objects.count()
+    sde_status = "ONLINE" if sde_items_count > 0 else "OFFLINE"
+
     context = {
+        # User Stats
         'total_users': User.objects.count(),
+        
+        # Fleet Stats
         'total_fleets': Fleet.objects.count(),
         'active_fleets_count': Fleet.objects.filter(is_active=True).count(),
-        'sde_count': ItemType.objects.count(),
+        
+        # ESI Stats
+        'total_characters': total_characters,
+        'stale_count': stale_count,
+        'invalid_token_count': invalid_token_count,
+        'esi_health_percent': int(((total_characters - stale_count) / total_characters * 100)) if total_characters > 0 else 0,
+        
+        # SDE Stats
+        'sde_status': sde_status,
+        'sde_items_count': sde_items_count,
+        'sde_groups_count': sde_groups_count,
+        
         'base_template': get_template_base(request)
     }
     return render(request, 'management/dashboard.html', context)

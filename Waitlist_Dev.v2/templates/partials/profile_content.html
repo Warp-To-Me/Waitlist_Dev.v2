@@ -1,17 +1,26 @@
 ﻿{% load humanize %}
 
-<!-- Loading Overlay -->
-<div id="refresh-overlay" class="hidden absolute inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex flex-col items-center justify-center rounded-xl transition-all duration-300">
-    <div class="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-    <p class="text-white font-bold text-lg animate-pulse">Synchronizing ESI Data...</p>
-</div>
+<!-- HEADER: Alt Management & Totals -->
+<div class="bg-slate-900 border-b border-slate-700 mb-8 p-6">
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+        <!-- Title & Link Button -->
+        <div>
+            <h2 class="text-xl font-bold text-white flex items-center gap-2 mb-2">👥 Character Management</h2>
+            <a href="{% url 'add_alt' %}" data-no-spa class="bg-amber-600 hover:bg-amber-500 text-white text-xs px-3 py-1.5 rounded font-bold transition shadow-lg shadow-amber-900/20 inline-flex items-center gap-2"><span>+</span> Link Alt Character</a>
+        </div>
 
-<!-- HEADER: Alt Management -->
-<div class="bg-slate-900 border-b border-slate-700 mb-8 pb-6">
-    <div class="flex justify-between items-center mb-4">
-        <h2 class="text-xl font-bold text-white flex items-center gap-2">👥 Character Management</h2>
-        <!-- ADDED: data-no-spa -->
-        <a href="{% url 'add_alt' %}" data-no-spa class="bg-amber-600 hover:bg-amber-500 text-white text-sm px-4 py-2 rounded font-bold transition shadow-lg shadow-amber-900/20 flex items-center gap-2"><span>+</span> Link Alt Character</a>
+        <!-- Account Wide Totals -->
+        <div class="flex gap-4 md:gap-8 bg-slate-800/50 p-3 rounded-lg border border-slate-700">
+            <div>
+                <div class="text-[10px] uppercase text-slate-500 font-bold">Total Fleet Funds</div>
+                <div class="text-green-400 font-mono font-bold">{{ total_wallet|intcomma }} ISK</div>
+            </div>
+            <div class="w-px bg-slate-700 h-8 self-center"></div>
+            <div>
+                <div class="text-[10px] uppercase text-slate-500 font-bold">Total CONCORD LP</div>
+                <div class="text-purple-400 font-mono font-bold">{{ total_lp|intcomma }} LP</div>
+            </div>
+        </div>
     </div>
 
     <!-- Scrollable Character List -->
@@ -19,8 +28,9 @@
         <button onclick="scrollContainer('left')" class="absolute left-0 top-1/2 -translate-y-1/2 -ml-2 lg:-ml-6 z-10 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white p-2 rounded-full border border-slate-600 shadow-xl hidden md:flex items-center justify-center transition hover:scale-110"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg></button>
         <div id="char-scroll-container" class="flex gap-4 overflow-x-auto pb-4 pt-2 scroll-smooth no-scrollbar">
             {% for char in characters %}
-            <div class="relative group flex-shrink-0">
-                <a href="{% url 'switch_character' char.character_id %}" class="flex items-center gap-3 p-2 pr-4 rounded-lg border transition w-48 {% if char == active_char %}bg-slate-800 border-amber-500 ring-1 ring-amber-500/50 shadow-lg{% else %}bg-slate-800/50 border-slate-700 hover:bg-slate-700{% endif %}">
+            <!-- ID for auto-scroll targeting -->
+            <div class="relative group flex-shrink-0" id="char-card-{{ char.character_id }}">
+                <a href="{% url 'switch_character' char.character_id %}" data-no-spa class="flex items-center gap-3 p-2 pr-4 rounded-lg border transition w-48 {% if char == active_char %}bg-slate-800 border-amber-500 ring-1 ring-amber-500/50 shadow-lg{% else %}bg-slate-800/50 border-slate-700 hover:bg-slate-700{% endif %}">
                     <img src="https://images.evetech.net/characters/{{ char.character_id }}/portrait?size=64" class="w-10 h-10 rounded-full border border-slate-600" alt="">
                     <div class="text-left overflow-hidden">
                         <div class="text-sm font-bold truncate {% if char == active_char %}text-white{% else %}text-slate-400{% endif %}">{{ char.character_name }}</div>
@@ -28,7 +38,7 @@
                     </div>
                 </a>
                 {% if not char.is_main %}
-                <a href="{% url 'make_main' char.character_id %}" class="absolute -top-2 -right-2 bg-slate-700 hover:bg-green-600 text-slate-400 hover:text-white rounded-full p-1 border border-slate-600 opacity-0 group-hover:opacity-100 transition text-[10px] w-6 h-6 flex items-center justify-center shadow-md z-20" title="Set as Main">★</a>
+                <a href="{% url 'make_main' char.character_id %}" data-no-spa class="absolute -top-2 -right-2 bg-slate-700 hover:bg-green-600 text-slate-400 hover:text-white rounded-full p-1 border border-slate-600 opacity-0 group-hover:opacity-100 transition text-[10px] w-6 h-6 flex items-center justify-center shadow-md z-20" title="Set as Main">★</a>
                 {% endif %}
             </div>
             {% endfor %}
@@ -49,7 +59,6 @@
         Please re-authorize to restore connectivity and view skills/assets.
     </p>
 
-    <!-- ADDED: data-no-spa -->
     <a href="{% url 'add_alt' %}" data-no-spa class="inline-flex items-center gap-3 bg-amber-600 hover:bg-amber-500 text-white text-lg font-bold py-4 px-10 rounded-lg transition shadow-lg shadow-amber-900/20">
         <span>🔐</span> Re-Authorize Character
     </a>
@@ -62,59 +71,81 @@
 <div class="bg-slate-800 rounded-xl border border-slate-700 mb-8 shadow-2xl relative overflow-hidden flex flex-col lg:flex-row">
     <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-600"></div>
 
+    <!-- MOVED: Loading Overlay is now contained specifically within this relative Card -->
+    <div id="refresh-overlay" class="hidden absolute inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center transition-all duration-300">
+        <div class="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+        <p class="text-white font-bold text-sm animate-pulse">Syncing...</p>
+    </div>
+
     <!-- Left: Character Stats -->
     <div class="p-6 flex-grow border-b lg:border-b-0 lg:border-r border-slate-700">
-        <div class="flex flex-col md:flex-row gap-8 h-full items-center">
+        <div class="flex flex-col md:flex-row gap-6 h-full items-start">
             <!-- Portrait & Name -->
-            <div class="flex flex-col items-center md:items-start min-w-[150px]">
+            <div class="flex flex-col items-center md:items-start min-w-[140px]">
                 <img src="https://images.evetech.net/characters/{{ active_char.character_id }}/portrait?size=128"
-                     class="w-32 h-32 rounded border-4 border-slate-900 shadow-lg mb-2" alt="">
-                <h1 class="text-2xl font-bold text-white text-center md:text-left">{{ active_char.character_name }}</h1>
-                <div class="text-xs text-slate-500 mt-1">Updated: <span id="last-updated-time">{{ active_char.last_updated|date:"H:i" }}</span></div>
+                     class="w-28 h-28 rounded border-4 border-slate-900 shadow-lg mb-2" alt="">
+                <h1 class="text-xl font-bold text-white text-center md:text-left leading-tight">{{ active_char.character_name }}</h1>
+                <div class="text-[10px] text-slate-500 mt-1">Updated: <span id="last-updated-time">{{ active_char.last_updated|date:"H:i" }}</span></div>
             </div>
 
-            <!-- Stacked Stats Grid -->
-            <div class="flex-grow grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
-                <!-- Affiliation -->
-                <div class="bg-slate-900/50 p-3 rounded border border-slate-700/50 flex flex-col justify-center space-y-3">
+            <!-- Stacked Stats Grid (Compact) -->
+            <div class="flex-grow grid grid-cols-1 sm:grid-cols-2 gap-3 w-full text-sm">
+
+                <!-- Corp & Alliance -->
+                <div class="bg-slate-900/50 p-2 rounded border border-slate-700/50 flex flex-col justify-center space-y-1">
                     <div>
-                        <div class="text-[10px] text-slate-500 uppercase font-bold mb-0.5">Corporation</div>
-                        <div class="text-slate-200 font-medium truncate" title="{{ active_char.corporation_name }}">{{ active_char.corporation_name|default:"Unknown" }}</div>
+                        <div class="text-[10px] text-slate-500 uppercase font-bold">Corporation</div>
+                        <div class="text-slate-200 font-medium truncate leading-tight" title="{{ active_char.corporation_name }}">{{ active_char.corporation_name|default:"Unknown" }}</div>
                     </div>
                     <div class="h-px bg-slate-700/50 w-full"></div>
                     <div>
-                        <div class="text-[10px] text-slate-500 uppercase font-bold mb-0.5">Alliance</div>
-                        <div class="text-slate-200 font-medium truncate" title="{{ active_char.alliance_name }}">{{ active_char.alliance_name|default:"-" }}</div>
+                        <div class="text-[10px] text-slate-500 uppercase font-bold">Alliance</div>
+                        <div class="text-slate-200 font-medium truncate leading-tight" title="{{ active_char.alliance_name }}">{{ active_char.alliance_name|default:"-" }}</div>
                     </div>
                 </div>
-                <!-- Assets -->
-                <div class="bg-slate-900/50 p-3 rounded border border-slate-700/50 flex flex-col justify-center space-y-3">
+
+                <!-- Wallet & LP (New) -->
+                <div class="bg-slate-900/50 p-2 rounded border border-slate-700/50 flex flex-col justify-center space-y-1">
                     <div>
-                        <div class="text-[10px] text-slate-500 uppercase font-bold mb-0.5">Skill Points</div>
-                        <div class="text-amber-400 font-mono text-lg">{{ active_char.total_sp|default:"0"|intcomma }} SP</div>
+                        <div class="text-[10px] text-slate-500 uppercase font-bold">Wallet</div>
+                        <div class="text-green-400 font-mono font-medium truncate leading-tight">{{ active_char.wallet_balance|intcomma }} ISK</div>
                     </div>
                     <div class="h-px bg-slate-700/50 w-full"></div>
-                    <div class="flex items-center gap-2">
-                        {% if active_char.current_ship_type_id %}
-                        <img src="https://images.evetech.net/types/{{ active_char.current_ship_type_id }}/icon?size=32" class="w-6 h-6 rounded border border-slate-600" alt="">
-                        {% endif %}
+                    <div>
+                        <div class="text-[10px] text-slate-500 uppercase font-bold">CONCORD LP</div>
+                        <div class="text-purple-400 font-mono font-medium truncate leading-tight">{{ active_char.concord_lp|intcomma }} LP</div>
+                    </div>
+                </div>
+
+                <!-- SP & Ship -->
+                <div class="col-span-1 sm:col-span-2 bg-slate-900/50 p-2 rounded border border-slate-700/50 flex items-center justify-between gap-4">
+                    <div>
+                        <div class="text-[10px] text-slate-500 uppercase font-bold">Skill Points</div>
+                        <div class="text-amber-400 font-mono text-base font-bold leading-tight">{{ active_char.total_sp|default:"0"|intcomma }} SP</div>
+                    </div>
+
+                    <div class="flex items-center gap-2 text-right">
                         <div class="overflow-hidden">
-                            <div class="text-[10px] text-slate-500 uppercase font-bold mb-0.5">Active Ship</div>
-                            <div class="text-white font-medium truncate text-sm" title="{{ active_char.current_ship_name }}">{{ active_char.current_ship_name|default:"Unknown" }}</div>
+                            <div class="text-[10px] text-slate-500 uppercase font-bold">Active Ship</div>
+                            <div class="text-white font-medium truncate text-xs" title="{{ active_char.current_ship_name }}">{{ active_char.current_ship_name|default:"Unknown" }}</div>
                             <div class="text-[10px] text-slate-400 truncate">{{ active_char.ship_type_name }}</div>
                         </div>
+                        {% if active_char.current_ship_type_id %}
+                        <img src="https://images.evetech.net/types/{{ active_char.current_ship_type_id }}/icon?size=32" class="w-8 h-8 rounded border border-slate-600" alt="">
+                        {% endif %}
                     </div>
                 </div>
+
             </div>
         </div>
     </div>
 
     <!-- Right: Implants -->
-    <div class="p-6 lg:w-96 bg-slate-900/30 flex flex-col">
-        <h3 class="text-xs uppercase font-bold text-slate-500 mb-4 flex items-center gap-2">🧠 Active Implants</h3>
+    <div class="p-6 lg:w-80 bg-slate-900/30 flex flex-col">
+        <h3 class="text-xs uppercase font-bold text-slate-500 mb-3 flex items-center gap-2">🧠 Active Implants</h3>
         <div class="space-y-0.5">
             {% for imp in esi.implants %}
-            <div class="flex items-center gap-2 group p-1 hover:bg-slate-800/50 rounded transition">
+            <div class="flex items-center gap-2 group p-0.5 hover:bg-slate-800/50 rounded transition">
                 <img src="{{ imp.icon_url }}" class="w-5 h-5 rounded border border-slate-600 bg-slate-900 group-hover:border-amber-500 transition flex-shrink-0" alt="">
                 <span class="text-[10px] text-slate-300 group-hover:text-white leading-tight truncate">{{ imp.name }}</span>
             </div>

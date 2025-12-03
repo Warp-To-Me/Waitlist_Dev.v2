@@ -48,12 +48,21 @@ def update_character_data(character):
     char_id = character.character_id
 
     try:
+        # Helper to check for critical server errors
+        def check_critical_error(response):
+            if response['status'] >= 500:
+                print(f"  !!! CRITICAL ESI ERROR {response['status']}. Aborting update for {character.character_name}.")
+                return True
+            return False
+
         # --- SKILLS ---
         resp = call_esi(character, 'skills', f"{base_url.format(char_id=char_id)}/skills/")
+        if check_critical_error(resp): return False # ABORT
+        
         if resp['status'] == 200:
             data = resp['data']
             character.total_sp = data.get('total_sp', 0)
-            # Note: character.save() is moved to the end to ensure it runs even on 304
+            
             CharacterSkill.objects.filter(character=character).delete()
             new_skills = [
                 CharacterSkill(
@@ -67,6 +76,8 @@ def update_character_data(character):
 
         # --- SKILL QUEUE ---
         resp = call_esi(character, 'queue', f"{base_url.format(char_id=char_id)}/skillqueue/")
+        if check_critical_error(resp): return False # ABORT
+
         if resp['status'] == 200:
             CharacterQueue.objects.filter(character=character).delete()
             new_queue = [
@@ -82,13 +93,37 @@ def update_character_data(character):
 
         # --- SHIP ---
         resp = call_esi(character, 'ship', f"{base_url.format(char_id=char_id)}/ship/")
+        # We don't abort on ship failure as it's less critical, but good practice to consisteny
+        if check_critical_error(resp): return False 
+
         if resp['status'] == 200:
             data = resp['data']
             character.current_ship_name = data.get('ship_name', 'Unknown')
             character.current_ship_type_id = data.get('ship_type_id')
 
+        # --- WALLET BALANCE ---
+        resp = call_esi(character, 'wallet', f"{base_url.format(char_id=char_id)}/wallet/")
+        if check_critical_error(resp): return False
+
+        if resp['status'] == 200:
+            character.wallet_balance = resp['data']
+        elif resp['status'] == 403:
+            print(f"  !!! Missing Scopes for Wallet: {character.character_name}")
+
+        # --- LOYALTY POINTS ---
+        resp = call_esi(character, 'lp', f"{base_url.format(char_id=char_id)}/loyalty/points/")
+        if check_critical_error(resp): return False
+
+        if resp['status'] == 200:
+            concord_entry = next((item for item in resp['data'] if item['corporation_id'] == 1000125), None)
+            character.concord_lp = concord_entry['loyalty_points'] if concord_entry else 0
+        elif resp['status'] == 403:
+            print(f"  !!! Missing Scopes for LP: {character.character_name}")
+
         # --- IMPLANTS ---
         resp = call_esi(character, 'implants', f"{base_url.format(char_id=char_id)}/implants/")
+        if check_critical_error(resp): return False
+
         if resp['status'] == 200:
             CharacterImplant.objects.filter(character=character).delete()
             new_implants = [
@@ -99,6 +134,8 @@ def update_character_data(character):
 
         # --- PUBLIC INFO ---
         resp = call_esi(character, 'public_info', f"{base_url.format(char_id=char_id)}/")
+        if check_critical_error(resp): return False
+
         if resp['status'] == 200:
             data = resp['data']
             character.corporation_id = data.get('corporation_id')
@@ -117,11 +154,12 @@ def update_character_data(character):
 
         # --- HISTORY ---
         resp = call_esi(character, 'history', f"{base_url.format(char_id=char_id)}/corporationhistory/")
+        if check_critical_error(resp): return False
+
         if resp['status'] == 200:
             CharacterHistory.objects.filter(character=character).delete()
             history_data = resp['data']
             
-            # Batch resolve names
             corp_ids = set(h['corporation_id'] for h in history_data)
             corp_names = {}
             
@@ -141,8 +179,7 @@ def update_character_data(character):
             ]
             CharacterHistory.objects.bulk_create(new_history)
 
-        # CRITICAL FIX: Force update 'last_updated' timestamp even if all calls were 304 (Cached)
-        # This prevents the frontend from looping infinitely
+        # Save all updated fields
         character.save() 
 
         return True

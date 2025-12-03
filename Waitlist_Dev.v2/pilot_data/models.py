@@ -15,6 +15,10 @@ class EveCharacter(models.Model):
     total_sp = models.BigIntegerField(default=0)
     current_ship_name = models.CharField(max_length=255, blank=True, default="")
     current_ship_type_id = models.IntegerField(null=True, blank=True)
+
+    # New Fields
+    wallet_balance = models.DecimalField(max_digits=20, decimal_places=2, default=0)
+    concord_lp = models.IntegerField(default=0)
     
     access_token = models.TextField(blank=True, default="")
     refresh_token = models.TextField(blank=True, default="")
@@ -57,7 +61,7 @@ class CharacterImplant(models.Model):
 class CharacterHistory(models.Model):
     character = models.ForeignKey(EveCharacter, on_delete=models.CASCADE, related_name='corp_history')
     corporation_id = models.IntegerField()
-    corporation_name = models.CharField(max_length=255, blank=True, default="Unknown Corp") # New Field
+    corporation_name = models.CharField(max_length=255, blank=True, default="Unknown Corp")
     start_date = models.DateTimeField()
 
 # --- SDE Models ---
