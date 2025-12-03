@@ -10,7 +10,13 @@ urlpatterns = [
     path('management/users/', core_views.management_users, name='management_users'),
     path('management/fleets/', core_views.management_fleets, name='management_fleets'),
     path('management/sde/', core_views.management_sde, name='management_sde'),
-    path('management/system/', core_views.management_celery, name='management_celery'), # New Route
+    path('management/system/', core_views.management_celery, name='management_celery'),
+    
+    # Roles Management
+    path('management/roles/', core_views.management_roles, name='management_roles'),
+    path('api/mgmt/search_users/', core_views.api_search_users, name='api_search_users'),
+    path('api/mgmt/user_roles/<int:user_id>/', core_views.api_get_user_roles, name='api_get_user_roles'),
+    path('api/mgmt/update_role/', core_views.api_update_user_role, name='api_update_user_role'),
 
     # --- Public Area ---
     path('', core_views.landing_page, name='landing_page'),

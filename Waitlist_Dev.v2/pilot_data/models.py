@@ -69,6 +69,21 @@ class CharacterHistory(models.Model):
     corporation_name = models.CharField(max_length=255, blank=True, default="Unknown Corp")
     start_date = models.DateTimeField()
 
+class SkillHistory(models.Model):
+    """
+    Logs changes to skills (training complete, injection, etc.)
+    """
+    character = models.ForeignKey(EveCharacter, on_delete=models.CASCADE, related_name='skill_history')
+    skill_id = models.IntegerField()
+    old_level = models.IntegerField()
+    new_level = models.IntegerField()
+    old_sp = models.BigIntegerField()
+    new_sp = models.BigIntegerField()
+    logged_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"History: {self.character.character_name} Skill {self.skill_id}"
+
 # --- SDE Models ---
 
 class ItemGroup(models.Model):

@@ -1,10 +1,10 @@
 ﻿{% load humanize %}
 
 <!-- HEADER & CHARACTER SELECTION WRAPPER -->
-<div class="flex flex-col xl:flex-row gap-6 mb-8 items-start">
+<div class="bg-slate-800 rounded-xl border border-slate-700 mb-8 shadow-xl relative overflow-hidden flex flex-col lg:flex-row">
 
     <!-- LEFT: Character List Area -->
-    <div class="flex-grow w-full bg-slate-900/50 rounded-xl border border-slate-700/50 p-6 relative shadow-lg">
+    <div class="w-full lg:w-auto lg:flex-1 lg:min-w-0 p-6 border-b lg:border-b-0 lg:border-r border-slate-700 relative">
         <div class="flex justify-between items-center mb-4">
             <h2 class="text-xl font-bold text-white flex items-center gap-2">
                 👥 Pilots
@@ -40,7 +40,7 @@
     </div>
 
     <!-- RIGHT: Account Totals Card -->
-    <div class="w-full xl:w-80 flex-shrink-0 bg-slate-800 rounded-xl border border-slate-700 p-6 shadow-xl flex flex-col justify-center">
+    <div class="w-full lg:w-80 flex-shrink-0 p-6 bg-slate-900/30 flex flex-col justify-center">
         <h3 class="text-xs uppercase font-bold text-slate-500 mb-4 tracking-wider border-b border-slate-700 pb-2 flex items-center gap-2">
             <span>📊</span> Account Aggregate
         </h3>
@@ -189,6 +189,7 @@
         <button onclick="openTab('tab-skills')" id="btn-tab-skills" class="tab-btn border-b-2 border-amber-500 text-amber-500 py-4 px-1 font-medium text-sm transition">Current Skills</button>
         <button onclick="openTab('tab-queue')" id="btn-tab-queue" class="tab-btn border-b-2 border-transparent text-slate-400 hover:text-slate-300 py-4 px-1 font-medium text-sm transition">Skill Queue</button>
         <button onclick="openTab('tab-history')" id="btn-tab-history" class="tab-btn border-b-2 border-transparent text-slate-400 hover:text-slate-300 py-4 px-1 font-medium text-sm transition">Corp History</button>
+        <button onclick="openTab('tab-skill-history')" id="btn-tab-skill-history" class="tab-btn border-b-2 border-transparent text-slate-400 hover:text-slate-300 py-4 px-1 font-medium text-sm transition">Skill History</button>
     </nav>
 </div>
 
@@ -275,6 +276,53 @@
             {% empty %}
             <p class="text-slate-500">No history found.</p>
             {% endfor %}
+        </div>
+    </div>
+
+    <!-- Skill History Log (New Tab) -->
+    <div id="tab-skill-history" class="tab-content hidden">
+        <div class="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+            <table class="w-full text-sm text-left text-slate-400">
+                <thead class="text-xs uppercase bg-slate-900/50 text-slate-300">
+                    <tr>
+                        <th class="px-6 py-3">Date</th>
+                        <th class="px-6 py-3">Skill</th>
+                        <th class="px-6 py-3 text-center">Level Change</th>
+                        <th class="px-6 py-3 text-right">SP Change</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in esi.skill_history %}
+                    <tr class="border-b border-slate-700 hover:bg-slate-700/30">
+                        <td class="px-6 py-4 text-slate-500 whitespace-nowrap">
+                            {{ entry.logged_at|date:"M d" }}
+                            <span class="text-xs text-slate-600 ml-1">{{ entry.logged_at|date:"H:i" }}</span>
+                        </td>
+                        <td class="px-6 py-4 font-medium text-white">{{ entry.name }}</td>
+                        <td class="px-6 py-4 text-center">
+                            {% if entry.old_level == entry.new_level %}
+                            <span class="text-slate-600">-</span>
+                            {% elif entry.new_level > entry.old_level %}
+                            <span class="text-green-400 font-bold">{{ entry.old_level }} ➝ {{ entry.new_level }}</span>
+                            {% else %}
+                            <span class="text-red-400 font-bold">{{ entry.old_level }} ➝ {{ entry.new_level }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-right font-mono">
+                            {% if entry.sp_diff > 0 %}
+                            <span class="text-green-400">+{{ entry.sp_diff|intcomma }}</span>
+                            {% elif entry.sp_diff < 0 %}
+                            <span class="text-red-400">{{ entry.sp_diff|intcomma }}</span>
+                            {% else %}
+                            <span class="text-slate-600">0</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="4" class="px-6 py-8 text-center text-slate-500 italic">No skill changes recorded yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
 </div>

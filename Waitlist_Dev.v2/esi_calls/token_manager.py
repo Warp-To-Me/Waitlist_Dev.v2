@@ -4,7 +4,7 @@ import os
 from django.utils import timezone
 from django.conf import settings
 from datetime import timedelta
-from pilot_data.models import EveCharacter, ItemType, CharacterSkill, CharacterQueue, CharacterImplant, CharacterHistory
+from pilot_data.models import EveCharacter, ItemType, CharacterSkill, CharacterQueue, CharacterImplant, CharacterHistory, SkillHistory
 from esi_calls.esi_network import call_esi
 
 def check_token(character):
@@ -63,6 +63,50 @@ def update_character_data(character):
             data = resp['data']
             character.total_sp = data.get('total_sp', 0)
             
+            # --- SKILL HISTORY SNAPSHOT ---
+            # 1. Map existing skills for O(1) lookup before wiping them
+            old_skills_map = {
+                s.skill_id: s 
+                for s in CharacterSkill.objects.filter(character=character)
+            }
+            
+            history_buffer = []
+            
+            # 2. Iterate incoming skills and compare
+            for s_data in data.get('skills', []):
+                sid = s_data['skill_id']
+                new_level = s_data['active_skill_level']
+                new_sp = s_data['skillpoints_in_skill']
+                
+                if sid in old_skills_map:
+                    old_s = old_skills_map[sid]
+                    # Check for significant changes
+                    if old_s.active_skill_level != new_level or old_s.skillpoints_in_skill != new_sp:
+                        history_buffer.append(SkillHistory(
+                            character=character,
+                            skill_id=sid,
+                            old_level=old_s.active_skill_level,
+                            new_level=new_level,
+                            old_sp=old_s.skillpoints_in_skill,
+                            new_sp=new_sp
+                        ))
+                else:
+                    # New Skill Injected (0 to N)
+                    history_buffer.append(SkillHistory(
+                        character=character,
+                        skill_id=sid,
+                        old_level=0,
+                        new_level=new_level,
+                        old_sp=0,
+                        new_sp=new_sp
+                    ))
+            
+            # 3. Save History
+            if history_buffer:
+                SkillHistory.objects.bulk_create(history_buffer)
+
+            # --- END HISTORY LOGIC ---
+
             CharacterSkill.objects.filter(character=character).delete()
             new_skills = [
                 CharacterSkill(
@@ -93,7 +137,6 @@ def update_character_data(character):
 
         # --- SHIP ---
         resp = call_esi(character, 'ship', f"{base_url.format(char_id=char_id)}/ship/")
-        # We don't abort on ship failure as it's less critical, but good practice to consisteny
         if check_critical_error(resp): return False 
 
         if resp['status'] == 200:

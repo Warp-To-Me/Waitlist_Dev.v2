@@ -1,18 +1,23 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User, Group
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Count, Q, Sum
 from django.db.models.functions import TruncDate
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponseBadRequest
 from django.utils import timezone
 from datetime import timedelta
 from django.conf import settings
-from core.utils import get_system_status
+from django.views.decorators.http import require_POST
+import json
+
+# Import Utils
+from core.utils import get_system_status, get_user_highest_role, can_manage_role, ROLE_HIERARCHY
 
 # Import Celery App
 from waitlist_project.celery import app as celery_app
 
-from pilot_data.models import EveCharacter, ItemType, ItemGroup
+# Import Models
+from pilot_data.models import EveCharacter, ItemType, ItemGroup, SkillHistory
 from waitlist_data.models import Fleet
 from esi_calls.token_manager import update_character_data
 
@@ -24,6 +29,21 @@ def get_template_base(request):
     if request.headers.get('x-requested-with') == 'XMLHttpRequest':
         return 'base_content.html'
     return 'base.html'
+
+# --- Permission Helper ---
+def is_management(user):
+    """
+    Checks if user has access to management dashboard.
+    Allows Superusers OR anyone with a role higher than 'Resident'.
+    """
+    if user.is_superuser:
+        return True
+    
+    # List of roles allowed to access management
+    # Basically everyone in the hierarchy except 'Public' and 'Resident'
+    allowed_roles = ROLE_HIERARCHY[:-2] # Exclude last two (Resident, Public)
+    
+    return user.groups.filter(name__in=allowed_roles).exists()
 
 # --- Public Views ---
 
@@ -37,10 +57,6 @@ def landing_page(request):
 
 @login_required
 def profile_view(request):
-    """
-    Loads profile from DATABASE only.
-    Supports partial rendering for AJAX refreshes.
-    """
     characters = request.user.characters.all()
     active_char_id = request.session.get('active_char_id')
     
@@ -51,16 +67,16 @@ def profile_view(request):
         if not active_char and characters.exists():
             active_char = characters.first()
             
-    esi_data = {'implants': [], 'queue': [], 'history': []}
+    esi_data = {'implants': [], 'queue': [], 'history': [], 'skill_history': []}
     grouped_skills = {}
     token_missing = False
     
     if active_char:
-        # 0. Check for Missing Refresh Token (Fix for legacy characters)
+        # 0. Check for Missing Refresh Token
         if not active_char.refresh_token:
             token_missing = True
         else:
-            # 1. Implants from DB
+            # 1. Implants
             implants = active_char.implants.all()
             if implants.exists():
                 imp_ids = [i.type_id for i in implants]
@@ -73,7 +89,7 @@ def profile_view(request):
                         'icon_url': f"https://images.evetech.net/types/{imp.type_id}/icon?size=32"
                     })
 
-            # 2. Skill Queue from DB
+            # 2. Skill Queue
             queue = active_char.skill_queue.all().order_by('queue_position')
             q_ids = [q.skill_id for q in queue]
             q_types = ItemType.objects.filter(type_id__in=q_ids).in_bulk(field_name='type_id')
@@ -86,10 +102,30 @@ def profile_view(request):
                      'finish_date': q.finish_date
                  })
 
-            # 3. History from DB
+            # 3. Corp History
             esi_data['history'] = active_char.corp_history.all().order_by('-start_date')
 
-            # 4. Skills from DB (Grouping)
+            # 4. SKILL SNAPSHOT HISTORY
+            try:
+                raw_history = active_char.skill_history.all().order_by('-logged_at')[:30]
+                if raw_history.exists():
+                    h_ids = [h.skill_id for h in raw_history]
+                    h_items = ItemType.objects.filter(type_id__in=h_ids).in_bulk(field_name='type_id')
+                    
+                    for h in raw_history:
+                        item = h_items.get(h.skill_id)
+                        esi_data['skill_history'].append({
+                            'name': item.type_name if item else f"Unknown Skill {h.skill_id}",
+                            'old_level': h.old_level,
+                            'new_level': h.new_level,
+                            'sp_diff': h.new_sp - h.old_sp,
+                            'logged_at': h.logged_at
+                        })
+            except Exception:
+                # Fail gracefully if migration hasn't run yet
+                pass
+
+            # 5. Skills
             skills = active_char.skills.select_related().all()
             if skills.exists():
                 s_ids = [s.skill_id for s in skills]
@@ -117,7 +153,7 @@ def profile_view(request):
                     grouped_skills[g].sort(key=lambda x: x['name'])
                 grouped_skills = dict(sorted(grouped_skills.items()))
 
-            # 5. Ship Name Lookup
+            # 6. Ship
             if active_char.current_ship_type_id:
                  try:
                      ship_item = ItemType.objects.get(type_id=active_char.current_ship_type_id)
@@ -125,7 +161,6 @@ def profile_view(request):
                  except ItemType.DoesNotExist:
                      active_char.ship_type_name = "Unknown Hull"
 
-    # Calculate Totals using DB Aggregation
     totals = characters.aggregate(
         wallet_sum=Sum('wallet_balance'),
         lp_sum=Sum('concord_lp'),
@@ -140,7 +175,7 @@ def profile_view(request):
         'characters': characters,
         'esi': esi_data,
         'grouped_skills': grouped_skills,
-        'token_missing': token_missing,  # Pass flag to template
+        'token_missing': token_missing,
         'total_wallet': total_wallet,
         'total_lp': total_lp,
         'account_total_sp': total_sp,
@@ -155,10 +190,8 @@ def profile_view(request):
 @login_required
 def api_refresh_profile(request, char_id):
     character = get_object_or_404(EveCharacter, character_id=char_id, user=request.user)
-    
     if not character.refresh_token:
         return JsonResponse({'success': False, 'error': 'No refresh token'})
-
     success = update_character_data(character)
     return JsonResponse({'success': success, 'last_updated': timezone.now().isoformat()})
 
@@ -177,15 +210,11 @@ def make_main(request, char_id):
     request.session['active_char_id'] = new_main.character_id
     return redirect('profile')
 
-def is_management(user):
-    return user.groups.filter(name='Management').exists() or user.is_superuser
-
 # --- MANAGEMENT VIEWS ---
 
 @login_required
 @user_passes_test(is_management)
 def management_dashboard(request):
-    # --- CHART DATA 1: User Registration over time (Last 30 Days) ---
     thirty_days_ago = timezone.now() - timedelta(days=30)
     user_growth = User.objects.filter(date_joined__gte=thirty_days_ago) \
         .annotate(date=TruncDate('date_joined')) \
@@ -193,11 +222,9 @@ def management_dashboard(request):
         .annotate(count=Count('id')) \
         .order_by('date')
 
-    # Convert to list for JSON serialization in template
     growth_labels = [entry['date'].strftime('%b %d') for entry in user_growth]
     growth_data = [entry['count'] for entry in user_growth]
 
-    # --- CHART DATA 2: Top Corporations (Demographics) ---
     corp_distribution = EveCharacter.objects.values('corporation_name') \
         .annotate(count=Count('id')) \
         .order_by('-count')[:5]
@@ -210,13 +237,10 @@ def management_dashboard(request):
         'total_fleets': Fleet.objects.count(),
         'active_fleets_count': Fleet.objects.filter(is_active=True).count(),
         'total_characters': EveCharacter.objects.count(),
-        
-        # Chart Data
         'growth_labels': growth_labels,
         'growth_data': growth_data,
         'corp_labels': corp_labels,
         'corp_data': corp_data,
-
         'base_template': get_template_base(request)
     }
     return render(request, 'management/dashboard.html', context)
@@ -254,16 +278,13 @@ def management_sde(request):
 @login_required
 @user_passes_test(is_management)
 def management_celery(request):
-    # Use the shared helper function for Redis/Celery stats
     context = get_system_status()
     
-    # --- ADD ESI HEALTH METRICS HERE (Moved from Dashboard) ---
     total_characters = EveCharacter.objects.count()
     threshold = timezone.now() - timedelta(minutes=60)
     stale_count = EveCharacter.objects.filter(last_updated__lt=threshold).count()
     
     invalid_token_count = 0
-    # Iterating to check encryption validity
     for char in EveCharacter.objects.all().iterator():
         if not char.refresh_token:
             invalid_token_count += 1
@@ -278,8 +299,95 @@ def management_celery(request):
         'base_template': get_template_base(request)
     })
     
-    # Handle Partial Render (For HTTP fallback or initial load)
     if request.headers.get('x-requested-with') == 'XMLHttpRequest' and request.GET.get('partial') == 'true':
         return render(request, 'partials/celery_content.html', context)
         
     return render(request, 'management/celery_status.html', context)
+
+# --- ROLE MANAGEMENT VIEWS ---
+
+@login_required
+@user_passes_test(is_management)
+def management_roles(request):
+    context = {
+        'base_template': get_template_base(request)
+    }
+    return render(request, 'management/roles.html', context)
+
+@login_required
+@user_passes_test(is_management)
+def api_search_users(request):
+    query = request.GET.get('q', '')
+    if len(query) < 3:
+        return JsonResponse({'results': []})
+    
+    matching_chars = EveCharacter.objects.filter(character_name__icontains=query)
+    users = User.objects.filter(characters__in=matching_chars).distinct()[:10]
+    
+    results = []
+    for u in users:
+        main_char = u.characters.filter(is_main=True).first()
+        if not main_char:
+            main_char = u.characters.first()
+            
+        results.append({
+            'id': u.id,
+            'username': main_char.character_name if main_char else u.username,
+            'char_id': main_char.character_id if main_char else 0,
+            'corp': main_char.corporation_name if main_char else "Unknown"
+        })
+        
+    return JsonResponse({'results': results})
+
+@login_required
+@user_passes_test(is_management)
+def api_get_user_roles(request, user_id):
+    target_user = get_object_or_404(User, pk=user_id)
+    requestor = request.user
+    
+    current_roles = list(target_user.groups.values_list('name', flat=True))
+    _, req_highest_index = get_user_highest_role(requestor)
+    
+    available_to_assign = []
+    for role in ROLE_HIERARCHY:
+        role_index = ROLE_HIERARCHY.index(role)
+        # Check: Is target role strictly below my rank?
+        if role_index > req_highest_index:
+             available_to_assign.append(role)
+
+    return JsonResponse({
+        'user_id': target_user.id,
+        'current_roles': current_roles,
+        'available_roles': available_to_assign
+    })
+
+@login_required
+@user_passes_test(is_management)
+@require_POST
+def api_update_user_role(request):
+    try:
+        data = json.loads(request.body)
+        target_user = get_object_or_404(User, pk=data['user_id'])
+        role_name = data['role']
+        action = data['action']
+    except (KeyError, json.JSONDecodeError):
+        return HttpResponseBadRequest("Invalid JSON")
+
+    if not can_manage_role(request.user, role_name):
+        return JsonResponse({'success': False, 'error': 'Permission denied. You cannot manage this role.'}, status=403)
+    
+    group = get_object_or_404(Group, name=role_name)
+    
+    if action == 'add':
+        target_user.groups.add(group)
+        if role_name == 'Admin':
+            target_user.is_staff = True
+            target_user.save()
+            
+    elif action == 'remove':
+        target_user.groups.remove(group)
+        if role_name == 'Admin':
+            target_user.is_staff = False
+            target_user.save()
+            
+    return JsonResponse({'success': True})

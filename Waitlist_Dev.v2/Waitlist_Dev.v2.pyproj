@@ -26,6 +26,9 @@
     <Compile Include="core\apps.py" />
     <Compile Include="core\consumers.py" />
     <Compile Include="core\context_processors.py" />
+    <Compile Include="core\management\commands\setup_roles.py" />
+    <Compile Include="core\management\commands\__init__.py" />
+    <Compile Include="core\management\__init__.py" />
     <Compile Include="core\routing.py" />
     <Compile Include="core\utils.py" />
     <Compile Include="core\__init__.py" />
@@ -71,6 +74,8 @@
   <ItemGroup>
     <Content Include=".env" />
     <Content Include=".gitignore" />
+    <Content Include="core\management\commands\__pycache__\setup_groups.cpython-312.pyc" />
+    <Content Include="core\management\__pycache__\__init__.cpython-312.pyc" />
     <Content Include="templates\base.html" />
     <Content Include="templates\base_content.html" />
     <Content Include="templates\landing.html" />
@@ -79,6 +84,7 @@
     <Content Include="templates\management\celery_status.html" />
     <Content Include="templates\management\dashboard.html" />
     <Content Include="templates\management\fleets.html" />
+    <Content Include="templates\management\roles.html" />
     <Content Include="templates\management\sde.html" />
     <Content Include="templates\management\users.html" />
     <Content Include="templates\partials\celery_content.html" />
@@ -87,6 +93,10 @@
   </ItemGroup>
   <ItemGroup>
     <Folder Include="core\" />
+    <Folder Include="core\management\" />
+    <Folder Include="core\management\commands\" />
+    <Folder Include="core\management\commands\__pycache__\" />
+    <Folder Include="core\management\__pycache__\" />
     <Folder Include="esi_auth\" />
     <Folder Include="esi_calls\" />
     <Folder Include="esi_calls\management\" />
