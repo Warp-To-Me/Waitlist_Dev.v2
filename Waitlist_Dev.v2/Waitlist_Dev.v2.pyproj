@@ -29,6 +29,7 @@
     <Compile Include="esi_auth\apps.py" />
     <Compile Include="esi_calls\apps.py" />
     <Compile Include="esi_calls\esi_network.py" />
+    <Compile Include="esi_calls\management\__init__.py" />
     <Compile Include="esi_calls\token_manager.py" />
     <Compile Include="pilot_data\admin.py" />
     <Compile Include="scheduler\apps.py" />
@@ -48,7 +49,7 @@
     <Compile Include="pilot_data\__init__.py" />
     <Compile Include="waitlist_data\urls.py" />
     <Compile Include="esi_auth\views.py" />
-    <Compile Include="esi_calls\sde_import.py" />
+    <Compile Include="esi_calls\management\commands\sde_import.py" />
     <Compile Include="pilot_data\models.py" />
     <Compile Include="waitlist_project\settings.py" />
     <Compile Include="waitlist_data\models.py" />
@@ -77,6 +78,8 @@
     <Folder Include="core\" />
     <Folder Include="esi_auth\" />
     <Folder Include="esi_calls\" />
+    <Folder Include="esi_calls\management\" />
+    <Folder Include="esi_calls\management\commands\" />
     <Folder Include="scheduler\" />
     <Folder Include="scheduler\management\" />
     <Folder Include="scheduler\management\commands\" />

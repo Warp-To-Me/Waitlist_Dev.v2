@@ -17,6 +17,11 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
+# Loads from .env as a comma-separated string (e.g., https://site.com,https://www.site.com)
+# Defaults to an empty list if not found.
+csrf_trusted_env = os.getenv('CSRF_TRUSTED_ORIGINS', '')
+CSRF_TRUSTED_ORIGINS = [origin for origin in csrf_trusted_env.split(',') if origin]
+
 # Application definition
 INSTALLED_APPS = [
     'daphne', 
