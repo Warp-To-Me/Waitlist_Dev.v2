@@ -2,17 +2,22 @@ from django.core.management.base import BaseCommand
 import pandas as pd
 import requests
 import io
-from pilot_data.models import ItemType, ItemGroup
+from pilot_data.models import ItemType, ItemGroup, TypeAttribute
 
 class Command(BaseCommand):
-    help = 'Imports Eve Online Static Data Export (SDE) items and groups from Fuzzworks.'
+    help = 'Imports Eve Online Static Data Export (SDE) items, groups, and attributes.'
 
     def handle(self, *args, **options):
         self.stdout.write(self.style.SUCCESS('Starting SDE Import...'))
         
-        # Run the import logic
+        # 1. Groups
         self.import_inv_groups()
+        
+        # 2. Types
         self.import_inv_types()
+        
+        # 3. Attributes (Published Only)
+        self.import_dogma_attributes()
         
         self.stdout.write(self.style.SUCCESS('Full SDE Import Complete.'))
 
@@ -102,3 +107,77 @@ class Command(BaseCommand):
             
         except Exception as e:
             self.stdout.write(self.style.ERROR(f"Error importing SDE: {e}"))
+
+    def import_dogma_attributes(self):
+        """
+        1. Downloads dgmAttributeTypes.csv to find which Attributes are 'published'.
+        2. Downloads dgmTypeAttributes.csv and filters rows against that whitelist.
+        """
+        # Step 1: Get the Definition Whitelist
+        def_url = "https://www.fuzzwork.co.uk/dump/latest/dgmAttributeTypes.csv"
+        self.stdout.write(f"Fetching Attribute Definitions from {def_url}...")
+        
+        published_attr_ids = set()
+        
+        try:
+            resp = requests.get(def_url)
+            resp.raise_for_status()
+            df_defs = pd.read_csv(io.StringIO(resp.content.decode('utf-8')))
+            
+            # Filter for published=1
+            if 'published' in df_defs.columns:
+                published_attr_ids = set(df_defs[df_defs['published'] == 1]['attributeID'])
+                self.stdout.write(f" -> Found {len(published_attr_ids)} published attribute definitions.")
+            else:
+                self.stdout.write(self.style.WARNING(" -> 'published' column missing. Defaulting to ALL attributes."))
+                published_attr_ids = set(df_defs['attributeID'])
+
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f"Failed to fetch definitions: {e}"))
+            return
+
+        # Step 2: Get Values and Filter
+        val_url = "https://www.fuzzwork.co.uk/dump/latest/dgmTypeAttributes.csv"
+        self.stdout.write(f"Downloading Item Attributes from {val_url}...")
+        
+        try:
+            response = requests.get(val_url)
+            response.raise_for_status()
+            
+            csv_content = io.StringIO(response.content.decode('utf-8'))
+            df = pd.read_csv(csv_content)
+            
+            # THE FILTER: Keep only if attributeID is in our whitelist
+            df_filtered = df[df['attributeID'].isin(published_attr_ids)]
+            
+            self.stdout.write(f"Processing {len(df_filtered)} attributes (Filtered from {len(df)})...")
+            
+            attrs_to_create = []
+            
+            # Get set of valid ItemIDs to avoid foreign key errors
+            valid_type_ids = set(ItemType.objects.values_list('type_id', flat=True))
+
+            for row in df_filtered.itertuples():
+                if row.typeID not in valid_type_ids:
+                    continue
+
+                attrs_to_create.append(
+                    TypeAttribute(
+                        item_id=row.typeID,
+                        attribute_id=row.attributeID,
+                        value=row.valueFloat if pd.notna(row.valueFloat) else (row.valueInt if pd.notna(row.valueInt) else 0.0)
+                    )
+                )
+                
+                if len(attrs_to_create) >= 5000:
+                    TypeAttribute.objects.bulk_create(attrs_to_create, ignore_conflicts=True)
+                    attrs_to_create = []
+                    # self.stdout.write(".", ending="")
+
+            if attrs_to_create:
+                TypeAttribute.objects.bulk_create(attrs_to_create, ignore_conflicts=True)
+                
+            self.stdout.write(self.style.SUCCESS("\nAttribute Import complete."))
+            
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f"Error importing Attributes: {e}"))

@@ -1,0 +1,117 @@
+<div class="container mx-auto p-4 md:p-8">
+    <h1 class="text-3xl font-bold text-white mb-8">
+        <span class="text-amber-500">Fleet</span> Doctrines
+    </h1>
+
+    {% for category in categories %}
+    <div class="mb-12">
+        <h2 class="text-2xl font-bold text-slate-200 border-b border-slate-700 pb-2 mb-6">{{ category.name }}</h2>
+
+        <!-- Recursively show subcategories/fits -->
+        {% if category.subcategories.exists %}
+        {% for sub in category.subcategories.all %}
+        {% if sub.fits.exists %}
+        <h3 class="text-lg font-bold text-blue-400 mb-4 ml-2">{{ sub.name }}</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8 ml-2">
+            {% for fit in sub.fits.all %}
+            {% include 'doctrines/fit_card.html' with fit=fit %}
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% endif %}
+
+        <!-- Direct Fits in Parent Category -->
+        {% if category.fits.exists %}
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {% for fit in category.fits.all %}
+            {% include 'doctrines/fit_card.html' with fit=fit %}
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    {% empty %}
+    <div class="text-center py-12 text-slate-500">
+        <p>No doctrines published yet.</p>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- FIT DETAIL MODAL (Moved here to ensure it exists during SPA navigation) -->
+<div id="fit-modal" class="fixed inset-0 z-50 hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <!-- Backdrop -->
+    <div class="fixed inset-0 bg-slate-900/90 backdrop-blur-sm transition-opacity" onclick="closeModal()"></div>
+
+    <div class="fixed inset-0 z-10 overflow-y-auto">
+        <div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
+
+            <!-- Modal Panel -->
+            <div class="relative transform overflow-hidden rounded-lg bg-slate-800 text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-2xl border border-slate-700">
+
+                <!-- Header -->
+                <div class="bg-slate-900 px-4 py-3 sm:px-6 flex justify-between items-center border-b border-slate-700">
+                    <h3 class="text-lg font-semibold leading-6 text-white" id="modal-title">Fit Details</h3>
+                    <button type="button" onclick="closeModal()" class="text-slate-400 hover:text-white">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Content -->
+                <div class="px-4 py-4 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+
+                    <!-- Left: Info & Stats -->
+                    <div class="md:col-span-1 text-center md:text-left">
+                        <img id="modal-img" src="" class="w-24 h-24 mx-auto md:mx-0 rounded-lg border border-slate-600 mb-4" alt="Ship">
+                        <h2 id="modal-hull" class="text-xl font-bold text-white"></h2>
+                        <h4 id="modal-fitname" class="text-sm text-amber-500 font-mono mb-4"></h4>
+                        <p id="modal-desc" class="text-xs text-slate-400 italic mb-4"></p>
+                    </div>
+
+                    <!-- Right: EFT Block -->
+                    <div class="md:col-span-2">
+                        <div class="flex justify-between items-end mb-2">
+                            <label class="text-xs font-bold uppercase text-slate-500">EFT Block</label>
+                            <button onclick="copyToClipboard()" class="text-xs bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded transition">
+                                Copy to Clipboard
+                            </button>
+                        </div>
+                        <textarea id="modal-eft" class="w-full h-64 bg-slate-950 text-green-400 font-mono text-xs p-3 rounded border border-slate-700 focus:outline-none resize-none" readonly></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function openFit(fitId) {
+        const modal = document.getElementById('fit-modal');
+        if (!modal) return;
+
+        fetch(`/doctrines/api/${fitId}/`)
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('modal-hull').textContent = data.hull;
+                document.getElementById('modal-fitname').textContent = data.name;
+                document.getElementById('modal-desc').textContent = data.description;
+                document.getElementById('modal-eft').value = data.eft_block;
+                document.getElementById('modal-img').src = `https://images.evetech.net/types/${data.hull_id}/render?size=256`;
+
+                modal.classList.remove('hidden');
+            });
+    }
+
+    function closeModal() {
+        const modal = document.getElementById('fit-modal');
+        if (modal) modal.classList.add('hidden');
+    }
+
+    function copyToClipboard() {
+        const copyText = document.getElementById("modal-eft");
+        copyText.select();
+        copyText.setSelectionRange(0, 99999);
+        navigator.clipboard.writeText(copyText.value);
+    }
+</script>

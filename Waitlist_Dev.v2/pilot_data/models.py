@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
-from fernet_fields import EncryptedTextField  # <--- Import this
+from fernet_fields import EncryptedTextField
 
 class EveCharacter(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='characters')
@@ -17,18 +17,15 @@ class EveCharacter(models.Model):
     current_ship_name = models.CharField(max_length=255, blank=True, default="")
     current_ship_type_id = models.IntegerField(null=True, blank=True)
 
-    # New Fields
+    # Financials
     wallet_balance = models.DecimalField(max_digits=20, decimal_places=2, default=0)
     concord_lp = models.IntegerField(default=0)
     
     # --- ENCRYPTED FIELDS ---
-    # We use EncryptedTextField instead of TextField.
-    # Data is encrypted in DB, but appears as plain text when accessed via .access_token in code.
     access_token = EncryptedTextField(blank=True, default="")
     refresh_token = EncryptedTextField(blank=True, default="")
     
     token_expires = models.DateTimeField(null=True, blank=True)
-    
     last_updated = models.DateTimeField(auto_now=True)
 
     def __str__(self):
@@ -108,3 +105,40 @@ class ItemType(models.Model):
 
     def __str__(self):
         return self.type_name
+
+    # Helper to get attributes easily in templates/views
+    def get_attribute(self, attr_id):
+        try:
+            return self.attributes.get(attribute_id=attr_id).value
+        except TypeAttribute.DoesNotExist:
+            return 0
+
+    @property
+    def high_slots(self): return int(self.get_attribute(14))
+    
+    @property
+    def mid_slots(self): return int(self.get_attribute(13))
+    
+    @property
+    def low_slots(self): return int(self.get_attribute(12))
+
+    @property
+    def rig_slots(self): return int(self.get_attribute(1137))
+
+class TypeAttribute(models.Model):
+    """
+    Links an ItemType to a Dogma Attribute (e.g., Ship -> High Slot Count).
+    """
+    item = models.ForeignKey(ItemType, on_delete=models.CASCADE, related_name='attributes')
+    attribute_id = models.IntegerField(db_index=True) # ID from dgmAttributeTypes
+    value = models.FloatField()
+
+    class Meta:
+        # Optimization: Combined index for fast lookups (Give me value of Attr X for Item Y)
+        unique_together = ('item', 'attribute_id') 
+        indexes = [
+            models.Index(fields=['item', 'attribute_id']),
+        ]
+
+    def __str__(self):
+        return f"Item {self.item_id} - Attr {self.attribute_id}: {self.value}"

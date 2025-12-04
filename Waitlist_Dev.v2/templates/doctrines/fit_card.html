@@ -1,0 +1,28 @@
+<div class="bg-slate-800 rounded-xl border border-slate-700 shadow-lg overflow-hidden hover:border-amber-500 transition group cursor-pointer flex flex-col"
+     onclick="openFit({{ fit.id }})">
+
+    <!-- Ship Render -->
+    <div class="relative h-48 bg-slate-900 overflow-hidden">
+        <div class="absolute inset-0 bg-gradient-to-t from-slate-800 to-transparent z-10"></div>
+        <img src="https://images.evetech.net/types/{{ fit.ship_type.type_id }}/render?size=512"
+             class="w-full h-full object-contain transform group-hover:scale-110 transition duration-700"
+             alt="{{ fit.ship_type.type_name }}">
+
+        <div class="absolute bottom-2 left-4 z-20">
+            <h3 class="text-white font-bold text-lg leading-none">{{ fit.ship_type.type_name }}</h3>
+        </div>
+    </div>
+
+    <!-- Details -->
+    <div class="p-4 flex-grow flex flex-col justify-between">
+        <div>
+            <h4 class="text-amber-400 font-mono text-sm font-bold mb-1">{{ fit.name }}</h4>
+            <p class="text-slate-400 text-xs line-clamp-2">{{ fit.description|default:"No description." }}</p>
+        </div>
+
+        <div class="mt-4 flex items-center justify-between text-xs text-slate-500 border-t border-slate-700 pt-2">
+            <span>{{ fit.updated_at|date:"M d, Y" }}</span>
+            <span class="group-hover:text-white transition">View Fit &rarr;</span>
+        </div>
+    </div>
+</div>

@@ -33,6 +33,10 @@ urlpatterns = [
     # API Routes
     path('api/refresh_profile/<int:char_id>/', core_views.api_refresh_profile, name='api_refresh_profile'),
 
-    # ESI Auth Routes
+    # --- INCLUDES ---
+    # ESI Auth Routes (Login/Logout)
     path('', include('esi_auth.urls')),
+    
+    # Waitlist Data (Doctrines) -> THIS WAS MISSING
+    path('', include('waitlist_data.urls')),
 ]

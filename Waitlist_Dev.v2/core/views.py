@@ -17,8 +17,8 @@ from core.utils import get_system_status, get_user_highest_role, can_manage_role
 # Import Celery App
 from waitlist_project.celery import app as celery_app
 
-# Import Models
-from pilot_data.models import EveCharacter, ItemType, ItemGroup, SkillHistory
+# Import Models (Updated imports)
+from pilot_data.models import EveCharacter, ItemType, ItemGroup, SkillHistory, TypeAttribute
 from waitlist_data.models import Fleet
 from esi_calls.token_manager import update_character_data
 
@@ -303,7 +303,7 @@ def management_user_inspect(request, user_id, char_id=None):
     else:
         active_char = characters.filter(is_main=True).first()
         if not active_char:
-            active_char = characters.first()
+            active_char = characters.filter(is_main=True).first()
             
     # Use Helper
     esi_data, grouped_skills = _get_character_data(active_char)
@@ -357,9 +357,71 @@ def management_fleets(request):
 @login_required
 @user_passes_test(is_admin)
 def management_sde(request):
+    """
+    Enhanced SDE Statistics View with Group Explorer
+    """
     item_count = ItemType.objects.count()
+    group_count = ItemGroup.objects.count()
+    attr_count = TypeAttribute.objects.count()
+    
+    # --- CHART DATA (Top 50) ---
+    
+    # Category IDs to exclude from the chart to reduce noise
+    EXCLUDED_CATEGORIES = [2, 9, 11, 17, 20, 25, 30, 40, 46, 63, 91, 2118, 350001]
+
+    excluded_group_ids = ItemGroup.objects.filter(
+        category_id__in=EXCLUDED_CATEGORIES
+    ).values_list('group_id', flat=True)
+
+    top_groups = ItemType.objects.exclude(
+        group_id__in=Subquery(excluded_group_ids)
+    ).values('group_id').annotate(
+        count=Count('type_id')
+    ).order_by('-count')[:50]
+    
+    group_ids = [g['group_id'] for g in top_groups]
+    group_map = ItemGroup.objects.filter(group_id__in=group_ids).in_bulk()
+    
+    group_labels = []
+    group_data = []
+    group_cat_ids = []  # NEW: List to hold Category IDs for the chart
+    
+    for g in top_groups:
+        grp = group_map.get(g['group_id'])
+        group_labels.append(grp.group_name if grp else f"Group {g['group_id']}")
+        group_data.append(g['count'])
+        # Add the category ID (default to 0 if missing)
+        group_cat_ids.append(grp.category_id if grp else 0)
+
+    # --- GROUP EXPLORER TABLE ---
+    count_qs = ItemType.objects.values('group_id').annotate(cnt=Count('type_id'))
+    count_map = {item['group_id']: item['cnt'] for item in count_qs}
+
+    search_query = request.GET.get('q', '')
+    all_groups_qs = ItemGroup.objects.all()
+    if search_query:
+        all_groups_qs = all_groups_qs.filter(group_name__icontains=search_query)
+
+    processed_groups = []
+    for grp in all_groups_qs:
+        grp.calculated_count = count_map.get(grp.group_id, 0)
+        processed_groups.append(grp)
+    
+    processed_groups.sort(key=lambda x: (-x.calculated_count, x.group_name))
+
+    paginator = Paginator(processed_groups, 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
     context = {
         'item_count': item_count,
+        'group_count': group_count,
+        'attr_count': attr_count,
+        'group_labels': group_labels,
+        'group_data': group_data,
+        'group_cat_ids': group_cat_ids, # NEW: Pass to template
+        'groups_page': page_obj,
+        'search_query': search_query,
         'base_template': get_template_base(request)
     }
     context.update(get_mgmt_context(request.user))

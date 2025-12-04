@@ -1,0 +1,88 @@
+{% extends 'management/base_management.html' %}
+
+{% block management_content %}
+<div class="flex justify-between items-center mb-6">
+    <h1 class="text-2xl font-bold text-white">Doctrine Management</h1>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+    <!-- LEFT: Create Form -->
+    <div class="bg-slate-800 p-6 rounded-lg border border-slate-700 shadow-xl h-fit">
+        <h2 class="text-lg font-bold text-amber-500 mb-4">Import Fit</h2>
+
+        <form method="POST" action="{% url 'manage_doctrines' %}">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create">
+
+            <div class="mb-4">
+                <label class="block text-slate-400 text-xs font-bold mb-2">Category</label>
+                <select name="category_id" class="w-full bg-slate-900 border border-slate-600 text-white text-sm rounded p-2 focus:ring-amber-500 focus:border-amber-500">
+                    {% for cat in categories %}
+                    <option value="{{ cat.id }}">{{ cat.name }}</option>
+                    {% for sub in cat.subcategories.all %}
+                    <option value="{{ sub.id }}">-- {{ sub.name }}</option>
+                    {% endfor %}
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-slate-400 text-xs font-bold mb-2">EFT Block (Paste here)</label>
+                <textarea name="eft_paste" rows="10" class="w-full bg-slate-950 text-white font-mono text-xs p-3 rounded border border-slate-600 focus:border-amber-500" placeholder="[Hull Name, Fit Name]..."></textarea>
+                <p class="text-[10px] text-slate-500 mt-1">Accepts EFT/Pyfa formats.</p>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-slate-400 text-xs font-bold mb-2">Internal Notes</label>
+                <input type="text" name="description" class="w-full bg-slate-900 border border-slate-600 text-white text-sm rounded p-2">
+            </div>
+
+            <button type="submit" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 rounded transition">
+                Parse & Save
+            </button>
+        </form>
+    </div>
+
+    <!-- RIGHT: List of Fits -->
+    <div class="lg:col-span-2 bg-slate-800 rounded-lg border border-slate-700 overflow-hidden shadow-xl">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-700">
+            <h3 class="font-bold text-slate-200">Existing Fits</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left text-slate-400">
+                <thead class="text-xs uppercase bg-slate-900/50 text-slate-300">
+                    <tr>
+                        <th class="px-6 py-3">Hull</th>
+                        <th class="px-6 py-3">Fit Name</th>
+                        <th class="px-6 py-3">Category</th>
+                        <th class="px-6 py-3 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for fit in fits %}
+                    <tr class="border-b border-slate-700 hover:bg-slate-700/50">
+                        <td class="px-6 py-4 font-bold text-white">{{ fit.ship_type.type_name }}</td>
+                        <td class="px-6 py-4">{{ fit.name }}</td>
+                        <td class="px-6 py-4">
+                            {% if fit.category.parent %}{{ fit.category.parent.name }} > {% endif %}
+                            {{ fit.category.name }}
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <form method="POST" onsubmit="return confirm('Are you sure?');" class="inline">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="fit_id" value="{{ fit.id }}">
+                                <button type="submit" class="text-red-500 hover:text-red-400 font-bold text-xs">DELETE</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="4" class="p-6 text-center italic">No fits found.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

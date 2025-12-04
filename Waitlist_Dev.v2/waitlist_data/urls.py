@@ -2,7 +2,10 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    path('login/', views.sso_login, name='sso_login'),
-    path('sso/callback/', views.sso_callback, name='sso_callback'),
-    path('logout/', views.logout_view, name='logout'),
+    # DOCTRINES (Public)
+    path('doctrines/', views.doctrine_list, name='doctrine_list'),
+    path('doctrines/api/<int:fit_id>/', views.doctrine_detail_api, name='doctrine_detail_api'),
+
+    # DOCTRINES (Management)
+    path('management/doctrines/', views.manage_doctrines, name='manage_doctrines'),
 ]
