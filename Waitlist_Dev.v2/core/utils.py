@@ -1,7 +1,11 @@
 import redis
 import time
 from django.conf import settings
+from django.utils import timezone     # Added
+from datetime import timedelta        # Added
 from waitlist_project.celery import app as celery_app
+
+from pilot_data.models import EveCharacter  # Added
 
 # --- ROLE HIERARCHY DEFINITION ---
 # Index 0 is Highest (Admin), Index 11 is Lowest (Public)
@@ -70,7 +74,8 @@ def can_manage_role(actor, target_role_name):
 
 def get_system_status():
     """
-    Fetches Redis connection status, Queue depth, and Celery Worker inspection data.
+    Fetches Redis connection status, Queue depth, Celery Worker inspection data,
+    AND ESI Token Health statistics.
     Returns a dictionary context suitable for template rendering.
     """
     # 1. Check Redis Connection & Queue Depth
@@ -135,6 +140,23 @@ def get_system_status():
                 'processed': w_total
             })
 
+    # 3. ESI TOKEN HEALTH (Added Logic)
+    total_characters = EveCharacter.objects.count()
+    threshold = timezone.now() - timedelta(minutes=60)
+    stale_count = EveCharacter.objects.filter(last_updated__lt=threshold).count()
+    
+    # Note: Iterating is necessary for encrypted fields if we can't filter on empty string easily,
+    # though for high volume you might want to flag this boolean in a separate unencrypted DB field.
+    invalid_token_count = 0
+    for char in EveCharacter.objects.all().iterator():
+        if not char.refresh_token:
+            invalid_token_count += 1
+            
+    if total_characters > 0:
+        esi_health_percent = int(((total_characters - stale_count) / total_characters * 100))
+    else:
+        esi_health_percent = 0
+
     return {
         'redis_status': redis_status,
         'redis_error': redis_error,
@@ -144,4 +166,10 @@ def get_system_status():
         'workers': worker_data,
         'worker_count': len(worker_data),
         'total_processed': total_processed,
+        
+        # ESI Data
+        'total_characters': total_characters,
+        'stale_count': stale_count,
+        'invalid_token_count': invalid_token_count,
+        'esi_health_percent': esi_health_percent,
     }

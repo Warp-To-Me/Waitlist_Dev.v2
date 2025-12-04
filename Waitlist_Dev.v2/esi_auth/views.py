@@ -98,17 +98,26 @@ def sso_callback(request):
         user = request.user
         del request.session['is_adding_alt']
         
+        defaults = {
+            'user': user,
+            'character_name': char_name,
+            'access_token': access_token,
+            'refresh_token': refresh_token,
+            'token_expires': token_expiry
+        }
+
+        # --- FIX: PREVENT MULTIPLE MAINS ---
+        # If the user ALREADY has a main character (that isn't the one currently being linked),
+        # force the incoming character to be is_main=False.
+        # This handles the scenario where a character was "Main" on Account B but is now an Alt on Account A.
+        if user.characters.filter(is_main=True).exclude(character_id=char_id).exists():
+            defaults['is_main'] = False
+
         # update_or_create can also trigger InvalidToken if the row exists but is corrupt
         try:
             target_char, created = EveCharacter.objects.update_or_create(
                 character_id=char_id,
-                defaults={
-                    'user': user,
-                    'character_name': char_name,
-                    'access_token': access_token,
-                    'refresh_token': refresh_token,
-                    'token_expires': token_expiry
-                }
+                defaults=defaults
             )
         except InvalidToken:
             # AUTO-HEAL: If update fails due to encryption error, force wipe the row's tokens
@@ -116,13 +125,7 @@ def sso_callback(request):
             # Retry the operation
             target_char, created = EveCharacter.objects.update_or_create(
                 character_id=char_id,
-                defaults={
-                    'user': user,
-                    'character_name': char_name,
-                    'access_token': access_token,
-                    'refresh_token': refresh_token,
-                    'token_expires': token_expiry
-                }
+                defaults=defaults
             )
 
         print(f"Queueing background refresh for {char_name} (Alt Link)...")

@@ -34,5 +34,5 @@ urlpatterns = [
     path('api/refresh_profile/<int:char_id>/', core_views.api_refresh_profile, name='api_refresh_profile'),
 
     # ESI Auth Routes
-    path('auth/', include('esi_auth.urls')),
+    path('', include('esi_auth.urls')),
 ]

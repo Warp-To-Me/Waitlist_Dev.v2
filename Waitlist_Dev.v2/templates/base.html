@@ -65,10 +65,16 @@
                 {% endif %}
 
                 <div class="flex items-center gap-3 pl-2 border-l border-slate-700 ml-2">
-                    {% if user.is_staff or user.is_superuser %}
+                    <!-- MANAGEMENT DASHBOARD LINK -->
+                    {% if user_is_management %}
                     <a href="{% url 'custom_admin' %}" class="spa-link text-blue-400 hover:text-blue-300 text-sm font-semibold transition border border-blue-900/50 px-3 py-1 rounded hover:bg-blue-900/20" title="Management Dashboard">Mgmt</a>
+                    {% endif %}
+
+                    <!-- DJANGO ADMIN LINK (Staff Only) -->
+                    {% if user.is_staff or user.is_superuser %}
                     <a href="{% url 'admin:index' %}" target="_blank" class="text-purple-400 hover:text-purple-300 text-sm font-semibold transition border border-purple-900/50 px-3 py-1 rounded hover:bg-purple-900/20" title="Database Backend">DB</a>
                     {% endif %}
+
                     <!-- ADDED data-no-spa HERE -->
                     <a href="{% url 'logout' %}" data-no-spa class="text-red-400 hover:text-red-300 text-sm transition font-bold">Logout</a>
                 </div>
