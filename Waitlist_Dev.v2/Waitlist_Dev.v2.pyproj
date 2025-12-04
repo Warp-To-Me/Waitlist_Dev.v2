@@ -83,6 +83,7 @@
     <Content Include="templates\base.html" />
     <Content Include="templates\base_content.html" />
     <Content Include="templates\doctrines\fit_card.html" />
+    <Content Include="templates\doctrines\fit_row.html" />
     <Content Include="templates\management\doctrines.html" />
     <Content Include="templates\doctrines\public_content.html" />
     <Content Include="templates\doctrines\public_index.html" />

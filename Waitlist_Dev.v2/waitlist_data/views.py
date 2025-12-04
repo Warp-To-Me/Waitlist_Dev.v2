@@ -4,7 +4,7 @@ from django.db.models import Count
 from django.http import JsonResponse
 from core.utils import get_role_priority, ROLE_HIERARCHY
 from core.eft_parser import EFTParser
-from .models import DoctrineCategory, DoctrineFit, FitModule
+from .models import DoctrineCategory, DoctrineFit, FitModule, DoctrineTag
 
 # --- Helpers ---
 
@@ -35,16 +35,20 @@ def doctrine_list(request):
     """
     Public accessible page showing all fits.
     """
-    categories = DoctrineCategory.objects.filter(parent__isnull=True).prefetch_related('subcategories__fits__ship_type')
+    # Optimized Query including TAGS at every level
+    categories = DoctrineCategory.objects.filter(parent__isnull=True).prefetch_related(
+        'fits__ship_type', 'fits__tags',
+        'subcategories__fits__ship_type', 'subcategories__fits__tags',
+        'subcategories__subcategories__fits__ship_type', 'subcategories__subcategories__fits__tags',
+        'subcategories__subcategories__subcategories__fits__ship_type', 'subcategories__subcategories__subcategories__fits__tags',
+        'subcategories__subcategories__subcategories__subcategories__fits__ship_type', 'subcategories__subcategories__subcategories__subcategories__fits__tags'
+    )
     
     context = {
         'categories': categories,
+        'base_template': get_template_base(request)
     }
     
-    # SPA Support: Return partial content only
-    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
-         return render(request, 'doctrines/public_content.html', context)
-         
     return render(request, 'doctrines/public_index.html', context)
 
 def doctrine_detail_api(request, fit_id):
@@ -87,25 +91,45 @@ def manage_doctrines(request):
             DoctrineFit.objects.filter(id=fit_id).delete()
             return redirect('manage_doctrines')
 
-        elif action == 'create':
+        elif action == 'create' or action == 'update':
             raw_eft = request.POST.get('eft_paste')
             cat_id = request.POST.get('category_id')
             description = request.POST.get('description', '')
+            tag_ids = request.POST.getlist('tags')
             
             parser = EFTParser(raw_eft)
             if parser.parse():
                 category = get_object_or_404(DoctrineCategory, id=cat_id)
                 
-                # Create Fit
-                fit = DoctrineFit.objects.create(
-                    name=parser.fit_name,
-                    category=category,
-                    ship_type=parser.hull_obj,
-                    eft_format=parser.raw_text,
-                    description=description
-                )
+                if action == 'update':
+                    fit_id = request.POST.get('fit_id')
+                    fit = get_object_or_404(DoctrineFit, id=fit_id)
+                    fit.name = parser.fit_name
+                    fit.category = category
+                    fit.ship_type = parser.hull_obj
+                    fit.eft_format = parser.raw_text
+                    fit.description = description
+                    fit.save()
+                    
+                    # Clear old modules to re-add them
+                    fit.modules.all().delete()
+                else:
+                    # Create New
+                    fit = DoctrineFit.objects.create(
+                        name=parser.fit_name,
+                        category=category,
+                        ship_type=parser.hull_obj,
+                        eft_format=parser.raw_text,
+                        description=description
+                    )
                 
-                # Create Modules
+                # Set Tags (Works for both create and update)
+                if tag_ids:
+                    fit.tags.set(tag_ids)
+                else:
+                    fit.tags.clear()
+                
+                # Re-create Modules
                 for item in parser.items:
                     FitModule.objects.create(
                         fit=fit,
@@ -113,23 +137,23 @@ def manage_doctrines(request):
                         quantity=item['quantity']
                     )
             else:
-                # In a real app, you'd pass this error back to the template
                 print(f"Parser Error: {parser.error}")
-                pass
+                # Ideally flash a message here
 
             return redirect('manage_doctrines')
 
     categories = DoctrineCategory.objects.all()
-    fits = DoctrineFit.objects.select_related('category', 'ship_type').order_by('-created_at')
+    # Fits ordered by order then name
+    fits = DoctrineFit.objects.select_related('category', 'ship_type').prefetch_related('tags').order_by('category__name', 'order')
+    tags = DoctrineTag.objects.all()
 
     context = {
         'categories': categories,
         'fits': fits,
-        # FIX: Ensure we tell the template which base to use
+        'tags': tags,
         'base_template': get_template_base(request)
     }
     
-    # Add sidebar permissions context
     context.update(get_mgmt_context(request.user))
     
     return render(request, 'management/doctrines.html', context)

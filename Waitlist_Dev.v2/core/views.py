@@ -21,6 +21,9 @@ from waitlist_project.celery import app as celery_app
 from pilot_data.models import EveCharacter, ItemType, ItemGroup, SkillHistory, TypeAttribute
 from waitlist_data.models import Fleet
 from esi_calls.token_manager import update_character_data
+from waitlist_data.models import DoctrineCategory, DoctrineFit, FitModule
+from core.eft_parser import EFTParser
+
 
 # --- Helper for SPA Rendering ---
 def get_template_base(request):
@@ -521,3 +524,106 @@ def api_update_user_role(request):
             target_user.is_staff = False
             target_user.save()
     return JsonResponse({'success': True})
+
+# --- DOCTRINE LIST VIEWS ---
+
+def doctrine_list(request):
+    """
+    Public accessible page showing all fits.
+    """
+    categories = DoctrineCategory.objects.filter(parent__isnull=True).prefetch_related('subcategories__fits__ship_type')
+    
+    context = {
+        'categories': categories,
+        # IMPORTANT: Enable Template Swapping for SPA
+        'base_template': get_template_base(request)
+    }
+    
+    # We always render the index.html, letting the base_template swap
+    # handle the stripping of the outer shell.
+    return render(request, 'doctrines/public_index.html', context)
+
+def doctrine_detail_api(request, fit_id):
+    """
+    Returns JSON data for a specific fit to populate the modal.
+    """
+    fit = get_object_or_404(DoctrineFit, id=fit_id)
+    
+    # Serialize modules
+    modules = []
+    for mod in fit.modules.select_related('item_type').all():
+        modules.append({
+            'name': mod.item_type.type_name,
+            'quantity': mod.quantity,
+            'icon_id': mod.item_type.type_id
+        })
+        
+    data = {
+        'id': fit.id,
+        'name': fit.name,
+        'hull': fit.ship_type.type_name,
+        'hull_id': fit.ship_type.type_id,
+        'description': fit.description,
+        'eft_block': fit.eft_format,
+        'modules': modules
+    }
+    return JsonResponse(data)
+
+
+# --- MANAGEMENT VIEWS ---
+
+@login_required
+@user_passes_test(is_admin)
+def manage_doctrines(request):
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'delete':
+            fit_id = request.POST.get('fit_id')
+            DoctrineFit.objects.filter(id=fit_id).delete()
+            return redirect('manage_doctrines')
+
+        elif action == 'create':
+            raw_eft = request.POST.get('eft_paste')
+            cat_id = request.POST.get('category_id')
+            description = request.POST.get('description', '')
+            
+            parser = EFTParser(raw_eft)
+            if parser.parse():
+                category = get_object_or_404(DoctrineCategory, id=cat_id)
+                
+                # Create Fit
+                fit = DoctrineFit.objects.create(
+                    name=parser.fit_name,
+                    category=category,
+                    ship_type=parser.hull_obj,
+                    eft_format=parser.raw_text,
+                    description=description
+                )
+                
+                # Create Modules
+                for item in parser.items:
+                    FitModule.objects.create(
+                        fit=fit,
+                        item_type=item['obj'],
+                        quantity=item['quantity']
+                    )
+            else:
+                # In a real app, you'd pass this error back to the template
+                print(f"Parser Error: {parser.error}")
+                pass
+
+            return redirect('manage_doctrines')
+
+    categories = DoctrineCategory.objects.all()
+    fits = DoctrineFit.objects.select_related('category', 'ship_type').order_by('-created_at')
+
+    context = {
+        'categories': categories,
+        'fits': fits,
+        'base_template': get_template_base(request)
+    }
+    
+    context.update(get_mgmt_context(request.user))
+    
+    return render(request, 'management/doctrines.html', context)

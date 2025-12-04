@@ -1,0 +1,44 @@
+<div class="fit-row group flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-slate-800/80 border-l-4 border-transparent hover:border-amber-500 hover:bg-slate-800 rounded transition cursor-pointer shadow-sm hover:shadow-lg mb-1"
+     onclick="openFit({{ fit.id }})"
+     data-search="{{ fit.ship_type.type_name }} {{ fit.name }} {{ fit.description }} {% for tag in fit.tags.all %}{{ tag.name }} {% endfor %}">
+
+    <!-- Left: Identity -->
+    <div class="flex items-center gap-4">
+        <!-- Ship Icon -->
+        <div class="relative w-12 h-12 flex-shrink-0">
+            <img src="https://images.evetech.net/types/{{ fit.ship_type.type_id }}/icon?size=64"
+                 class="w-full h-full rounded border border-slate-600 bg-slate-900"
+                 alt="">
+        </div>
+
+        <div>
+            <h3 class="font-bold text-white text-base group-hover:text-amber-500 transition leading-tight">
+                {{ fit.ship_type.type_name }}
+            </h3>
+            <p class="text-xs text-slate-400 font-mono">{{ fit.name }}</p>
+        </div>
+    </div>
+
+    <!-- Right: Meta & Action -->
+    <div class="flex items-center gap-4 mt-2 sm:mt-0 pl-16 sm:pl-0">
+
+        <!-- Description Preview (Desktop only) -->
+        <p class="hidden lg:block text-xs text-slate-500 italic max-w-md truncate">
+            {{ fit.description }}
+        </p>
+
+        <!-- Dynamic Tags -->
+        <div class="flex gap-2">
+            {% for tag in fit.tags.all %}
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase {{ tag.style_classes }}">
+                {{ tag.name }}
+            </span>
+            {% endfor %}
+        </div>
+
+        <!-- Chevron -->
+        <svg class="w-5 h-5 text-slate-600 group-hover:text-white transition transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+    </div>
+</div>

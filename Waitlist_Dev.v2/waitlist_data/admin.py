@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Fleet, DoctrineCategory, DoctrineFit, FitModule
+from .models import Fleet, DoctrineCategory, DoctrineFit, FitModule, DoctrineTag
 
 @admin.register(Fleet)
 class FleetAdmin(admin.ModelAdmin):
@@ -8,26 +8,33 @@ class FleetAdmin(admin.ModelAdmin):
     search_fields = ('name', 'commander__username')
     autocomplete_fields = ['commander']
 
+@admin.register(DoctrineTag)
+class DoctrineTagAdmin(admin.ModelAdmin):
+    list_display = ('name', 'order', 'style_classes')
+    list_editable = ('order', 'style_classes')
+
 # --- DOCTRINE ADMIN ---
 
 class FitModuleInline(admin.TabularInline):
     model = FitModule
     extra = 0
-    # Uses the search capability of ItemTypeAdmin to load items fast
     autocomplete_fields = ['item_type'] 
 
 @admin.register(DoctrineCategory)
 class DoctrineCategoryAdmin(admin.ModelAdmin):
-    list_display = ('name', 'slug', 'parent', 'order')
+    list_display = ('name', 'parent', 'order', 'slug')
     list_editable = ('order',)
     prepopulated_fields = {'slug': ('name',)}
     search_fields = ('name',)
+    list_filter = ('parent',)
+    ordering = ('parent__name', 'order', 'name')
 
 @admin.register(DoctrineFit)
 class DoctrineFitAdmin(admin.ModelAdmin):
-    list_display = ('name', 'ship_type', 'category', 'is_doctrinal', 'updated_at')
-    list_filter = ('category', 'is_doctrinal')
+    list_display = ('name', 'ship_type', 'category', 'is_doctrinal', 'order', 'updated_at')
+    list_editable = ('order', 'is_doctrinal')
+    list_filter = ('category', 'is_doctrinal', 'tags')
     search_fields = ('name', 'ship_type__type_name')
     inlines = [FitModuleInline]
-    # Uses the search capability of ItemTypeAdmin
     autocomplete_fields = ['ship_type']
+    filter_horizontal = ('tags',) # Improved UI for M2M selection

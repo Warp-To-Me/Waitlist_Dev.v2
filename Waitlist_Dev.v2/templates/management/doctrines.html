@@ -7,19 +7,23 @@
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-    <!-- LEFT: Create Form -->
-    <div class="bg-slate-800 p-6 rounded-lg border border-slate-700 shadow-xl h-fit">
-        <h2 class="text-lg font-bold text-amber-500 mb-4">Import Fit</h2>
+    <!-- LEFT: Create/Edit Form -->
+    <div class="bg-slate-800 p-6 rounded-lg border border-slate-700 shadow-xl h-fit sticky top-6">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-lg font-bold text-amber-500" id="form-title">Import Fit</h2>
+            <button onclick="resetForm()" id="cancel-btn" class="hidden text-xs text-red-400 hover:text-white underline">Cancel Edit</button>
+        </div>
 
-        <form method="POST" action="{% url 'manage_doctrines' %}">
+        <form method="POST" action="{% url 'manage_doctrines' %}" id="doctrine-form">
             {% csrf_token %}
-            <input type="hidden" name="action" value="create">
+            <input type="hidden" name="action" id="form-action" value="create">
+            <input type="hidden" name="fit_id" id="fit_id" value="">
 
             <div class="mb-4">
                 <label class="block text-slate-400 text-xs font-bold mb-2">Category</label>
-                <select name="category_id" class="w-full bg-slate-900 border border-slate-600 text-white text-sm rounded p-2 focus:ring-amber-500 focus:border-amber-500">
+                <select name="category_id" id="category_id" class="w-full bg-slate-900 border border-slate-600 text-white text-sm rounded p-2 focus:ring-amber-500 focus:border-amber-500">
                     {% for cat in categories %}
-                    <option value="{{ cat.id }}">{{ cat.name }}</option>
+                    <option value="{{ cat.id }}">{{ cat.name }} {% if cat.parent %}(Sub){% endif %}</option>
                     {% for sub in cat.subcategories.all %}
                     <option value="{{ sub.id }}">-- {{ sub.name }}</option>
                     {% endfor %}
@@ -28,17 +32,31 @@
             </div>
 
             <div class="mb-4">
-                <label class="block text-slate-400 text-xs font-bold mb-2">EFT Block (Paste here)</label>
-                <textarea name="eft_paste" rows="10" class="w-full bg-slate-950 text-white font-mono text-xs p-3 rounded border border-slate-600 focus:border-amber-500" placeholder="[Hull Name, Fit Name]..."></textarea>
+                <label class="block text-slate-400 text-xs font-bold mb-2">EFT Block</label>
+                <textarea name="eft_paste" id="eft_paste" rows="8" class="w-full bg-slate-950 text-white font-mono text-xs p-3 rounded border border-slate-600 focus:border-amber-500" placeholder="[Hull Name, Fit Name]..."></textarea>
                 <p class="text-[10px] text-slate-500 mt-1">Accepts EFT/Pyfa formats.</p>
             </div>
 
             <div class="mb-4">
-                <label class="block text-slate-400 text-xs font-bold mb-2">Internal Notes</label>
-                <input type="text" name="description" class="w-full bg-slate-900 border border-slate-600 text-white text-sm rounded p-2">
+                <label class="block text-slate-400 text-xs font-bold mb-2">Tags / Labels</label>
+                <div class="flex flex-wrap gap-2">
+                    {% for tag in tags %}
+                    <label class="cursor-pointer">
+                        <input type="checkbox" name="tags" value="{{ tag.id }}" class="peer sr-only tag-checkbox">
+                        <span class="px-2 py-1 rounded text-xs font-bold border border-slate-600 bg-slate-900 text-slate-400 peer-checked:border-amber-500 peer-checked:text-amber-500 peer-checked:bg-amber-900/20 transition select-none block">
+                            {{ tag.name }}
+                        </span>
+                    </label>
+                    {% endfor %}
+                </div>
             </div>
 
-            <button type="submit" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 rounded transition">
+            <div class="mb-4">
+                <label class="block text-slate-400 text-xs font-bold mb-2">Internal Notes</label>
+                <input type="text" name="description" id="description" class="w-full bg-slate-900 border border-slate-600 text-white text-sm rounded p-2">
+            </div>
+
+            <button type="submit" id="submit-btn" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 rounded transition">
                 Parse & Save
             </button>
         </form>
@@ -56,6 +74,7 @@
                         <th class="px-6 py-3">Hull</th>
                         <th class="px-6 py-3">Fit Name</th>
                         <th class="px-6 py-3">Category</th>
+                        <th class="px-6 py-3">Tags</th>
                         <th class="px-6 py-3 text-right">Actions</th>
                     </tr>
                 </thead>
@@ -68,21 +87,92 @@
                             {% if fit.category.parent %}{{ fit.category.parent.name }} > {% endif %}
                             {{ fit.category.name }}
                         </td>
-                        <td class="px-6 py-4 text-right">
-                            <form method="POST" onsubmit="return confirm('Are you sure?');" class="inline">
+                        <td class="px-6 py-4">
+                            <div class="flex flex-wrap gap-1">
+                                {% for tag in fit.tags.all %}
+                                <span class="px-1.5 py-0.5 rounded text-[10px] {{ tag.style_classes }}">
+                                    {{ tag.name }}
+                                </span>
+                                {% empty %}
+                                <span class="text-slate-600 text-[10px]">-</span>
+                                {% endfor %}
+                            </div>
+                        </td>
+                        <!-- UPDATED BUTTON CONTAINER: Added 'contents' class to form -->
+                        <td class="px-6 py-4 text-right flex justify-end items-center gap-3">
+                            <!-- EDIT BUTTON -->
+                            <button onclick="editFit(
+                                '{{ fit.id }}',
+                                '{{ fit.category.id }}',
+                                `{{ fit.eft_format|escapejs }}`,
+                                `{{ fit.description|escapejs }}`,
+                                [{% for t in fit.tags.all %}{{ t.id }},{% endfor %}]
+                            )" class="text-blue-500 hover:text-blue-400 font-bold text-xs bg-blue-900/20 px-3 py-1.5 rounded border border-blue-900/50 hover:bg-blue-900/30 transition">
+                                EDIT
+                            </button>
+
+                            <!-- DELETE FORM -->
+                            <form method="POST" onsubmit="return confirm('Are you sure?');" class="contents">
                                 {% csrf_token %}
                                 <input type="hidden" name="action" value="delete">
                                 <input type="hidden" name="fit_id" value="{{ fit.id }}">
-                                <button type="submit" class="text-red-500 hover:text-red-400 font-bold text-xs">DELETE</button>
+                                <button type="submit" class="text-red-500 hover:text-red-400 font-bold text-xs bg-red-900/20 px-3 py-1.5 rounded border border-red-900/50 hover:bg-red-900/30 transition">DELETE</button>
                             </form>
                         </td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="4" class="p-6 text-center italic">No fits found.</td></tr>
+                    <tr><td colspan="5" class="p-6 text-center italic">No fits found.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
     </div>
 </div>
+
+<script>
+    function editFit(id, categoryId, eftText, description, tagIds) {
+        // 1. Populate Fields
+        document.getElementById('fit_id').value = id;
+        document.getElementById('category_id').value = categoryId;
+        document.getElementById('eft_paste').value = eftText;
+        document.getElementById('description').value = description;
+
+        // 2. Set Tags
+        const checkboxes = document.querySelectorAll('.tag-checkbox');
+        checkboxes.forEach(cb => {
+            cb.checked = tagIds.includes(parseInt(cb.value));
+        });
+
+        // 3. Change Mode to Update
+        document.getElementById('form-action').value = 'update';
+        document.getElementById('submit-btn').textContent = 'Update Fit';
+        document.getElementById('submit-btn').classList.remove('bg-amber-600', 'hover:bg-amber-500');
+        document.getElementById('submit-btn').classList.add('bg-blue-600', 'hover:bg-blue-500');
+
+        document.getElementById('form-title').textContent = 'Edit Fit';
+        document.getElementById('form-title').classList.remove('text-amber-500');
+        document.getElementById('form-title').classList.add('text-blue-500');
+
+        document.getElementById('cancel-btn').classList.remove('hidden');
+
+        // 4. Scroll Up
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function resetForm() {
+        document.getElementById('doctrine-form').reset();
+        document.getElementById('fit_id').value = '';
+        document.getElementById('form-action').value = 'create';
+
+        document.getElementById('submit-btn').textContent = 'Parse & Save';
+        document.getElementById('submit-btn').classList.add('bg-amber-600', 'hover:bg-amber-500');
+        document.getElementById('submit-btn').classList.remove('bg-blue-600', 'hover:bg-blue-500');
+
+        document.getElementById('form-title').textContent = 'Import Fit';
+        document.getElementById('form-title').classList.add('text-amber-500');
+        document.getElementById('form-title').classList.remove('text-blue-500');
+
+        document.getElementById('cancel-btn').classList.add('hidden');
+    }
+</script>
 {% endblock %}

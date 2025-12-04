@@ -1,117 +1,258 @@
-<div class="container mx-auto p-4 md:p-8">
-    <h1 class="text-3xl font-bold text-white mb-8">
-        <span class="text-amber-500">Fleet</span> Doctrines
-    </h1>
+﻿<div class="space-y-6">
+    {% for root in categories %}
+    <!-- LEVEL 0: ROOT (e.g. Headquarters) -->
+    <div class="root-category border border-slate-700 rounded-xl bg-slate-900/80 overflow-hidden shadow-lg" id="root-container-{{ root.id }}">
 
-    {% for category in categories %}
-    <div class="mb-12">
-        <h2 class="text-2xl font-bold text-slate-200 border-b border-slate-700 pb-2 mb-6">{{ category.name }}</h2>
+        <!-- L0 Header -->
+        <div onclick="toggleAccordion('root-{{ root.id }}')"
+             class="p-5 flex justify-between items-center cursor-pointer hover:bg-slate-800 transition group select-none border-b border-transparent data-[expanded=true]:border-slate-700"
+             id="header-root-{{ root.id }}"
+             data-level="0"
+             data-expanded="false">
 
-        <!-- Recursively show subcategories/fits -->
-        {% if category.subcategories.exists %}
-        {% for sub in category.subcategories.all %}
-        {% if sub.fits.exists %}
-        <h3 class="text-lg font-bold text-blue-400 mb-4 ml-2">{{ sub.name }}</h3>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8 ml-2">
-            {% for fit in sub.fits.all %}
-            {% include 'doctrines/fit_card.html' with fit=fit %}
-            {% endfor %}
-        </div>
-        {% endif %}
-        {% endfor %}
-        {% endif %}
+            <div class="flex flex-wrap items-center gap-x-6 gap-y-2">
+                <h2 class="text-3xl font-extrabold text-white tracking-tight group-hover:text-amber-500 transition">{{ root.name }}</h2>
 
-        <!-- Direct Fits in Parent Category -->
-        {% if category.fits.exists %}
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {% for fit in category.fits.all %}
-            {% include 'doctrines/fit_card.html' with fit=fit %}
-            {% endfor %}
-        </div>
-        {% endif %}
-    </div>
-    {% empty %}
-    <div class="text-center py-12 text-slate-500">
-        <p>No doctrines published yet.</p>
-    </div>
-    {% endfor %}
-</div>
+                <!-- L0 ICONS: Dig Deep (L1 -> L2 -> L3 -> L4) -->
+                <div class="flex -space-x-3 hover:space-x-1 transition-all duration-300 items-center pl-2 opacity-80 group-hover:opacity-100">
+                    <!-- Direct Root Fits -->
+                    {% for fit in root.fits.all|slice:":2" %}
+                    <img src="https://images.evetech.net/types/{{ fit.ship_type.type_id }}/icon?size=64"
+                         class="w-10 h-10 rounded-full border-2 border-slate-900 bg-slate-800 hover:border-amber-500 transition transform hover:scale-110 hover:z-10"
+                         title="General: {{ fit.ship_type.type_name }}">
+                    {% endfor %}
 
-<!-- FIT DETAIL MODAL (Moved here to ensure it exists during SPA navigation) -->
-<div id="fit-modal" class="fixed inset-0 z-50 hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-    <!-- Backdrop -->
-    <div class="fixed inset-0 bg-slate-900/90 backdrop-blur-sm transition-opacity" onclick="closeModal()"></div>
+                    <!-- Loop L1 Categories -->
+                    {% for l1 in root.subcategories.all|slice:":8" %}
+                    <!-- L1 Fits -->
+                    {% for fit in l1.fits.all|slice:":1" %}
+                    <img src="https://images.evetech.net/types/{{ fit.ship_type.type_id }}/icon?size=64"
+                         class="w-10 h-10 rounded-full border-2 border-slate-900 bg-slate-800 hover:border-amber-500 transition transform hover:scale-110 hover:z-10"
+                         title="{{ l1.name }}: {{ fit.ship_type.type_name }}">
+                    {% endfor %}
 
-    <div class="fixed inset-0 z-10 overflow-y-auto">
-        <div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
+                    <!-- L2 Categories -->
+                    {% for l2 in l1.subcategories.all|slice:":2" %}
+                    <!-- L2 Fits -->
+                    {% for fit in l2.fits.all|slice:":1" %}
+                    <img src="https://images.evetech.net/types/{{ fit.ship_type.type_id }}/icon?size=64"
+                         class="w-10 h-10 rounded-full border-2 border-slate-900 bg-slate-800 hover:border-amber-500 transition transform hover:scale-110 hover:z-10"
+                         title="{{ l2.name }}: {{ fit.ship_type.type_name }}">
+                    {% endfor %}
 
-            <!-- Modal Panel -->
-            <div class="relative transform overflow-hidden rounded-lg bg-slate-800 text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-2xl border border-slate-700">
+                    <!-- L3 Categories -->
+                    {% for l3 in l2.subcategories.all|slice:":1" %}
+                    <!-- L3 Fits -->
+                    {% for fit in l3.fits.all|slice:":1" %}
+                    <img src="https://images.evetech.net/types/{{ fit.ship_type.type_id }}/icon?size=64"
+                         class="w-10 h-10 rounded-full border-2 border-slate-900 bg-slate-800 hover:border-amber-500 transition transform hover:scale-110 hover:z-10"
+                         title="{{ l3.name }}: {{ fit.ship_type.type_name }}">
+                    {% endfor %}
 
-                <!-- Header -->
-                <div class="bg-slate-900 px-4 py-3 sm:px-6 flex justify-between items-center border-b border-slate-700">
-                    <h3 class="text-lg font-semibold leading-6 text-white" id="modal-title">Fit Details</h3>
-                    <button type="button" onclick="closeModal()" class="text-slate-400 hover:text-white">
-                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
+                    <!-- L4 Categories -->
+                    {% for l4 in l3.subcategories.all|slice:":1" %}
+                    {% for fit in l4.fits.all|slice:":1" %}
+                    <img src="https://images.evetech.net/types/{{ fit.ship_type.type_id }}/icon?size=64"
+                         class="w-10 h-10 rounded-full border-2 border-slate-900 bg-slate-800 hover:border-amber-500 transition transform hover:scale-110 hover:z-10"
+                         title="{{ l4.name }}: {{ fit.ship_type.type_name }}">
+                    {% endfor %}
+                    {% endfor %}
+                    {% endfor %}
+                    {% endfor %}
+                    {% endfor %}
                 </div>
+            </div>
 
-                <!-- Content -->
-                <div class="px-4 py-4 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Chevron -->
+            <svg id="icon-root-{{ root.id }}" class="w-8 h-8 text-slate-600 group-hover:text-white transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+        </div>
 
-                    <!-- Left: Info & Stats -->
-                    <div class="md:col-span-1 text-center md:text-left">
-                        <img id="modal-img" src="" class="w-24 h-24 mx-auto md:mx-0 rounded-lg border border-slate-600 mb-4" alt="Ship">
-                        <h2 id="modal-hull" class="text-xl font-bold text-white"></h2>
-                        <h4 id="modal-fitname" class="text-sm text-amber-500 font-mono mb-4"></h4>
-                        <p id="modal-desc" class="text-xs text-slate-400 italic mb-4"></p>
-                    </div>
+        <!-- L0 Content -->
+        <div id="root-{{ root.id }}" class="accordion-content hidden bg-slate-900/30">
+            <div class="p-2 md:p-4 space-y-3">
 
-                    <!-- Right: EFT Block -->
-                    <div class="md:col-span-2">
-                        <div class="flex justify-between items-end mb-2">
-                            <label class="text-xs font-bold uppercase text-slate-500">EFT Block</label>
-                            <button onclick="copyToClipboard()" class="text-xs bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded transition">
-                                Copy to Clipboard
-                            </button>
+                <!-- LEVEL 1 LOOP (e.g. Battleships) -->
+                {% for l1 in root.subcategories.all %}
+                <div class="rounded border border-slate-700/50 bg-slate-800/20 overflow-hidden" id="l1-container-{{ l1.id }}">
+
+                    <!-- L1 Header -->
+                    <div onclick="toggleAccordion('l1-{{ l1.id }}')"
+                         class="flex justify-between items-center p-3 px-4 cursor-pointer hover:bg-slate-800 transition group select-none"
+                         id="header-l1-{{ l1.id }}">
+
+                        <div class="flex items-center gap-4">
+                            <h3 class="text-xl font-bold text-slate-200 group-hover:text-white transition border-l-4 border-slate-600 group-hover:border-amber-500 pl-3">
+                                {{ l1.name }}
+                            </h3>
+
+                            <!-- L1 ICONS: Dig (L1 -> L2 -> L3 -> L4) -->
+                            <div class="flex -space-x-2 opacity-70 group-hover:opacity-100 transition items-center">
+                                <!-- L1 Fits -->
+                                {% for fit in l1.fits.all|slice:":3" %}
+                                <img src="https://images.evetech.net/types/{{ fit.ship_type.type_id }}/icon?size=32" class="w-8 h-8 rounded-full border border-slate-800 bg-slate-900 z-0 hover:z-10 hover:scale-110 transition" title="{{ fit.ship_type.type_name }}">
+                                {% endfor %}
+
+                                <!-- L2 Categories -->
+                                {% for l2 in l1.subcategories.all|slice:":5" %}
+                                <!-- L2 Fits -->
+                                {% for fit in l2.fits.all|slice:":2" %}
+                                <img src="https://images.evetech.net/types/{{ fit.ship_type.type_id }}/icon?size=32" class="w-8 h-8 rounded-full border border-slate-800 bg-slate-900 z-0 hover:z-10 hover:scale-110 transition" title="{{ l2.name }}: {{ fit.ship_type.type_name }}">
+                                {% endfor %}
+
+                                <!-- L3 Categories -->
+                                {% for l3 in l2.subcategories.all|slice:":2" %}
+                                <!-- L3 Fits -->
+                                {% for fit in l3.fits.all|slice:":1" %}
+                                <img src="https://images.evetech.net/types/{{ fit.ship_type.type_id }}/icon?size=32" class="w-8 h-8 rounded-full border border-slate-800 bg-slate-900 z-0 hover:z-10 hover:scale-110 transition" title="{{ l3.name }}: {{ fit.ship_type.type_name }}">
+                                {% endfor %}
+
+                                <!-- L4 Categories -->
+                                {% for l4 in l3.subcategories.all|slice:":1" %}
+                                {% for fit in l4.fits.all|slice:":1" %}
+                                <img src="https://images.evetech.net/types/{{ fit.ship_type.type_id }}/icon?size=32" class="w-8 h-8 rounded-full border border-slate-800 bg-slate-900 z-0 hover:z-10 hover:scale-110 transition" title="{{ l4.name }}: {{ fit.ship_type.type_name }}">
+                                {% endfor %}
+                                {% endfor %}
+                                {% endfor %}
+                                {% endfor %}
+                            </div>
                         </div>
-                        <textarea id="modal-eft" class="w-full h-64 bg-slate-950 text-green-400 font-mono text-xs p-3 rounded border border-slate-700 focus:outline-none resize-none" readonly></textarea>
+
+                        <svg id="icon-l1-{{ l1.id }}" class="w-5 h-5 text-slate-500 group-hover:text-slate-300 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </div>
+
+                    <!-- L1 Content -->
+                    <div id="l1-{{ l1.id }}" class="accordion-content hidden border-t border-slate-700/50 bg-slate-900/50 p-2 space-y-3">
+
+                        <!-- L1 Fits -->
+                        {% for fit in l1.fits.all %}
+                        {% include 'doctrines/fit_row.html' with fit=fit %}
+                        {% endfor %}
+
+                        <!-- LEVEL 2 LOOP (e.g. Optimal) -->
+                        {% for l2 in l1.subcategories.all %}
+                        <div class="rounded border border-slate-700/30 bg-black/20 overflow-hidden" id="l2-container-{{ l2.id }}">
+
+                            <!-- L2 Header -->
+                            <div onclick="toggleAccordion('l2-{{ l2.id }}')" class="flex justify-between items-center p-2 px-3 cursor-pointer hover:bg-slate-800/80 transition group select-none">
+                                <div class="flex items-center gap-3">
+                                    <h4 class="text-sm font-bold text-amber-500/90 uppercase tracking-widest">{{ l2.name }}</h4>
+
+                                    <!-- L2 ICONS: Dig (L2 -> L3 -> L4) -->
+                                    <div class="flex -space-x-1 opacity-60">
+                                        <!-- L2 Fits -->
+                                        {% for fit in l2.fits.all|slice:":3" %}
+                                        <img src="https://images.evetech.net/types/{{ fit.ship_type.type_id }}/icon?size=32" class="w-6 h-6 rounded-full border border-slate-800 bg-slate-900">
+                                        {% endfor %}
+
+                                        <!-- L3 Categories -->
+                                        {% for l3 in l2.subcategories.all|slice:":4" %}
+                                        <!-- L3 Fits -->
+                                        {% for fit in l3.fits.all|slice:":1" %}
+                                        <img src="https://images.evetech.net/types/{{ fit.ship_type.type_id }}/icon?size=32" class="w-6 h-6 rounded-full border border-slate-800 bg-slate-900" title="{{ l3.name }}">
+                                        {% endfor %}
+
+                                        <!-- L4 Categories -->
+                                        {% for l4 in l3.subcategories.all|slice:":2" %}
+                                        {% for fit in l4.fits.all|slice:":1" %}
+                                        <img src="https://images.evetech.net/types/{{ fit.ship_type.type_id }}/icon?size=32" class="w-6 h-6 rounded-full border border-slate-800 bg-slate-900" title="{{ l4.name }}">
+                                        {% endfor %}
+                                        {% endfor %}
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                <svg id="icon-l2-{{ l2.id }}" class="w-4 h-4 text-slate-600 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                            </div>
+
+                            <!-- L2 Content -->
+                            <div id="l2-{{ l2.id }}" class="accordion-content hidden border-t border-slate-700/30 p-2 space-y-2">
+
+                                <!-- L2 Fits -->
+                                {% for fit in l2.fits.all %}
+                                {% include 'doctrines/fit_row.html' with fit=fit %}
+                                {% endfor %}
+
+                                <!-- LEVEL 3 LOOP (e.g. Kronos) -->
+                                {% for l3 in l2.subcategories.all %}
+                                <div class="ml-2 pl-2 border-l border-slate-700/50" id="l3-container-{{ l3.id }}">
+
+                                    <!-- L3 Header -->
+                                    <div onclick="toggleAccordion('l3-{{ l3.id }}')" class="flex justify-between items-center py-1 cursor-pointer hover:text-white text-slate-400 group">
+                                        <div class="flex items-center gap-2">
+                                            <h5 class="text-sm font-bold flex items-center gap-2">
+                                                <span class="w-1 h-1 bg-slate-500 rounded-full group-hover:bg-amber-500"></span>
+                                                {{ l3.name }}
+                                            </h5>
+
+                                            <!-- L3 ICONS: Dig (L3 -> L4) -->
+                                            <div class="flex -space-x-1 opacity-50 group-hover:opacity-100 transition">
+                                                <!-- L3 Fits -->
+                                                {% for fit in l3.fits.all|slice:":3" %}
+                                                <img src="https://images.evetech.net/types/{{ fit.ship_type.type_id }}/icon?size=32" class="w-5 h-5 rounded-full border border-slate-800 bg-slate-900">
+                                                {% endfor %}
+                                                <!-- L4 Fits -->
+                                                {% for l4 in l3.subcategories.all|slice:":3" %}
+                                                {% for fit in l4.fits.all|slice:":1" %}
+                                                <img src="https://images.evetech.net/types/{{ fit.ship_type.type_id }}/icon?size=32" class="w-5 h-5 rounded-full border border-slate-800 bg-slate-900">
+                                                {% endfor %}
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                        <svg id="icon-l3-{{ l3.id }}" class="w-3 h-3 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                                    </div>
+
+                                    <!-- L3 Content -->
+                                    <div id="l3-{{ l3.id }}" class="accordion-content hidden pt-1 space-y-1">
+                                        <!-- L3 Fits -->
+                                        {% for fit in l3.fits.all %}
+                                        {% include 'doctrines/fit_row.html' with fit=fit %}
+                                        {% endfor %}
+
+                                        <!-- LEVEL 4 LOOP (e.g. Deep Nested Group) -->
+                                        {% for l4 in l3.subcategories.all %}
+                                        <div class="ml-4 border-l border-slate-800 pl-2 mt-1">
+                                            <div class="text-[10px] uppercase font-bold text-slate-600 mb-1 tracking-wider">{{ l4.name }}</div>
+                                            {% for fit in l4.fits.all %}
+                                            {% include 'doctrines/fit_row.html' with fit=fit %}
+                                            {% endfor %}
+                                        </div>
+                                        {% endfor %}
+
+                                        <!-- Empty Check -->
+                                        {% if not l3.fits.all and not l3.subcategories.all %}
+                                        <div class="text-xs text-slate-600 italic pl-4">No fits.</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% endfor %}
+
+                            </div>
+                        </div>
+                        {% endfor %}
+
                     </div>
                 </div>
+                {% endfor %}
+
+                <!-- Direct Fits in Root -->
+                {% if root.fits.all %}
+                <div class="mt-4 p-4 border border-dashed border-slate-700 rounded bg-slate-900/20">
+                    <h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">General Fits</h3>
+                    {% for fit in root.fits.all %}
+                    {% include 'doctrines/fit_row.html' with fit=fit %}
+                    {% endfor %}
+                </div>
+                {% endif %}
+
             </div>
         </div>
     </div>
+    {% empty %}
+    <div class="text-center py-12 text-slate-500">
+        <p>No doctrine categories found.</p>
+    </div>
+    {% endfor %}
 </div>
-
-<script>
-    function openFit(fitId) {
-        const modal = document.getElementById('fit-modal');
-        if (!modal) return;
-
-        fetch(`/doctrines/api/${fitId}/`)
-            .then(res => res.json())
-            .then(data => {
-                document.getElementById('modal-hull').textContent = data.hull;
-                document.getElementById('modal-fitname').textContent = data.name;
-                document.getElementById('modal-desc').textContent = data.description;
-                document.getElementById('modal-eft').value = data.eft_block;
-                document.getElementById('modal-img').src = `https://images.evetech.net/types/${data.hull_id}/render?size=256`;
-
-                modal.classList.remove('hidden');
-            });
-    }
-
-    function closeModal() {
-        const modal = document.getElementById('fit-modal');
-        if (modal) modal.classList.add('hidden');
-    }
-
-    function copyToClipboard() {
-        const copyText = document.getElementById("modal-eft");
-        copyText.select();
-        copyText.setSelectionRange(0, 99999);
-        navigator.clipboard.writeText(copyText.value);
-    }
-</script>

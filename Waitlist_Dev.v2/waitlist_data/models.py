@@ -16,6 +16,22 @@ class Fleet(models.Model):
 
 # --- DOCTRINE MODELS ---
 
+class DoctrineTag(models.Model):
+    """
+    Custom labels for fits (e.g., 'Shield', 'Armor', 'Optimal', 'Sniper').
+    Includes styling information for the frontend badge.
+    """
+    name = models.CharField(max_length=50, unique=True)
+    # Tailwind classes for badge styling (e.g., "bg-blue-900/30 text-blue-400 border-blue-900/50")
+    style_classes = models.CharField(max_length=255, default="bg-slate-700 text-slate-300 border-slate-600")
+    order = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ['order', 'name']
+
+    def __str__(self):
+        return self.name
+
 class DoctrineCategory(models.Model):
     name = models.CharField(max_length=100)
     slug = models.SlugField(unique=True)
@@ -47,6 +63,15 @@ class DoctrineFit(models.Model):
     
     # Tags to identify formatting style or specific roles (Logi, DPS)
     is_doctrinal = models.BooleanField(default=True)
+    
+    # Manual sorting
+    order = models.IntegerField(default=0)
+
+    # NEW: Tagging System
+    tags = models.ManyToManyField(DoctrineTag, blank=True, related_name='fits')
+
+    class Meta:
+        ordering = ['order', 'name']
 
     def __str__(self):
         return f"{self.ship_type.type_name} - {self.name}"
@@ -69,7 +94,6 @@ class FitModule(models.Model):
     item_type = models.ForeignKey(ItemType, on_delete=models.CASCADE)
     quantity = models.IntegerField(default=1)
     
-    # We attempt to determine this during parse, but it's hard without full Dogma attributes
     slot = models.CharField(max_length=20, choices=SLOT_CHOICES, default='cargo')
 
     def __str__(self):

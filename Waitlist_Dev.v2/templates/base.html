@@ -1,45 +1,54 @@
 ﻿<!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full bg-slate-900">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Fleet Command{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        /* Strict Reset & App-like Layout Lock */
+        html, body {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            background-color: #0f172a; /* Slate 900 */
+            overflow: hidden; /* CRITICAL: Prevent body scroll, force internal scrolling */
+        }
+
         body {
-            background-color: #0f172a;
+            display: flex;
+            flex-direction: column;
             color: #e2e8f0;
             background-image: radial-gradient(circle at 50% 50%, #1e293b 0%, #0f172a 100%);
             background-attachment: fixed;
         }
+
         /* Smooth fade for content swapping */
         .fade-in {
-            animation: fadeIn 0.3s ease-in-out;
+            animation: fadeIn 0.2s ease-out;
         }
 
         @keyframes fadeIn {
             from {
                 opacity: 0;
-                transform: translateY(5px);
             }
 
             to {
                 opacity: 1;
-                transform: translateY(0);
             }
         }
     </style>
     {% block extra_head %}{% endblock %}
 </head>
-<body class="min-h-screen flex flex-col">
-
+<body>
     <!-- Persistent Navbar -->
-    <nav class="bg-slate-900/95 backdrop-blur border-b border-slate-700 sticky top-0 z-50 shadow-lg">
-        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+    <!-- z-50 ensures it stays on top. flex-shrink-0 prevents it from squishing. -->
+    <nav class="bg-slate-900/95 backdrop-blur border-b border-slate-700 z-50 shadow-lg flex-shrink-0 relative">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center h-16">
 
             <!-- Left Side: Brand & Main Navigation -->
             <div class="flex items-center gap-8">
-
                 <!-- Brand Logo -->
                 <div class="flex items-center gap-4">
                     <a href="{% url 'landing_page' %}" class="spa-link text-xl md:text-2xl font-bold text-amber-500 tracking-wider hover:text-amber-400 transition flex items-center gap-2">
@@ -56,14 +65,12 @@
                         DOCTRINES
                     </a>
                 </div>
-
             </div>
 
             <!-- Right Side: User Controls -->
             <div class="flex items-center gap-4">
                 {% if user.is_authenticated %}
                 {% if navbar_char %}
-                <!-- Active Character Chip -->
                 <a href="{% url 'profile' %}" class="spa-link flex items-center gap-3 text-sm text-slate-300 bg-slate-800/50 py-1 px-3 rounded-full border border-slate-700 hover:bg-slate-700 hover:border-amber-500 hover:text-white transition group shadow-md">
                     <img src="https://images.evetech.net/characters/{{ navbar_char.character_id }}/portrait?size=64" class="w-8 h-8 rounded-full group-hover:ring-2 ring-amber-500/50 transition" alt="Portrait">
                     <div class="flex flex-col text-left">
@@ -78,17 +85,12 @@
                 {% endif %}
 
                 <div class="flex items-center gap-3 pl-2 border-l border-slate-700 ml-2">
-                    <!-- MANAGEMENT DASHBOARD LINK -->
                     {% if user_is_management %}
                     <a href="{% url 'custom_admin' %}" class="spa-link text-blue-400 hover:text-blue-300 text-sm font-semibold transition border border-blue-900/50 px-3 py-1 rounded hover:bg-blue-900/20" title="Management Dashboard">Mgmt</a>
                     {% endif %}
-
-                    <!-- DJANGO ADMIN LINK (Staff Only) -->
                     {% if user.is_staff or user.is_superuser %}
                     <a href="{% url 'admin:index' %}" target="_blank" class="text-purple-400 hover:text-purple-300 text-sm font-semibold transition border border-purple-900/50 px-3 py-1 rounded hover:bg-purple-900/20" title="Database Backend">DB</a>
                     {% endif %}
-
-                    <!-- LOGOUT -->
                     <a href="{% url 'logout' %}" data-no-spa class="text-red-400 hover:text-red-300 text-sm transition font-bold">Logout</a>
                 </div>
                 {% else %}
@@ -99,22 +101,29 @@
     </nav>
 
     <!-- Main Content Block (Target for SPA Swapping) -->
-    <main class="flex-grow" id="main-content">
+    <!--
+         flex-1: Takes ALL remaining height.
+         overflow-hidden: Prevents double scrollbars.
+         relative: Context for absolute positioning if needed.
+    -->
+    <main class="flex-1 relative overflow-hidden flex flex-col" id="main-content">
         {% block content %}
         {% endblock %}
     </main>
 
-    <!-- Footer -->
-    <footer class="bg-slate-900 p-6 text-center text-slate-600 text-sm border-t border-slate-800 mt-auto">
-        &copy; 2024 Eve Community Fleet. Data provided by ESI.
-    </footer>
-
     <!-- SPA Router Script -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            // Remove any text nodes directly inside body that might cause spacing
+            // This targets the specific issue of "top gap"
+            Array.from(document.body.childNodes).forEach(node => {
+                if (node.nodeType === Node.TEXT_NODE && !node.textContent.trim()) {
+                    node.remove();
+                }
+            });
+
             document.body.addEventListener('click', e => {
                 const link = e.target.closest('a');
-                // Intercept internal links only
                 if (link && link.href && link.host === window.location.host && !link.target && !link.hasAttribute('download') && !link.href.includes('/admin/') && !link.hasAttribute('data-no-spa')) {
                     e.preventDefault();
                     navigateTo(link.href);
@@ -133,12 +142,28 @@
                 .then(response => response.text())
                 .then(html => {
                     const mainContent = document.getElementById('main-content');
-                    mainContent.innerHTML = html;
+
+                    // Sanitize incoming HTML to remove top-level whitespace
+                    // This prevents the "bottom gap" issue if the server sends whitespace before the content
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = html;
+
+                    // Clear existing content completely
+                    while (mainContent.firstChild) {
+                        mainContent.removeChild(mainContent.firstChild);
+                    }
+
+                    // Move new content in
+                    while (tempDiv.firstChild) {
+                        mainContent.appendChild(tempDiv.firstChild);
+                    }
+
+                    // Simple Fade Effect
                     mainContent.classList.remove('fade-in');
-                    void mainContent.offsetWidth; // Trigger reflow
+                    void mainContent.offsetWidth;
                     mainContent.classList.add('fade-in');
 
-                    // Re-execute scripts in the new content
+                    // Re-run scripts
                     mainContent.querySelectorAll('script').forEach(oldScript => {
                         const newScript = document.createElement('script');
                         Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
@@ -149,6 +174,5 @@
                 .catch(err => console.error('SPA Navigation Error:', err));
         }
     </script>
-
 </body>
 </html>
