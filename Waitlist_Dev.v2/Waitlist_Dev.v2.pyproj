@@ -40,6 +40,7 @@
     <Compile Include="esi_calls\management\__init__.py" />
     <Compile Include="esi_calls\token_manager.py" />
     <Compile Include="pilot_data\admin.py" />
+    <Compile Include="pilot_data\management\commands\audit_scopes.py" />
     <Compile Include="pilot_data\management\commands\refresh_all_characters.py" />
     <Compile Include="pilot_data\management\commands\wipe_all_characters.py" />
     <Compile Include="pilot_data\management\commands\__init__.py" />

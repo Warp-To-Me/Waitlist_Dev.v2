@@ -21,6 +21,10 @@ class EveCharacter(models.Model):
     wallet_balance = models.DecimalField(max_digits=20, decimal_places=2, default=0)
     concord_lp = models.IntegerField(default=0)
     
+    # --- ACTIVITY TRACKING (New) ---
+    is_online = models.BooleanField(default=False)
+    last_login_at = models.DateTimeField(null=True, blank=True)
+
     # --- ENCRYPTED FIELDS ---
     access_token = EncryptedTextField(blank=True, default="")
     refresh_token = EncryptedTextField(blank=True, default="")
@@ -38,7 +42,9 @@ class EsiHeaderCache(models.Model):
     character = models.ForeignKey(EveCharacter, on_delete=models.CASCADE, related_name='esi_headers')
     endpoint_name = models.CharField(max_length=100, db_index=True) 
     etag = models.CharField(max_length=255, blank=True, null=True)
-    expires = models.DateTimeField(null=True, blank=True)
+    
+    # Added db_index=True to 'expires' for high-performance scheduling queries
+    expires = models.DateTimeField(null=True, blank=True, db_index=True)
     
     class Meta:
         unique_together = ('character', 'endpoint_name')

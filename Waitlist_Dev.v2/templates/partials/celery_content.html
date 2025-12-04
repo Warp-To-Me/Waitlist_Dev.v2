@@ -1,10 +1,10 @@
-﻿<!-- ESI HEALTH STATUS (Added to Partial for Live Updates) -->
+﻿<!-- ESI HEALTH STATUS -->
 <div class="bg-slate-800 p-6 rounded-lg border border-slate-700 shadow-lg relative overflow-hidden mb-8">
     <div class="absolute top-0 right-0 p-4 opacity-10 text-6xl text-amber-500">⚡</div>
     <div class="flex items-start justify-between">
         <div>
             <h3 class="text-slate-400 text-sm uppercase font-bold mb-2 tracking-wider">ESI Token Health</h3>
-            <p class="text-slate-500 text-xs max-w-md">Health of authentication tokens for linked characters. Low health indicates characters need to re-login.</p>
+            <p class="text-slate-500 text-xs max-w-md">Health of authentication tokens for linked characters.</p>
         </div>
         <div class="text-right">
             <div class="text-3xl font-bold {% if esi_health_percent > 80 %}text-green-400{% else %}text-amber-400{% endif %}">
@@ -20,26 +20,74 @@
             <div class="bg-gradient-to-r from-green-500 to-emerald-400 h-3 rounded-full shadow-[0_0_10px_rgba(34,197,94,0.3)] transition-all duration-1000" style="width: {{ esi_health_percent }}%"></div>
         </div>
 
-        <div class="grid grid-cols-2 gap-4 mt-4">
-            <div class="bg-slate-900/50 p-3 rounded border border-slate-700/50 flex justify-between items-center">
-                <span class="text-slate-400 text-xs">Stale Tokens (>60m)</span>
-                <span class="{% if stale_count > 0 %}text-amber-500 font-bold{% else %}text-slate-500{% endif %}">{{ stale_count }}</span>
+        <!-- STATS GRID -->
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mt-4">
+            <div class="bg-slate-900/50 p-3 rounded border border-slate-700/50 flex flex-col justify-center items-center text-center">
+                <span class="text-slate-400 text-[10px] uppercase font-bold">Stale (>60m)</span>
+                <span class="{% if stale_count > 0 %}text-amber-500{% else %}text-slate-500{% endif %} font-bold text-lg leading-none mt-1">{{ stale_count }}</span>
             </div>
-            <div class="bg-slate-900/50 p-3 rounded border border-slate-700/50 flex justify-between items-center">
-                <span class="text-slate-400 text-xs">Invalid/Missing</span>
-                <span class="{% if invalid_token_count > 0 %}text-red-500 font-bold{% else %}text-slate-500{% endif %}">{{ invalid_token_count }}</span>
+            <div class="bg-slate-900/50 p-3 rounded border border-slate-700/50 flex flex-col justify-center items-center text-center">
+                <span class="text-slate-400 text-[10px] uppercase font-bold">Invalid Token</span>
+                <span class="{% if invalid_token_count > 0 %}text-red-500{% else %}text-slate-500{% endif %} font-bold text-lg leading-none mt-1">{{ invalid_token_count }}</span>
+            </div>
+            <!-- Users Online -->
+            <div class="bg-slate-900/50 p-3 rounded border border-slate-700/50 flex flex-col justify-center items-center text-center relative overflow-hidden">
+                <div class="absolute inset-0 bg-green-500/5"></div>
+                <span class="text-green-400 text-[10px] uppercase font-bold relative z-10">Online Detected</span>
+                <span class="text-white font-bold text-lg leading-none mt-1 relative z-10">{{ users_online_count }}</span>
             </div>
         </div>
+
+        <!-- BREAKDOWN: ACTIVE QUEUE -->
+        <!-- This section explicitly shows items that are currently in the queue or eligible to be queued immediately -->
+        {% if queued_breakdown %}
+        <div class="mt-6 border-t border-slate-700 pt-4">
+            <h4 class="text-blue-400 text-xs font-bold uppercase mb-3 flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                Processing / In Queue
+            </h4>
+            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                {% for stat in queued_breakdown %}
+                <div class="bg-blue-900/20 p-2 rounded border border-blue-900/30 flex flex-col items-center justify-center text-center">
+                    <span class="text-[10px] text-blue-300 uppercase font-mono">{{ stat.endpoint_name }}</span>
+                    <span class="text-lg font-bold text-white">{{ stat.pending_count }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- BREAKDOWN: DELAYED (Throttled) -->
+        {% if delayed_breakdown %}
+        <div class="mt-4 pt-2">
+            <h4 class="text-slate-500 text-xs font-bold uppercase mb-3 flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-slate-600"></span>
+                Throttled (Offline Mode)
+            </h4>
+            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                {% for stat in delayed_breakdown %}
+                <div class="bg-slate-900/30 p-2 rounded border border-slate-700/30 flex flex-col items-center justify-center text-center opacity-75">
+                    <span class="text-[10px] text-slate-500 uppercase font-mono">{{ stat.endpoint_name }}</span>
+                    <span class="text-lg font-bold text-slate-400">{{ stat.pending_count }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if not queued_breakdown and not delayed_breakdown %}
+        <div class="mt-6 border-t border-slate-700 pt-4 text-center">
+            <p class="text-slate-600 text-sm italic">All systems synced. No pending actions.</p>
+        </div>
+        {% endif %}
     </div>
 </div>
 
+<!-- REDIS STATUS GRID -->
 <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
-
-    <!-- REDIS CARD -->
+    <!-- Redis Card -->
     <div class="bg-slate-800 rounded-lg border border-slate-700 p-6 shadow-xl relative overflow-hidden group">
-        <div class="absolute top-0 right-0 p-4 opacity-10 text-6xl text-red-500 group-hover:opacity-20 transition">🧱</div>
         <h2 class="text-slate-400 text-xs uppercase font-bold mb-2 tracking-wider">Redis Broker</h2>
-
         <div class="flex items-center gap-3 mb-4">
             {% if redis_status == "ONLINE" %}
             <span class="w-3 h-3 bg-green-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.5)]"></span>
@@ -49,62 +97,48 @@
             <span class="text-xl font-bold text-red-400">OFFLINE</span>
             {% endif %}
         </div>
-
-        {% if redis_error %}
-        <div class="text-[10px] text-red-400 bg-red-900/20 p-2 rounded border border-red-900/30 break-all">
-            {{ redis_error }}
-        </div>
-        {% else %}
         <div class="text-[10px] text-slate-500 font-mono">Lat: {{ redis_latency|default:"<1" }}ms</div>
-        {% endif %}
     </div>
 
-    <!-- QUEUE DEPTH CARD (NEW) -->
+    <!-- Queue Depth Card -->
     <div class="bg-slate-800 rounded-lg border border-slate-700 p-6 shadow-xl relative overflow-hidden group">
-        <div class="absolute top-0 right-0 p-4 opacity-10 text-6xl text-amber-500 group-hover:opacity-20 transition">📚</div>
         <h2 class="text-slate-400 text-xs uppercase font-bold mb-2 tracking-wider">Queue Depth</h2>
-
         <div class="flex items-baseline gap-2">
-            <span class="text-4xl font-bold {% if queue_length > 100 %}text-red-500{% elif queue_length > 20 %}text-amber-500{% else %}text-white{% endif %}">
-                {{ queue_length }}
+            <span class="text-4xl font-bold {% if queue_length|default:0 > 100 %}text-red-500{% elif queue_length|default:0 > 20 %}text-amber-500{% else %}text-white{% endif %}">
+                {{ queue_length|default:"0" }}
             </span>
             <span class="text-xs text-slate-500">Pending Tasks</span>
         </div>
         <div class="w-full bg-slate-700 h-1 mt-4 rounded-full overflow-hidden">
-            <!-- Visual bar capping at 100 tasks -->
-            <div class="bg-amber-500 h-full transition-all duration-500" style="width: {% widthratio queue_length 100 100 %}%"></div>
+            <div class="bg-amber-500 h-full transition-all duration-500" style="width: {% widthratio queue_length|default:0 100 100 %}%"></div>
         </div>
     </div>
 
-    <!-- WORKER COUNT CARD -->
+    <!-- Worker Count Card -->
     <div class="bg-slate-800 rounded-lg border border-slate-700 p-6 shadow-xl relative overflow-hidden group">
-        <div class="absolute top-0 right-0 p-4 opacity-10 text-6xl text-green-500 group-hover:opacity-20 transition">🐝</div>
         <h2 class="text-slate-400 text-xs uppercase font-bold mb-2 tracking-wider">Active Workers</h2>
         <div class="text-4xl font-bold text-white">{{ worker_count }}</div>
         <p class="text-slate-500 text-[10px] mt-1">Nodes Detected</p>
     </div>
 
-    <!-- TOTAL TASKS CARD (NEW) -->
+    <!-- Total Processed Card -->
     <div class="bg-slate-800 rounded-lg border border-slate-700 p-6 shadow-xl relative overflow-hidden group">
-        <div class="absolute top-0 right-0 p-4 opacity-10 text-6xl text-blue-500 group-hover:opacity-20 transition">✅</div>
         <h2 class="text-slate-400 text-xs uppercase font-bold mb-2 tracking-wider">Processed Total</h2>
         <div class="text-4xl font-bold text-white">{{ total_processed }}</div>
         <p class="text-slate-500 text-[10px] mt-1">Since Restart</p>
     </div>
-
 </div>
 
-<!-- WORKER DETAILS -->
+<!-- WORKER NODES -->
 <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
     <span>Worker Nodes</span>
-    <span class="text-xs font-normal text-slate-500 bg-slate-800 px-2 py-1 rounded border border-slate-700">Auto-refreshing (5s)</span>
+    <span class="text-xs font-normal text-slate-500 bg-slate-800 px-2 py-1 rounded border border-slate-700">Auto-refreshing (1s)</span>
 </h2>
 
 {% if workers %}
 <div class="grid grid-cols-1 gap-6 animate-fade-in">
     {% for worker in workers %}
     <div class="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden shadow-lg hover:border-slate-600 transition">
-        <!-- Worker Header -->
         <div class="bg-slate-900/50 p-4 border-b border-slate-700 flex flex-col md:flex-row justify-between md:items-center gap-2">
             <div class="flex items-center gap-4">
                 <div class="bg-slate-800 p-2 rounded border border-slate-700">
@@ -114,9 +148,9 @@
                     <h3 class="font-bold text-lg text-white font-mono leading-none">{{ worker.name }}</h3>
                     <div class="text-xs text-slate-500 flex gap-3 mt-1 font-mono">
                         <span>PID: {{ worker.pid }}</span>
-                        <span class="text-slate-600">|</span>
+                        <span>|</span>
                         <span>Conc: {{ worker.concurrency }}</span>
-                        <span class="text-slate-600">|</span>
+                        <span>|</span>
                         <span class="text-blue-400">Processed: {{ worker.processed }}</span>
                     </div>
                 </div>
@@ -126,7 +160,6 @@
             </span>
         </div>
 
-        <!-- Tasks Grid -->
         <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
             <!-- Active Tasks -->
             <div>
@@ -141,12 +174,8 @@
                             <span class="truncate pr-2">{{ task.name }}</span>
                             <span class="text-xs text-slate-500 whitespace-nowrap">{{ task.time_start|date:"H:i:s" }}</span>
                         </div>
-                        <div class="text-[10px] text-slate-500 font-mono truncate" title="{{ task.id }}">
-                            ID: {{ task.id }}
-                        </div>
-                        <div class="text-[10px] text-slate-400 font-mono mt-1 bg-black/20 p-1 rounded truncate">
-                            Args: {{ task.args }}
-                        </div>
+                        <div class="text-[10px] text-slate-500 font-mono truncate">ID: {{ task.id }}</div>
+                        <div class="text-[10px] text-slate-400 font-mono mt-1 bg-black/20 p-1 rounded truncate">Args: {{ task.args }}</div>
                     </li>
                     {% endfor %}
                 </ul>
@@ -155,7 +184,7 @@
                 {% endif %}
             </div>
 
-            <!-- Reserved/Scheduled Tasks -->
+            <!-- Scheduled Tasks -->
             <div>
                 <h4 class="text-xs uppercase text-blue-500 font-bold mb-3 flex items-center gap-2">
                     <span class="w-2 h-2 bg-blue-500 rounded-full"></span> Reserved / Prefetched ({{ worker.reserved_count }})

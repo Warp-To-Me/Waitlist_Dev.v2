@@ -111,13 +111,14 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 EVE_CLIENT_ID = os.getenv('EVE_CLIENT_ID')
 EVE_CALLBACK_URL = os.getenv('EVE_CALLBACK_URL', 'http://localhost:8000/auth/sso/callback/')
 
-# Updated Scopes for Wallet and LP
+# Updated Scopes for Wallet, LP, and Online Status
 EVE_SCOPES = (
     "publicData "
     "esi-skills.read_skills.v1 "
     "esi-skills.read_skillqueue.v1 "
     "esi-clones.read_implants.v1 "
     "esi-location.read_ship_type.v1 "
+    "esi-location.read_online.v1 "  # NEW: Required for active filter
     "esi-wallet.read_character_wallet.v1 "
     "esi-characters.read_loyalty.v1"
 )
@@ -146,19 +147,14 @@ CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 # 4. Beat Schedule (Replaces APScheduler)
 from celery.schedules import crontab
 
+# Run every 1 minute
 CELERY_BEAT_SCHEDULE = {
-    'dispatch-stale-characters-every-15-min': {
+    'dispatch-stale-characters-every-minute': {
         'task': 'scheduler.tasks.dispatch_stale_characters',
-        'schedule': crontab(minute='*/15'), # Runs every 15 minutes
+        'schedule': crontab(minute='*'), # Runs every 1 minute
     },
 }
 
 # 5. SAFETY & RATE LIMITS
 # This limits the worker to only grabbing 1 task at a time, preventing it from hoarding tasks if ESI is slow.
-CELERY_WORKER_PREFETCH_MULTIPLIER = 1 
-
-# Scheduler Formatting
-
-# APSCHEDULER_DATETIME_FORMAT = "N j, Y, f:s a"
-
-# APSCHEDULER_RUN_NOW_TIMEOUT = 25
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1

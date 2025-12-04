@@ -39,9 +39,10 @@ class SystemMonitorConsumer(AsyncWebsocketConsumer):
                     'timestamp': context.get('redis_latency', 0)
                 }))
 
-                # Wait 3 seconds
-                await asyncio.sleep(3)
+                # Wait 1 second (High speed refresh)
+                await asyncio.sleep(1)
                 
             except Exception as e:
                 print(f"Monitor Error: {e}")
+                # On error, back off slightly to prevent log spam
                 await asyncio.sleep(5)
