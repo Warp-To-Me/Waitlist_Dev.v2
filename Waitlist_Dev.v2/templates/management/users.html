@@ -24,13 +24,13 @@
     {% if page_obj.has_other_pages %}
     <div class="flex justify-end gap-2 text-sm">
         {% if page_obj.has_previous %}
-        <a href="?page={{ page_obj.previous_page_number }}&q={{ query }}" class="px-3 py-1 bg-slate-800 border border-slate-600 rounded hover:bg-slate-700 text-slate-300">Previous</a>
+        <a href="?page={{ page_obj.previous_page_number }}&q={{ query }}&sort={{ current_sort }}&dir={{ current_dir }}" class="px-3 py-1 bg-slate-800 border border-slate-600 rounded hover:bg-slate-700 text-slate-300">Previous</a>
         {% endif %}
 
         <span class="text-slate-400 py-1">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
 
         {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}&q={{ query }}" class="px-3 py-1 bg-slate-800 border border-slate-600 rounded hover:bg-slate-700 text-slate-300">Next</a>
+        <a href="?page={{ page_obj.next_page_number }}&q={{ query }}&sort={{ current_sort }}&dir={{ current_dir }}" class="px-3 py-1 bg-slate-800 border border-slate-600 rounded hover:bg-slate-700 text-slate-300">Next</a>
         {% endif %}
     </div>
     {% endif %}
@@ -41,13 +41,66 @@
             <table class="w-full text-sm text-left text-slate-400">
                 <thead class="text-xs uppercase bg-slate-900/50 text-slate-300">
                     <tr>
-                        <th class="px-6 py-3">Character</th>
-                        <th class="px-6 py-3">Main</th>
-                        <th class="px-6 py-3 text-center">Linked</th>
-                        <th class="px-6 py-3">Corporation</th>
-                        <th class="px-6 py-3">Alliance</th>
-                        <th class="px-6 py-3">Status</th>
+                        <!-- Helper for sort link classes -->
+                        {% with active_class="text-amber-500 font-bold" inactive_class="text-slate-300 hover:text-white" %}
+
+                        <th class="px-6 py-3 cursor-pointer select-none">
+                            <a href="?q={{ query }}&sort=character&dir={% if current_sort == 'character' and current_dir == 'asc' %}desc{% else %}asc{% endif %}" class="flex items-center gap-1 {% if current_sort == 'character' %}{{ active_class }}{% else %}{{ inactive_class }}{% endif %}">
+                                Character
+                                {% if current_sort == 'character' %}
+                                <span class="text-[10px]">{% if current_dir == 'asc' %}▲{% else %}▼{% endif %}</span>
+                                {% endif %}
+                            </a>
+                        </th>
+
+                        <th class="px-6 py-3 cursor-pointer select-none">
+                            <a href="?q={{ query }}&sort=main&dir={% if current_sort == 'main' and current_dir == 'asc' %}desc{% else %}asc{% endif %}" class="flex items-center gap-1 {% if current_sort == 'main' %}{{ active_class }}{% else %}{{ inactive_class }}{% endif %}">
+                                Main
+                                {% if current_sort == 'main' %}
+                                <span class="text-[10px]">{% if current_dir == 'asc' %}▲{% else %}▼{% endif %}</span>
+                                {% endif %}
+                            </a>
+                        </th>
+
+                        <th class="px-6 py-3 text-center cursor-pointer select-none">
+                            <a href="?q={{ query }}&sort=linked&dir={% if current_sort == 'linked' and current_dir == 'asc' %}desc{% else %}asc{% endif %}" class="flex items-center justify-center gap-1 {% if current_sort == 'linked' %}{{ active_class }}{% else %}{{ inactive_class }}{% endif %}">
+                                Linked
+                                {% if current_sort == 'linked' %}
+                                <span class="text-[10px]">{% if current_dir == 'asc' %}▲{% else %}▼{% endif %}</span>
+                                {% endif %}
+                            </a>
+                        </th>
+
+                        <th class="px-6 py-3 cursor-pointer select-none">
+                            <a href="?q={{ query }}&sort=corporation&dir={% if current_sort == 'corporation' and current_dir == 'asc' %}desc{% else %}asc{% endif %}" class="flex items-center gap-1 {% if current_sort == 'corporation' %}{{ active_class }}{% else %}{{ inactive_class }}{% endif %}">
+                                Corporation
+                                {% if current_sort == 'corporation' %}
+                                <span class="text-[10px]">{% if current_dir == 'asc' %}▲{% else %}▼{% endif %}</span>
+                                {% endif %}
+                            </a>
+                        </th>
+
+                        <th class="px-6 py-3 cursor-pointer select-none">
+                            <a href="?q={{ query }}&sort=alliance&dir={% if current_sort == 'alliance' and current_dir == 'asc' %}desc{% else %}asc{% endif %}" class="flex items-center gap-1 {% if current_sort == 'alliance' %}{{ active_class }}{% else %}{{ inactive_class }}{% endif %}">
+                                Alliance
+                                {% if current_sort == 'alliance' %}
+                                <span class="text-[10px]">{% if current_dir == 'asc' %}▲{% else %}▼{% endif %}</span>
+                                {% endif %}
+                            </a>
+                        </th>
+
+                        <th class="px-6 py-3 cursor-pointer select-none">
+                            <a href="?q={{ query }}&sort=status&dir={% if current_sort == 'status' and current_dir == 'asc' %}desc{% else %}asc{% endif %}" class="flex items-center gap-1 {% if current_sort == 'status' %}{{ active_class }}{% else %}{{ inactive_class }}{% endif %}">
+                                Status
+                                {% if current_sort == 'status' %}
+                                <span class="text-[10px]">{% if current_dir == 'asc' %}▲{% else %}▼{% endif %}</span>
+                                {% endif %}
+                            </a>
+                        </th>
+
                         <th class="px-6 py-3 text-right">Action</th>
+
+                        {% endwith %}
                     </tr>
                 </thead>
                 <tbody>
@@ -119,13 +172,13 @@
         {% if page_obj.has_other_pages %}
         <div class="bg-slate-900/50 p-4 border-t border-slate-700 flex justify-center items-center gap-2">
             {% if page_obj.has_previous %}
-            <a href="?page={{ page_obj.previous_page_number }}&q={{ query }}" class="px-3 py-1 bg-slate-800 border border-slate-600 rounded hover:bg-slate-700 text-slate-300">Previous</a>
+            <a href="?page={{ page_obj.previous_page_number }}&q={{ query }}&sort={{ current_sort }}&dir={{ current_dir }}" class="px-3 py-1 bg-slate-800 border border-slate-600 rounded hover:bg-slate-700 text-slate-300">Previous</a>
             {% endif %}
 
             <span class="text-slate-400 text-sm">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
 
             {% if page_obj.has_next %}
-            <a href="?page={{ page_obj.next_page_number }}&q={{ query }}" class="px-3 py-1 bg-slate-800 border border-slate-600 rounded hover:bg-slate-700 text-slate-300">Next</a>
+            <a href="?page={{ page_obj.next_page_number }}&q={{ query }}&sort={{ current_sort }}&dir={{ current_dir }}" class="px-3 py-1 bg-slate-800 border border-slate-600 rounded hover:bg-slate-700 text-slate-300">Next</a>
             {% endif %}
         </div>
         {% endif %}

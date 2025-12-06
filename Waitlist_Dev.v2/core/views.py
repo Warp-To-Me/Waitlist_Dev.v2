@@ -253,12 +253,15 @@ def management_dashboard(request):
     return render(request, 'management/dashboard.html', context)
 
 @login_required
-@user_passes_test(is_fleet_command) # UPDATED: Restricted to FC+
+@user_passes_test(is_fleet_command) # RESTRICTED: FC+
 def management_users(request):
     """
     Searchable Character Directory with Linked Character Counts & Main Character info.
+    Includes sorting functionality.
     """
     query = request.GET.get('q', '')
+    sort_by = request.GET.get('sort', 'character')
+    direction = request.GET.get('dir', 'asc')
     
     # Subquery to fetch the name of the 'Main' character for the user owning the row's character
     # This avoids N+1 queries when displaying the "Main" column.
@@ -273,13 +276,32 @@ def management_users(request):
         linked_count=Count('user__characters', distinct=True),
         # Attach the Main Character's name
         main_char_name=Subquery(main_name_sq)
-    ).order_by('character_name')
+    )
     
     # 2. Search
     if query:
         char_qs = char_qs.filter(character_name__icontains=query)
 
-    # 3. Pagination (UPDATED: 10 per page)
+    # 3. Sorting
+    valid_sorts = {
+        'character': 'character_name',
+        'main': 'main_char_name',
+        'linked': 'linked_count',
+        'corporation': 'corporation_name',
+        'alliance': 'alliance_name',
+        'status': 'last_updated'
+    }
+    
+    # Default to character_name if invalid sort provided
+    db_sort_field = valid_sorts.get(sort_by, 'character_name')
+    
+    # Handle descending
+    if direction == 'desc':
+        db_sort_field = '-' + db_sort_field
+        
+    char_qs = char_qs.order_by(db_sort_field)
+
+    # 4. Pagination (UPDATED: 10 per page)
     paginator = Paginator(char_qs, 10) 
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
@@ -287,6 +309,8 @@ def management_users(request):
     context = {
         'page_obj': page_obj,
         'query': query,
+        'current_sort': sort_by,
+        'current_dir': direction,
         'base_template': get_template_base(request)
     }
     context.update(get_mgmt_context(request.user))
@@ -460,7 +484,19 @@ def management_celery(request):
 @login_required
 @user_passes_test(is_management)
 def management_roles(request):
-    context = { 'base_template': get_template_base(request) }
+    # Pre-populate with Main Characters, paginated 10 per page
+    # Using 'select_related' to grab the User model immediately
+    char_qs = EveCharacter.objects.filter(is_main=True).select_related('user').order_by('character_name')
+    
+    paginator = Paginator(char_qs, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    context = {
+        'page_obj': page_obj,
+        'roles': ROLE_HIERARCHY, # Pass roles for the dropdown
+        'base_template': get_template_base(request)
+    }
     context.update(get_mgmt_context(request.user))
     return render(request, 'management/roles.html', context)
 
@@ -468,10 +504,31 @@ def management_roles(request):
 @login_required
 @user_passes_test(is_management)
 def api_search_users(request):
-    query = request.GET.get('q', '')
-    if len(query) < 3: return JsonResponse({'results': []})
-    matching_chars = EveCharacter.objects.filter(character_name__icontains=query)
-    users = User.objects.filter(characters__in=matching_chars).distinct()[:10]
+    query = request.GET.get('q', '').strip()
+    role_filter = request.GET.get('role', '').strip()
+    
+    # If no criteria provided, return empty
+    if not query and not role_filter:
+        return JsonResponse({'results': []})
+    
+    # If only text query provided, require 3 chars
+    if query and len(query) < 3 and not role_filter:
+        return JsonResponse({'results': []})
+
+    users = User.objects.all()
+    
+    # Filter by Role
+    if role_filter:
+        users = users.filter(groups__name=role_filter)
+        
+    # Filter by Name
+    if query:
+        matching_chars = EveCharacter.objects.filter(character_name__icontains=query)
+        users = users.filter(characters__in=matching_chars)
+        
+    # Limit and Distinct
+    users = users.distinct()[:20]
+    
     results = []
     for u in users:
         main_char = u.characters.filter(is_main=True).first() or u.characters.first()
@@ -531,16 +588,19 @@ def doctrine_list(request):
     """
     Public accessible page showing all fits.
     """
-    categories = DoctrineCategory.objects.filter(parent__isnull=True).prefetch_related('subcategories__fits__ship_type')
+    categories = DoctrineCategory.objects.filter(parent__isnull=True).prefetch_related(
+        'fits__ship_type', 'fits__tags',
+        'subcategories__fits__ship_type', 'subcategories__fits__tags',
+        'subcategories__subcategories__fits__ship_type', 'subcategories__subcategories__fits__tags',
+        'subcategories__subcategories__subcategories__fits__ship_type', 'subcategories__subcategories__subcategories__fits__tags',
+        'subcategories__subcategories__subcategories__subcategories__fits__ship_type', 'subcategories__subcategories__subcategories__subcategories__fits__tags'
+    )
     
     context = {
         'categories': categories,
-        # IMPORTANT: Enable Template Swapping for SPA
         'base_template': get_template_base(request)
     }
     
-    # We always render the index.html, letting the base_template swap
-    # handle the stripping of the outer shell.
     return render(request, 'doctrines/public_index.html', context)
 
 def doctrine_detail_api(request, fit_id):
@@ -583,25 +643,45 @@ def manage_doctrines(request):
             DoctrineFit.objects.filter(id=fit_id).delete()
             return redirect('manage_doctrines')
 
-        elif action == 'create':
+        elif action == 'create' or action == 'update':
             raw_eft = request.POST.get('eft_paste')
             cat_id = request.POST.get('category_id')
             description = request.POST.get('description', '')
+            tag_ids = request.POST.getlist('tags')
             
             parser = EFTParser(raw_eft)
             if parser.parse():
                 category = get_object_or_404(DoctrineCategory, id=cat_id)
                 
-                # Create Fit
-                fit = DoctrineFit.objects.create(
-                    name=parser.fit_name,
-                    category=category,
-                    ship_type=parser.hull_obj,
-                    eft_format=parser.raw_text,
-                    description=description
-                )
+                if action == 'update':
+                    fit_id = request.POST.get('fit_id')
+                    fit = get_object_or_404(DoctrineFit, id=fit_id)
+                    fit.name = parser.fit_name
+                    fit.category = category
+                    fit.ship_type = parser.hull_obj
+                    fit.eft_format = parser.raw_text
+                    fit.description = description
+                    fit.save()
+                    
+                    # Clear old modules to re-add them
+                    fit.modules.all().delete()
+                else:
+                    # Create New
+                    fit = DoctrineFit.objects.create(
+                        name=parser.fit_name,
+                        category=category,
+                        ship_type=parser.hull_obj,
+                        eft_format=parser.raw_text,
+                        description=description
+                    )
                 
-                # Create Modules
+                # Set Tags (Works for both create and update)
+                if tag_ids:
+                    fit.tags.set(tag_ids)
+                else:
+                    fit.tags.clear()
+                
+                # Re-create Modules
                 for item in parser.items:
                     FitModule.objects.create(
                         fit=fit,
@@ -609,18 +689,20 @@ def manage_doctrines(request):
                         quantity=item['quantity']
                     )
             else:
-                # In a real app, you'd pass this error back to the template
                 print(f"Parser Error: {parser.error}")
-                pass
+                # Ideally flash a message here
 
             return redirect('manage_doctrines')
 
     categories = DoctrineCategory.objects.all()
-    fits = DoctrineFit.objects.select_related('category', 'ship_type').order_by('-created_at')
+    # Fits ordered by order then name
+    fits = DoctrineFit.objects.select_related('category', 'ship_type').prefetch_related('tags').order_by('category__name', 'order')
+    tags = DoctrineTag.objects.all()
 
     context = {
         'categories': categories,
         'fits': fits,
+        'tags': tags,
         'base_template': get_template_base(request)
     }
     
