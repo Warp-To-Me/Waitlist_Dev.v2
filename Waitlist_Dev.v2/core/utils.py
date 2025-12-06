@@ -104,11 +104,22 @@ def get_system_status():
                 'processed': w_total
             })
 
-    # 3. ESI TOKEN HEALTH
+    # 3. ESI TOKEN HEALTH & USER STATS
     total_characters = EveCharacter.objects.count()
-    threshold = timezone.now() - timedelta(minutes=60)
-    stale_count = EveCharacter.objects.filter(last_updated__lt=threshold).count()
+    
+    # Thresholds
+    stale_threshold = timezone.now() - timedelta(minutes=60)
+    active_30d_threshold = timezone.now() - timedelta(days=30)
+    
+    stale_count = EveCharacter.objects.filter(last_updated__lt=stale_threshold).count()
     users_online_count = EveCharacter.objects.filter(is_online=True).count()
+    
+    # NEW: Active in last 30 days (based on last_login_at or last_updated if login not tracked)
+    # Using Q object to check either field
+    active_30d_count = EveCharacter.objects.filter(
+        Q(last_login_at__gte=active_30d_threshold) | 
+        Q(last_updated__gte=active_30d_threshold)
+    ).count()
     
     invalid_token_count = 0
     for char in EveCharacter.objects.all().iterator():
@@ -125,9 +136,6 @@ def get_system_status():
     grace_period = now - timedelta(minutes=15)
 
     # --- A. READY TO QUEUE (Active Queue) ---
-    
-    # Part 1: Standard Expired Cache Headers
-    # Includes: 'online' endpoint, ONLINE characters, or anything expired > 15m
     raw_queued = EsiHeaderCache.objects.filter(
         expires__lte=now
     ).filter(
@@ -138,11 +146,9 @@ def get_system_status():
         pending_count=Count('id')
     ).order_by('-pending_count')
     
-    # Convert QuerySet to list of dicts so we can append manually
     queued_breakdown = list(raw_queued)
 
     # Part 2: Safety Net (Full Refresh Candidates)
-    # Characters who haven't updated in 24h or never
     safety_net_threshold = now - timedelta(hours=24)
     safety_net_count = EveCharacter.objects.filter(
         Q(last_updated__isnull=True) | Q(last_updated__lt=safety_net_threshold)
@@ -155,7 +161,6 @@ def get_system_status():
         })
 
     # --- B. DELAYED (Throttled) ---
-    # Includes: Offline chars with non-critical endpoints expired recently (<15m)
     delayed_breakdown = EsiHeaderCache.objects.filter(
         expires__lte=now
     ).exclude(
@@ -179,6 +184,7 @@ def get_system_status():
         'stale_count': stale_count,
         'invalid_token_count': invalid_token_count,
         'users_online_count': users_online_count,
+        'active_30d_count': active_30d_count, # NEW
         'esi_health_percent': esi_health_percent,
         'queued_breakdown': queued_breakdown,     
         'delayed_breakdown': delayed_breakdown,   

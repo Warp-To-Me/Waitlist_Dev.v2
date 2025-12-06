@@ -22,24 +22,41 @@
 
         <!-- STATS GRID -->
         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mt-4">
+            <!-- 1. Stale -->
             <div class="bg-slate-900/50 p-3 rounded border border-slate-700/50 flex flex-col justify-center items-center text-center">
                 <span class="text-slate-400 text-[10px] uppercase font-bold">Stale (>60m)</span>
                 <span class="{% if stale_count > 0 %}text-amber-500{% else %}text-slate-500{% endif %} font-bold text-lg leading-none mt-1">{{ stale_count }}</span>
             </div>
+
+            <!-- 2. Invalid -->
             <div class="bg-slate-900/50 p-3 rounded border border-slate-700/50 flex flex-col justify-center items-center text-center">
                 <span class="text-slate-400 text-[10px] uppercase font-bold">Invalid Token</span>
                 <span class="{% if invalid_token_count > 0 %}text-red-500{% else %}text-slate-500{% endif %} font-bold text-lg leading-none mt-1">{{ invalid_token_count }}</span>
             </div>
-            <!-- Users Online -->
-            <div class="bg-slate-900/50 p-3 rounded border border-slate-700/50 flex flex-col justify-center items-center text-center relative overflow-hidden">
-                <div class="absolute inset-0 bg-green-500/5"></div>
-                <span class="text-green-400 text-[10px] uppercase font-bold relative z-10">Online Detected</span>
+
+            <!-- 3. Online (Current) -->
+            <div class="bg-slate-900/50 p-3 rounded border border-slate-700/50 flex flex-col justify-center items-center text-center relative overflow-hidden group">
+                <div class="absolute inset-0 bg-green-500/5 group-hover:bg-green-500/10 transition"></div>
+                <span class="text-green-400 text-[10px] uppercase font-bold relative z-10">Online Now</span>
                 <span class="text-white font-bold text-lg leading-none mt-1 relative z-10">{{ users_online_count }}</span>
+            </div>
+
+            <!-- 4. Active (30 Days) -->
+            <div class="bg-slate-900/50 p-3 rounded border border-slate-700/50 flex flex-col justify-center items-center text-center relative overflow-hidden group">
+                <div class="absolute inset-0 bg-blue-500/5 group-hover:bg-blue-500/10 transition"></div>
+                <span class="text-blue-400 text-[10px] uppercase font-bold relative z-10">Active (30d)</span>
+                <span class="text-white font-bold text-lg leading-none mt-1 relative z-10">{{ active_30d_count }}</span>
+            </div>
+
+            <!-- 5. Total Registered -->
+            <div class="bg-slate-900/50 p-3 rounded border border-slate-700/50 flex flex-col justify-center items-center text-center relative overflow-hidden group">
+                <div class="absolute inset-0 bg-purple-500/5 group-hover:bg-purple-500/10 transition"></div>
+                <span class="text-purple-400 text-[10px] uppercase font-bold relative z-10">Total Pilots</span>
+                <span class="text-white font-bold text-lg leading-none mt-1 relative z-10">{{ total_characters }}</span>
             </div>
         </div>
 
         <!-- BREAKDOWN: ACTIVE QUEUE -->
-        <!-- This section explicitly shows items that are currently in the queue or eligible to be queued immediately -->
         {% if queued_breakdown %}
         <div class="mt-6 border-t border-slate-700 pt-4">
             <h4 class="text-blue-400 text-xs font-bold uppercase mb-3 flex items-center gap-2">
@@ -62,7 +79,7 @@
         <div class="mt-4 pt-2">
             <h4 class="text-slate-500 text-xs font-bold uppercase mb-3 flex items-center gap-2">
                 <span class="w-2 h-2 rounded-full bg-slate-600"></span>
-                Throttled (Low Frequency Updates)
+                Throttled (Reduced Updates)
             </h4>
             <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
                 {% for stat in delayed_breakdown %}
