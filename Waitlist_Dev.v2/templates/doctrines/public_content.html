@@ -13,52 +13,12 @@
             <div class="flex flex-wrap items-center gap-x-6 gap-y-2">
                 <h2 class="text-3xl font-extrabold text-white tracking-tight group-hover:text-amber-500 transition">{{ root.name }}</h2>
 
-                <!-- L0 ICONS: Dig Deep (L1 -> L2 -> L3 -> L4) -->
-                <div class="flex -space-x-3 hover:space-x-1 transition-all duration-300 items-center pl-2 opacity-80 group-hover:opacity-100">
-                    <!-- Direct Root Fits -->
-                    {% for fit in root.fits.all|slice:":2" %}
-                    <img src="https://images.evetech.net/types/{{ fit.ship_type.type_id }}/icon?size=64"
+                <!-- L0 ICONS -->
+                <div class="flex flex-wrap -space-x-3 hover:space-x-1 transition-all duration-300 items-center pl-2 opacity-80 group-hover:opacity-100">
+                    {% for ship in root.unique_ship_icons %}
+                    <img src="https://images.evetech.net/types/{{ ship.type_id }}/icon?size=64"
                          class="w-10 h-10 rounded-full border-2 border-slate-900 bg-slate-800 hover:border-amber-500 transition transform hover:scale-110 hover:z-10"
-                         title="General: {{ fit.ship_type.type_name }}">
-                    {% endfor %}
-
-                    <!-- Loop L1 Categories -->
-                    {% for l1 in root.subcategories.all|slice:":8" %}
-                    <!-- L1 Fits -->
-                    {% for fit in l1.fits.all|slice:":1" %}
-                    <img src="https://images.evetech.net/types/{{ fit.ship_type.type_id }}/icon?size=64"
-                         class="w-10 h-10 rounded-full border-2 border-slate-900 bg-slate-800 hover:border-amber-500 transition transform hover:scale-110 hover:z-10"
-                         title="{{ l1.name }}: {{ fit.ship_type.type_name }}">
-                    {% endfor %}
-
-                    <!-- L2 Categories -->
-                    {% for l2 in l1.subcategories.all|slice:":2" %}
-                    <!-- L2 Fits -->
-                    {% for fit in l2.fits.all|slice:":1" %}
-                    <img src="https://images.evetech.net/types/{{ fit.ship_type.type_id }}/icon?size=64"
-                         class="w-10 h-10 rounded-full border-2 border-slate-900 bg-slate-800 hover:border-amber-500 transition transform hover:scale-110 hover:z-10"
-                         title="{{ l2.name }}: {{ fit.ship_type.type_name }}">
-                    {% endfor %}
-
-                    <!-- L3 Categories -->
-                    {% for l3 in l2.subcategories.all|slice:":1" %}
-                    <!-- L3 Fits -->
-                    {% for fit in l3.fits.all|slice:":1" %}
-                    <img src="https://images.evetech.net/types/{{ fit.ship_type.type_id }}/icon?size=64"
-                         class="w-10 h-10 rounded-full border-2 border-slate-900 bg-slate-800 hover:border-amber-500 transition transform hover:scale-110 hover:z-10"
-                         title="{{ l3.name }}: {{ fit.ship_type.type_name }}">
-                    {% endfor %}
-
-                    <!-- L4 Categories -->
-                    {% for l4 in l3.subcategories.all|slice:":1" %}
-                    {% for fit in l4.fits.all|slice:":1" %}
-                    <img src="https://images.evetech.net/types/{{ fit.ship_type.type_id }}/icon?size=64"
-                         class="w-10 h-10 rounded-full border-2 border-slate-900 bg-slate-800 hover:border-amber-500 transition transform hover:scale-110 hover:z-10"
-                         title="{{ l4.name }}: {{ fit.ship_type.type_name }}">
-                    {% endfor %}
-                    {% endfor %}
-                    {% endfor %}
-                    {% endfor %}
+                         title="{{ ship.type_name }}">
                     {% endfor %}
                 </div>
             </div>
@@ -87,34 +47,12 @@
                                 {{ l1.name }}
                             </h3>
 
-                            <!-- L1 ICONS: Dig (L1 -> L2 -> L3 -> L4) -->
-                            <div class="flex -space-x-2 opacity-70 group-hover:opacity-100 transition items-center">
-                                <!-- L1 Fits -->
-                                {% for fit in l1.fits.all|slice:":3" %}
-                                <img src="https://images.evetech.net/types/{{ fit.ship_type.type_id }}/icon?size=32" class="w-8 h-8 rounded-full border border-slate-800 bg-slate-900 z-0 hover:z-10 hover:scale-110 transition" title="{{ fit.ship_type.type_name }}">
-                                {% endfor %}
-
-                                <!-- L2 Categories -->
-                                {% for l2 in l1.subcategories.all|slice:":5" %}
-                                <!-- L2 Fits -->
-                                {% for fit in l2.fits.all|slice:":2" %}
-                                <img src="https://images.evetech.net/types/{{ fit.ship_type.type_id }}/icon?size=32" class="w-8 h-8 rounded-full border border-slate-800 bg-slate-900 z-0 hover:z-10 hover:scale-110 transition" title="{{ l2.name }}: {{ fit.ship_type.type_name }}">
-                                {% endfor %}
-
-                                <!-- L3 Categories -->
-                                {% for l3 in l2.subcategories.all|slice:":2" %}
-                                <!-- L3 Fits -->
-                                {% for fit in l3.fits.all|slice:":1" %}
-                                <img src="https://images.evetech.net/types/{{ fit.ship_type.type_id }}/icon?size=32" class="w-8 h-8 rounded-full border border-slate-800 bg-slate-900 z-0 hover:z-10 hover:scale-110 transition" title="{{ l3.name }}: {{ fit.ship_type.type_name }}">
-                                {% endfor %}
-
-                                <!-- L4 Categories -->
-                                {% for l4 in l3.subcategories.all|slice:":1" %}
-                                {% for fit in l4.fits.all|slice:":1" %}
-                                <img src="https://images.evetech.net/types/{{ fit.ship_type.type_id }}/icon?size=32" class="w-8 h-8 rounded-full border border-slate-800 bg-slate-900 z-0 hover:z-10 hover:scale-110 transition" title="{{ l4.name }}: {{ fit.ship_type.type_name }}">
-                                {% endfor %}
-                                {% endfor %}
-                                {% endfor %}
+                            <!-- L1 ICONS -->
+                            <div class="flex flex-wrap -space-x-2 opacity-70 group-hover:opacity-100 transition items-center">
+                                {% for ship in l1.unique_ship_icons %}
+                                <img src="https://images.evetech.net/types/{{ ship.type_id }}/icon?size=32"
+                                     class="w-8 h-8 rounded-full border border-slate-800 bg-slate-900 z-0 hover:z-10 hover:scale-110 transition"
+                                     title="{{ ship.type_name }}">
                                 {% endfor %}
                             </div>
                         </div>
@@ -141,26 +79,12 @@
                                 <div class="flex items-center gap-3">
                                     <h4 class="text-sm font-bold text-amber-500/90 uppercase tracking-widest">{{ l2.name }}</h4>
 
-                                    <!-- L2 ICONS: Dig (L2 -> L3 -> L4) -->
-                                    <div class="flex -space-x-1 opacity-60">
-                                        <!-- L2 Fits -->
-                                        {% for fit in l2.fits.all|slice:":3" %}
-                                        <img src="https://images.evetech.net/types/{{ fit.ship_type.type_id }}/icon?size=32" class="w-6 h-6 rounded-full border border-slate-800 bg-slate-900">
-                                        {% endfor %}
-
-                                        <!-- L3 Categories -->
-                                        {% for l3 in l2.subcategories.all|slice:":4" %}
-                                        <!-- L3 Fits -->
-                                        {% for fit in l3.fits.all|slice:":1" %}
-                                        <img src="https://images.evetech.net/types/{{ fit.ship_type.type_id }}/icon?size=32" class="w-6 h-6 rounded-full border border-slate-800 bg-slate-900" title="{{ l3.name }}">
-                                        {% endfor %}
-
-                                        <!-- L4 Categories -->
-                                        {% for l4 in l3.subcategories.all|slice:":2" %}
-                                        {% for fit in l4.fits.all|slice:":1" %}
-                                        <img src="https://images.evetech.net/types/{{ fit.ship_type.type_id }}/icon?size=32" class="w-6 h-6 rounded-full border border-slate-800 bg-slate-900" title="{{ l4.name }}">
-                                        {% endfor %}
-                                        {% endfor %}
+                                    <!-- L2 ICONS -->
+                                    <div class="flex flex-wrap -space-x-1 opacity-60">
+                                        {% for ship in l2.unique_ship_icons %}
+                                        <img src="https://images.evetech.net/types/{{ ship.type_id }}/icon?size=32"
+                                             class="w-6 h-6 rounded-full border border-slate-800 bg-slate-900"
+                                             title="{{ ship.type_name }}">
                                         {% endfor %}
                                     </div>
                                 </div>
@@ -187,17 +111,12 @@
                                                 {{ l3.name }}
                                             </h5>
 
-                                            <!-- L3 ICONS: Dig (L3 -> L4) -->
-                                            <div class="flex -space-x-1 opacity-50 group-hover:opacity-100 transition">
-                                                <!-- L3 Fits -->
-                                                {% for fit in l3.fits.all|slice:":3" %}
-                                                <img src="https://images.evetech.net/types/{{ fit.ship_type.type_id }}/icon?size=32" class="w-5 h-5 rounded-full border border-slate-800 bg-slate-900">
-                                                {% endfor %}
-                                                <!-- L4 Fits -->
-                                                {% for l4 in l3.subcategories.all|slice:":3" %}
-                                                {% for fit in l4.fits.all|slice:":1" %}
-                                                <img src="https://images.evetech.net/types/{{ fit.ship_type.type_id }}/icon?size=32" class="w-5 h-5 rounded-full border border-slate-800 bg-slate-900">
-                                                {% endfor %}
+                                            <!-- L3 ICONS -->
+                                            <div class="flex flex-wrap -space-x-1 opacity-50 group-hover:opacity-100 transition">
+                                                {% for ship in l3.unique_ship_icons %}
+                                                <img src="https://images.evetech.net/types/{{ ship.type_id }}/icon?size=32"
+                                                     class="w-5 h-5 rounded-full border border-slate-800 bg-slate-900"
+                                                     title="{{ ship.type_name }}">
                                                 {% endfor %}
                                             </div>
                                         </div>

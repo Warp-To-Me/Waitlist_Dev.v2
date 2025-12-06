@@ -39,17 +39,30 @@
 <!-- FIT DETAIL MODAL -->
 <div id="fit-modal" class="fixed inset-0 z-50 hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
     <!-- Backdrop -->
-    <div class="fixed inset-0 bg-slate-900/90 backdrop-blur-sm transition-opacity" onclick="closeModal()"></div>
+    <!-- Note: This element is visually covered by the scroll container, so clicks might not reach it.
+         We rely on the scroll container listener below. -->
+    <div id="modal-backdrop" class="fixed inset-0 bg-slate-900/90 backdrop-blur-sm transition-opacity"></div>
 
-    <div class="fixed inset-0 z-10 overflow-y-auto">
+    <!-- Scroll Container -->
+    <div class="fixed inset-0 z-10 overflow-y-auto" id="modal-scroll-container">
         <div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
 
             <!-- Modal Panel -->
-            <div class="relative transform overflow-hidden rounded-lg bg-slate-800 text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-2xl border border-slate-700">
+            <!-- onclick="event.stopPropagation()" is CRITICAL here.
+                 It stops clicks inside the card from bubbling up to the scroll container. -->
+            <div id="modal-panel" class="relative transform overflow-hidden rounded-lg bg-slate-800 text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-4xl border border-slate-700 flex flex-col max-h-[90vh]" onclick="event.stopPropagation()">
 
                 <!-- Header -->
-                <div class="bg-slate-900 px-4 py-3 sm:px-6 flex justify-between items-center border-b border-slate-700">
-                    <h3 class="text-lg font-semibold leading-6 text-white" id="modal-title">Fit Details</h3>
+                <div class="bg-slate-900 px-4 py-3 sm:px-6 flex justify-between items-center border-b border-slate-700 shrink-0 gap-4">
+                    <div class="flex items-center gap-4">
+                        <div class="relative w-12 h-12 flex-shrink-0">
+                            <img id="modal-header-icon" src="" class="w-full h-full rounded-full" alt="Ship Icon">
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-semibold leading-6 text-white" id="modal-hull">Hull Name</h3>
+                            <p class="text-sm text-amber-500 font-mono" id="modal-fitname">Fit Name</p>
+                        </div>
+                    </div>
                     <button type="button" onclick="closeModal()" class="text-slate-400 hover:text-white transition">
                         <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -57,32 +70,28 @@
                     </button>
                 </div>
 
-                <!-- Content -->
-                <div class="px-4 py-4 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Content Grid -->
+                <div class="px-4 py-4 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-6 overflow-hidden h-full">
 
-                    <!-- Left: Info & Stats -->
-                    <div class="md:col-span-1 text-center md:text-left flex flex-col items-center md:items-start">
-                        <div class="relative w-32 h-32 mb-4 group">
-                            <div class="absolute inset-0 bg-gradient-to-t from-slate-900 to-transparent rounded-lg"></div>
-                            <img id="modal-img" src="" class="w-full h-full object-contain rounded-lg border border-slate-700 bg-slate-900/50 shadow-lg" alt="Ship">
+                    <!-- Left: Description & Actions -->
+                    <div class="md:col-span-1 flex flex-col overflow-y-auto pr-2 h-full">
+                        <div class="bg-slate-900/50 p-4 rounded border border-slate-700/50 mb-4 flex-grow overflow-y-auto custom-scrollbar">
+                            <h4 class="text-xs uppercase font-bold text-slate-500 mb-2 border-b border-slate-800 pb-1">Fitting Notes</h4>
+                            <p id="modal-desc" class="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap font-sans"></p>
                         </div>
 
-                        <h2 id="modal-hull" class="text-xl font-bold text-white leading-none"></h2>
-                        <h4 id="modal-fitname" class="text-sm text-amber-500 font-mono mb-2 mt-1"></h4>
-                        <div class="w-full h-px bg-slate-700 my-3"></div>
-                        <p id="modal-desc" class="text-xs text-slate-400 italic mb-4 leading-relaxed"></p>
+                        <div class="mt-auto space-y-2 shrink-0">
+                            <button onclick="copyToClipboard()" class="w-full text-xs bg-amber-600 hover:bg-amber-500 text-white px-3 py-3 rounded font-bold transition shadow-lg shadow-amber-900/20 flex items-center justify-center gap-2 active:scale-95 group">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-amber-200 group-hover:text-white" viewBox="0 0 20 20" fill="currentColor"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" /><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" /></svg>
+                                Copy EFT to Clipboard
+                            </button>
+                            <textarea id="modal-eft" class="sr-only"></textarea>
+                        </div>
                     </div>
 
-                    <!-- Right: EFT Block -->
-                    <div class="md:col-span-2">
-                        <div class="flex justify-between items-end mb-2">
-                            <label class="text-[10px] font-bold uppercase text-slate-500 tracking-wider">EFT Format</label>
-                            <button onclick="copyToClipboard()" class="text-xs bg-amber-600 hover:bg-amber-500 text-white px-3 py-1.5 rounded font-bold transition shadow-lg shadow-amber-900/20 flex items-center gap-1 active:scale-95">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" /><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" /></svg>
-                                Copy to Clipboard
-                            </button>
-                        </div>
-                        <textarea id="modal-eft" class="w-full h-72 bg-slate-950 text-green-400 font-mono text-xs p-3 rounded border border-slate-700 focus:outline-none resize-none shadow-inner" readonly></textarea>
+                    <!-- Right: Visual Slots (Scrollable) -->
+                    <div class="md:col-span-2 bg-slate-950 rounded-lg border border-slate-800 shadow-inner overflow-y-auto p-4 custom-scrollbar" id="modal-slots">
+                        <div class="flex items-center justify-center h-full text-slate-500 animate-pulse">Loading fitting data...</div>
                     </div>
                 </div>
             </div>
@@ -90,44 +99,50 @@
     </div>
 </div>
 
+<style>
+    .custom-scrollbar::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: #0f172a;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #334155;
+        border-radius: 4px;
+    }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+</style>
+
 <script>
     // --- ACCORDION LOGIC ---
     function toggleAccordion(id) {
         const content = document.getElementById(id);
         const icon = document.getElementById(`icon-${id}`);
         const header = document.getElementById(`header-${id}`);
-
         if (!content) return;
-
         if (content.classList.contains('hidden')) {
-            // Expand
             content.classList.remove('hidden');
             if (icon) icon.style.transform = 'rotate(180deg)';
             if (header) header.setAttribute('data-expanded', 'true');
         } else {
-            // Collapse
             content.classList.add('hidden');
             if (icon) icon.style.transform = 'rotate(0deg)';
             if (header) header.setAttribute('data-expanded', 'false');
         }
     }
 
-    // Explicit Helper to Force Expand (Recursively expands up the tree)
     function expandToRoot(element) {
-        // Find the nearest parent content container (accordion-content)
         const parentContent = element.closest('.accordion-content');
-
         if (parentContent) {
-            // Unhide it
             parentContent.classList.remove('hidden');
-
-            // Rotate its specific icon using the ID convention
-            // ID format is usually "root-X", "l1-X", etc.
             const contentId = parentContent.id;
             const icon = document.getElementById(`icon-${contentId}`);
             if (icon) icon.style.transform = 'rotate(180deg)';
-
-            // Recursively go up
             expandToRoot(parentContent.parentElement);
         }
     }
@@ -137,41 +152,90 @@
         const input = document.getElementById('fit-search');
         const filter = input.value.toUpperCase();
         const rows = document.querySelectorAll('.fit-row');
-
-        // 1. Hide/Show Individual Rows
         rows.forEach(row => {
             const text = row.getAttribute('data-search').toUpperCase();
-
             if (text.indexOf(filter) > -1) {
-                row.style.display = ""; // Show
-                if (filter.length > 0) {
-                    expandToRoot(row);
-                }
+                row.style.display = "";
+                if (filter.length > 0) expandToRoot(row);
             } else {
-                row.style.display = "none"; // Hide
+                row.style.display = "none";
             }
         });
-
-        // 2. Hide Empty Containers (Optional visual polish)
-        // This is complex to do efficiently in vanilla JS on every keypress without lag
-        // So we just rely on expanding parents of matching items.
     }
 
     // --- MODAL LOGIC ---
     function openFit(fitId) {
         const modal = document.getElementById('fit-modal');
+        const slotContainer = document.getElementById('modal-slots');
+        slotContainer.innerHTML = '<div class="flex items-center justify-center h-full text-slate-500 animate-pulse">Loading fitting data...</div>';
+        modal.classList.remove('hidden');
 
-        // Fetch Data
         fetch(`/doctrines/api/${fitId}/`)
             .then(res => res.json())
             .then(data => {
                 document.getElementById('modal-hull').textContent = data.hull;
                 document.getElementById('modal-fitname').textContent = data.name;
-                document.getElementById('modal-desc').textContent = data.description || "No description available.";
+                document.getElementById('modal-desc').textContent = data.description || "No fitting notes available.";
                 document.getElementById('modal-eft').value = data.eft_block;
-                document.getElementById('modal-img').src = `https://images.evetech.net/types/${data.hull_id}/render?size=512`;
+                document.getElementById('modal-header-icon').src = `https://images.evetech.net/types/${data.hull_id}/icon?size=64`;
 
-                modal.classList.remove('hidden');
+                let html = '';
+
+                if (data.slots && data.slots.length > 0) {
+                    data.slots.forEach(group => {
+                        html += `
+                        <div class="mb-3">
+                            <div class="flex items-baseline gap-2 mb-0.5 border-b border-slate-800 pb-0.5">
+                                <h5 class="text-slate-400 text-[10px] uppercase font-bold tracking-wider">${group.name}</h5>
+                                ${group.is_hardpoint ? `<span class="text-[9px] text-slate-600 font-mono">(${group.used} / ${group.total})</span>` : ''}
+                            </div>
+                            <div class="space-y-[1px]"> <!-- Tighter spacing between rows -->
+                        `;
+
+                        // Modules
+                        group.modules.forEach((mod, index) => {
+                            const bgClass = index % 2 === 0 ? 'bg-slate-900/40' : 'bg-slate-900/10';
+
+                            html += `
+                            <div class="flex items-center gap-2 ${bgClass} hover:bg-slate-800/60 px-1 py-0.5 rounded transition group h-7">
+                                <img src="https://images.evetech.net/types/${mod.id}/icon?size=32"
+                                     class="w-5 h-5 rounded flex-shrink-0"
+                                     alt="${mod.name}"
+                                     loading="lazy">
+                                <div class="flex-grow min-w-0">
+                                    <div class="text-[11px] text-slate-300 font-medium truncate group-hover:text-white transition">${mod.name}</div>
+                                </div>
+                                ${!group.is_hardpoint && mod.quantity > 1 ? `<span class="text-[10px] text-slate-500 font-mono px-1.5">x${mod.quantity}</span>` : ''}
+                            </div>
+                            `;
+                        });
+
+                        // Empty Slots
+                        if (group.is_hardpoint && group.empties_count > 0) {
+                            for (let i = 0; i < group.empties_count; i++) {
+                                const currentIndex = group.modules.length + i;
+                                const bgClass = currentIndex % 2 === 0 ? 'bg-slate-900/40' : 'bg-slate-900/10';
+
+                                html += `
+                                <div class="flex items-center gap-2 ${bgClass} px-1 py-0.5 rounded opacity-30 select-none h-6">
+                                    <div class="w-4 h-4 rounded bg-slate-800/50 ml-0.5"></div>
+                                    <span class="text-[10px] text-slate-500 italic">[Empty ${group.name.replace(/s$/, '')}]</span>
+                                </div>
+                                `;
+                            }
+                        }
+
+                        html += `</div></div>`;
+                    });
+                } else {
+                    html = '<div class="text-center text-slate-500 italic mt-10">No visual slot data available.<br>Please check standard EFT import.</div>';
+                }
+
+                slotContainer.innerHTML = html;
+            })
+            .catch(err => {
+                console.error(err);
+                slotContainer.innerHTML = '<div class="text-center text-red-500">Error loading fit data.</div>';
             });
     }
 
@@ -179,11 +243,27 @@
         document.getElementById('fit-modal').classList.add('hidden');
     }
 
+    // FIXED LOGIC:
+    // We attach the listener to the scroll container, which covers the entire screen (z-10).
+    // The panel inside has 'onclick="event.stopPropagation()"', so clicks inside the panel never bubble here.
+    // Therefore, any click event that reaches this listener MUST be on the background/empty space.
+    const scrollContainer = document.getElementById('modal-scroll-container');
+    if (scrollContainer) {
+        scrollContainer.addEventListener('click', function (e) {
+            closeModal();
+        });
+    }
+
     function copyToClipboard() {
         const copyText = document.getElementById("modal-eft");
         copyText.select();
         copyText.setSelectionRange(0, 99999);
-        navigator.clipboard.writeText(copyText.value);
+        navigator.clipboard.writeText(copyText.value).then(() => {
+            const btn = document.querySelector('button[onclick="copyToClipboard()"]');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span class="text-green-300">Copied!</span>';
+            setTimeout(() => { btn.innerHTML = originalText; }, 1500);
+        });
     }
 </script>
 {% endblock %}

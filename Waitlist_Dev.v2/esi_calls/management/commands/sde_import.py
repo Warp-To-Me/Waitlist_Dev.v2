@@ -2,10 +2,10 @@ from django.core.management.base import BaseCommand
 import pandas as pd
 import requests
 import io
-from pilot_data.models import ItemType, ItemGroup, TypeAttribute
+from pilot_data.models import ItemType, ItemGroup, TypeAttribute, TypeEffect
 
 class Command(BaseCommand):
-    help = 'Imports Eve Online Static Data Export (SDE) items, groups, and attributes.'
+    help = 'Imports Eve Online Static Data Export (SDE) items, groups, attributes, and effects.'
 
     def handle(self, *args, **options):
         self.stdout.write(self.style.SUCCESS('Starting SDE Import...'))
@@ -18,6 +18,9 @@ class Command(BaseCommand):
         
         # 3. Attributes (Published Only)
         self.import_dogma_attributes()
+
+        # 4. Effects (New: For Slot Detection)
+        self.import_dogma_effects()
         
         self.stdout.write(self.style.SUCCESS('Full SDE Import Complete.'))
 
@@ -181,3 +184,47 @@ class Command(BaseCommand):
             
         except Exception as e:
             self.stdout.write(self.style.ERROR(f"Error importing Attributes: {e}"))
+
+    def import_dogma_effects(self):
+        """
+        Imports dgmTypeEffects.csv.
+        Used to determine if a module is High/Mid/Low slot.
+        """
+        url = "https://www.fuzzwork.co.uk/dump/latest/dgmTypeEffects.csv"
+        self.stdout.write(f"Downloading Type Effects from {url}...")
+
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            
+            csv_content = io.StringIO(response.content.decode('utf-8'))
+            df = pd.read_csv(csv_content)
+            
+            self.stdout.write(f"Processing {len(df)} effects...")
+            
+            effects_to_create = []
+            valid_type_ids = set(ItemType.objects.values_list('type_id', flat=True))
+
+            for row in df.itertuples():
+                if row.typeID not in valid_type_ids:
+                    continue
+
+                effects_to_create.append(
+                    TypeEffect(
+                        item_id=row.typeID,
+                        effect_id=row.effectID,
+                        is_default=bool(row.isDefault) if hasattr(row, 'isDefault') else False
+                    )
+                )
+                
+                if len(effects_to_create) >= 5000:
+                    TypeEffect.objects.bulk_create(effects_to_create, ignore_conflicts=True)
+                    effects_to_create = []
+
+            if effects_to_create:
+                TypeEffect.objects.bulk_create(effects_to_create, ignore_conflicts=True)
+                
+            self.stdout.write(self.style.SUCCESS("Effects Import complete."))
+
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f"Error importing Effects: {e}"))

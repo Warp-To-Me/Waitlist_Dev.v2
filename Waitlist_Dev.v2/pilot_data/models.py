@@ -148,3 +148,21 @@ class TypeAttribute(models.Model):
 
     def __str__(self):
         return f"Item {self.item_id} - Attr {self.attribute_id}: {self.value}"
+
+class TypeEffect(models.Model):
+    """
+    Links an ItemType to a Dogma Effect.
+    Crucial for determining if an item is High/Mid/Low slot (loPower, medPower, hiPower).
+    """
+    item = models.ForeignKey(ItemType, on_delete=models.CASCADE, related_name='effects')
+    effect_id = models.IntegerField(db_index=True)
+    is_default = models.BooleanField(default=False)
+
+    class Meta:
+        unique_together = ('item', 'effect_id')
+        indexes = [
+            models.Index(fields=['item', 'effect_id']),
+        ]
+
+    def __str__(self):
+        return f"Item {self.item_id} - Effect {self.effect_id}"
