@@ -4,7 +4,7 @@
 {% block title %}Waitlist: {{ fleet.name }}{% endblock %}
 
 {% block content %}
-<div class="h-full flex flex-col overflow-hidden bg-slate-900">
+<div class="absolute inset-0 flex flex-col overflow-hidden bg-slate-900">
 
     <!-- HEADER BAR -->
     <div class="bg-slate-800 border-b border-slate-700 p-4 relative flex justify-center items-center shadow-md z-20 shrink-0 min-h-[4rem]">
@@ -37,8 +37,8 @@
     </div>
 
     <!-- MAIN BOARD -->
-    <div class="flex-grow overflow-x-auto overflow-y-hidden p-4 custom-scrollbar">
-        <div class="flex gap-4 h-full min-w-max mx-auto w-fit">
+    <div class="flex-grow overflow-x-auto overflow-y-hidden p-4 custom-scrollbar relative">
+        <div class="flex gap-2 h-full min-w-max mx-auto w-fit">
             {% include 'waitlist/column.html' with title="X-UP" color="amber" entries=columns.pending id="pending" is_pending=True %}
             {% include 'waitlist/column.html' with title="LOGI" color="green" entries=columns.logi id="logi" %}
             {% include 'waitlist/column.html' with title="DPS" color="green" entries=columns.dps id="dps" %}
@@ -46,11 +46,11 @@
             {% include 'waitlist/column.html' with title="OTHER" color="green" entries=columns.other id="other" %}
 
             {% if is_fc %}
-            <div class="w-80 flex flex-col bg-slate-800 rounded-lg border border-slate-700 shadow-xl overflow-hidden h-full ml-4">
+            <div class="w-80 flex flex-col bg-slate-800 rounded-lg border border-slate-700 shadow-xl overflow-hidden h-full ml-2">
                 <div class="bg-blue-900/20 border-b border-blue-900/30 p-3">
                     <h3 class="font-bold text-blue-100 uppercase text-sm tracking-wider">Fleet Overview</h3>
                 </div>
-                <div class="flex-grow p-4 overflow-y-auto text-slate-400 text-sm italic">
+                <div class="flex-grow p-4 overflow-y-auto text-slate-400 text-sm italic custom-scrollbar">
                     <p>Fleet composition loading...</p>
                     <div class="mt-4 text-xs text-slate-500">
                         (Requires ESI write_fleet scope)

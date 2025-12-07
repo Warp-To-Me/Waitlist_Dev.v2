@@ -1,34 +1,35 @@
 ﻿{% extends 'management/base_management.html' %}
 
 {% block management_content %}
+<!-- REMOVED: animate-fade-in -->
 <div class="flex flex-col gap-6 h-full">
     <!-- Header -->
-    <div class="flex justify-between items-center">
+    <div class="flex justify-between items-center border-b border-white/5 pb-6 shrink-0">
         <div>
-            <h1 class="text-2xl font-bold text-white">Role Management</h1>
-            <p class="text-slate-400 text-sm">Select a pilot from the directory or search to manage access rights.</p>
+            <h1 class="heading-1">Role Management</h1>
+            <p class="text-slate-400 text-sm mt-1">Select a pilot from the directory or search to manage access rights.</p>
         </div>
     </div>
 
     <!-- Search Area -->
-    <div class="bg-slate-800 p-6 rounded-lg border border-slate-700 shadow-xl">
+    <div class="glass-panel p-6 shrink-0">
         <div class="flex flex-col md:flex-row gap-4 max-w-4xl">
 
             <!-- Text Search -->
-            <div class="relative flex-grow">
-                <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+            <div class="relative flex-grow group">
+                <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none group-focus-within:text-brand-500 transition">
                     <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                 </div>
                 <input type="text"
                        id="user-search"
-                       class="block w-full p-4 pl-10 text-sm text-white border border-slate-600 rounded-lg bg-slate-900 focus:ring-blue-500 focus:border-blue-500 placeholder-slate-500"
+                       class="input-field pl-10"
                        placeholder="Search by Character Name..."
                        autocomplete="off">
             </div>
 
             <!-- Role Filter -->
             <div class="md:w-64">
-                <select id="role-filter" class="w-full h-full bg-slate-900 border border-slate-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5">
+                <select id="role-filter" class="select-field h-full">
                     <option value="">All Roles</option>
                     {% for role in roles %}
                     <option value="{{ role }}">{{ role }}</option>
@@ -40,23 +41,26 @@
     </div>
 
     <!-- Content Split: Results & Editor -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-grow items-start">
+    <!-- flex-grow allows this section to expand to fill the rest of the page -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-grow items-stretch min-h-0">
 
         <!-- Left: Search Results / Directory List -->
-        <div class="bg-slate-800 rounded-lg border border-slate-700 shadow-xl overflow-hidden min-h-[300px] flex flex-col">
-            <div class="p-4 bg-slate-900/50 border-b border-slate-700">
-                <h3 class="font-bold text-slate-300 text-sm uppercase tracking-wide">Select Pilot</h3>
+        <div class="glass-panel flex flex-col overflow-hidden h-full">
+            <div class="p-4 bg-white/5 border-b border-white/5">
+                <h3 class="label-text mb-0">Select Pilot</h3>
             </div>
 
             <!-- Result Container -->
-            <div id="search-results" class="divide-y divide-slate-700/50 flex-grow overflow-y-auto max-h-[600px]">
+            <!-- flex-grow and overflow-y-auto ensure internal scrolling works -->
+            <div id="search-results" class="divide-y divide-white/5 flex-grow overflow-y-auto custom-scrollbar">
                 {% for char in page_obj %}
-                <div class="p-4 hover:bg-slate-700 cursor-pointer transition flex items-center gap-3 group"
+                <!-- Compacted padding from p-4 to p-2.5 -->
+                <div class="p-2.5 hover:bg-white/5 cursor-pointer transition flex items-center gap-3 group"
                      onclick="selectPilot({{ char.user.id }}, '{{ char.character_name|escapejs }}', '{{ char.corporation_name|escapejs }}', {{ char.character_id }})">
-                    <img src="https://images.evetech.net/characters/{{ char.character_id }}/portrait?size=64" class="w-10 h-10 rounded border border-slate-600 group-hover:border-white transition" alt="">
+                    <img src="https://images.evetech.net/characters/{{ char.character_id }}/portrait?size=64" class="w-8 h-8 rounded border border-white/10 group-hover:border-white transition" alt="">
                     <div>
-                        <div class="text-white font-bold group-hover:text-blue-400 transition">{{ char.character_name }}</div>
-                        <div class="text-xs text-slate-500">{{ char.corporation_name|default:"Unknown Corp" }}</div>
+                        <div class="text-white font-bold text-xs group-hover:text-brand-400 transition">{{ char.character_name }}</div>
+                        <div class="text-[10px] text-slate-500">{{ char.corporation_name|default:"Unknown Corp" }}</div>
                     </div>
                 </div>
                 {% empty %}
@@ -64,43 +68,43 @@
                 {% endfor %}
             </div>
 
-            <!-- Pagination (If rendered by server) -->
+            <!-- Pagination -->
             {% if page_obj.has_other_pages %}
-            <div id="default-pagination" class="p-3 bg-slate-900/50 border-t border-slate-700 flex justify-between items-center text-xs">
+            <div id="default-pagination" class="p-3 bg-white/5 border-t border-white/5 flex justify-between items-center text-xs shrink-0">
                 {% if page_obj.has_previous %}
-                <a href="?page={{ page_obj.previous_page_number }}" class="px-2 py-1 bg-slate-800 border border-slate-600 rounded hover:bg-slate-700 text-slate-300">Previous</a>
+                <a href="?page={{ page_obj.previous_page_number }}" class="btn-secondary py-1 px-2 text-[10px]">Previous</a>
                 {% else %}
-                <span class="px-2 py-1 bg-slate-800/30 border border-slate-700/50 rounded text-slate-600 cursor-not-allowed">Previous</span>
+                <span class="px-2 py-1 bg-white/5 border border-white/5 rounded text-slate-600 cursor-not-allowed">Previous</span>
                 {% endif %}
 
-                <span class="text-slate-500">Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+                <span class="text-slate-500 font-mono">Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
 
                 {% if page_obj.has_next %}
-                <a href="?page={{ page_obj.next_page_number }}" class="px-2 py-1 bg-slate-800 border border-slate-600 rounded hover:bg-slate-700 text-slate-300">Next</a>
+                <a href="?page={{ page_obj.next_page_number }}" class="btn-secondary py-1 px-2 text-[10px]">Next</a>
                 {% else %}
-                <span class="px-2 py-1 bg-slate-800/30 border border-slate-700/50 rounded text-slate-600 cursor-not-allowed">Next</span>
+                <span class="px-2 py-1 bg-white/5 border border-white/5 rounded text-slate-600 cursor-not-allowed">Next</span>
                 {% endif %}
             </div>
             {% endif %}
         </div>
 
         <!-- Right: Role Editor (Hidden by default) -->
-        <div id="role-editor" class="lg:col-span-2 bg-slate-800 rounded-lg border border-slate-700 shadow-xl overflow-hidden hidden transition-all duration-300">
+        <div id="role-editor" class="lg:col-span-2 glass-panel overflow-hidden hidden flex-col transition-all duration-300 h-full">
             <!-- Selected User Header -->
-            <div class="p-6 bg-slate-900/50 border-b border-slate-700 flex items-center gap-4">
-                <img id="editor-avatar" src="" class="w-16 h-16 rounded border-2 border-slate-600" alt="">
+            <div class="p-6 bg-white/5 border-b border-white/5 flex items-center gap-4 shrink-0">
+                <img id="editor-avatar" src="" class="w-16 h-16 rounded-lg border-2 border-white/10 shadow-lg" alt="">
                 <div>
-                    <h2 id="editor-name" class="text-2xl font-bold text-white"></h2>
+                    <h2 id="editor-name" class="text-2xl font-bold text-white tracking-tight"></h2>
                     <p id="editor-corp" class="text-slate-400 text-sm"></p>
                     <input type="hidden" id="editor-user-id" value="">
                 </div>
             </div>
 
-            <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-8 overflow-y-auto custom-scrollbar flex-grow">
                 <!-- Current Roles -->
                 <div>
-                    <h3 class="text-green-400 font-bold mb-4 flex items-center gap-2">
-                        <span class="w-2 h-2 rounded-full bg-green-500"></span> Current Roles
+                    <h3 class="label-text flex items-center gap-2 mb-4">
+                        <span class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]"></span> Current Roles
                     </h3>
                     <div id="current-roles-list" class="space-y-2">
                         <!-- JS Populated -->
@@ -109,13 +113,13 @@
 
                 <!-- Available Roles -->
                 <div>
-                    <h3 class="text-blue-400 font-bold mb-4 flex items-center gap-2">
-                        <span class="w-2 h-2 rounded-full bg-blue-500"></span> Available to Assign
+                    <h3 class="label-text flex items-center gap-2 mb-4">
+                        <span class="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]"></span> Available to Assign
                     </h3>
                     <div id="available-roles-list" class="space-y-2">
                         <!-- JS Populated -->
                     </div>
-                    <p class="text-xs text-slate-500 mt-4 italic">
+                    <p class="text-xs text-slate-500 mt-4 italic border-t border-white/5 pt-2">
                         Note: You can only assign roles that are below your own rank in the hierarchy.
                     </p>
                 </div>
@@ -173,13 +177,11 @@
             const query = searchInput.value.trim();
             const role = roleFilter.value;
 
-            // If inputs are reset, reload to restore default list
             if (query.length === 0 && role === "") {
                 window.location.reload();
                 return;
             }
 
-            // If searching text only, enforce length
             if (query.length > 0 && query.length < 3 && role === "") {
                 resultsContainer.innerHTML = '<div class="p-8 text-center text-slate-500 italic">Type at least 3 characters...</div>';
                 if (paginationContainer) paginationContainer.style.display = 'none';
@@ -201,29 +203,24 @@
 
                     data.results.forEach(user => {
                         const el = document.createElement('div');
-                        el.className = 'p-4 hover:bg-slate-700 cursor-pointer transition flex items-center gap-3 group border-b border-slate-700/50';
+                        // Compacted Search Results padding here too
+                        el.className = 'p-2.5 hover:bg-white/5 cursor-pointer transition flex items-center gap-3 group border-b border-white/5';
                         el.innerHTML = `
-                            <img src="https://images.evetech.net/characters/${user.char_id}/portrait?size=64" class="w-10 h-10 rounded border border-slate-600 group-hover:border-white transition" alt="">
+                            <img src="https://images.evetech.net/characters/${user.char_id}/portrait?size=64" class="w-8 h-8 rounded border border-white/10 group-hover:border-white transition" alt="">
                             <div>
-                                <div class="text-white font-bold group-hover:text-blue-400 transition">${user.username}</div>
-                                <div class="text-xs text-slate-500">${user.corp}</div>
+                                <div class="text-white font-bold text-xs group-hover:text-brand-400 transition">${user.username}</div>
+                                <div class="text-[10px] text-slate-500">${user.corp}</div>
                             </div>
                         `;
-                        // Direct closure usage is fine here for dynamically created elements
                         el.onclick = () => loadUserRoles(user);
                         resultsContainer.appendChild(el);
                     });
                 });
         }
 
-        // Attach Listeners
         if (searchInput) searchInput.addEventListener('input', debounce(performSearch, 400));
         if (roleFilter) roleFilter.addEventListener('change', performSearch);
 
-        // --- GLOBAL HANDLER EXPORT ---
-        // This is required because the server-rendered HTML uses onclick="selectPilot(...)"
-        // We overwrite window.selectPilot every time this script runs (page load)
-        // to ensure it closes over the *current* DOM elements.
         window.selectPilot = function (userId, charName, corpName, charId) {
             loadUserRoles({
                 id: userId,
@@ -235,22 +232,22 @@
 
         // --- LOAD EDITOR ---
         function loadUserRoles(user) {
-            // 1. Set Header Info
             if (edName) edName.textContent = user.username;
             if (edCorp) edCorp.textContent = user.corp;
             if (edImg) edImg.src = `https://images.evetech.net/characters/${user.char_id}/portrait?size=128`;
             if (edId) edId.value = user.id;
 
-            // 2. Show Editor
-            if (editorContainer) editorContainer.classList.remove('hidden');
+            if (editorContainer) {
+                editorContainer.classList.remove('hidden');
+                editorContainer.classList.add('flex'); // Ensure flex layout for height
+            }
 
-            // 3. Fetch Roles
             refreshRoles(user.id);
         }
 
         function refreshRoles(userId) {
-            if (currentList) currentList.innerHTML = '<div class="text-slate-500 animate-pulse">Loading...</div>';
-            if (availableList) availableList.innerHTML = '<div class="text-slate-500 animate-pulse">Loading...</div>';
+            if (currentList) currentList.innerHTML = '<div class="text-slate-500 animate-pulse text-sm">Loading...</div>';
+            if (availableList) availableList.innerHTML = '<div class="text-slate-500 animate-pulse text-sm">Loading...</div>';
 
             fetch(`/api/mgmt/user_roles/${userId}/`)
                 .then(res => res.json())
@@ -262,7 +259,6 @@
         function renderRoles(data) {
             if (!currentList || !availableList) return;
 
-            // Clear Lists
             currentList.innerHTML = '';
             availableList.innerHTML = '';
 
@@ -272,10 +268,11 @@
             } else {
                 data.current_roles.forEach(role => {
                     const btn = document.createElement('button');
-                    btn.className = "w-full text-left bg-slate-900 hover:bg-red-900/30 border border-slate-700 hover:border-red-500/50 p-3 rounded flex justify-between items-center group transition";
+                    // Modernized Button Style
+                    btn.className = "w-full text-left bg-white/5 hover:bg-red-900/20 border border-white/5 hover:border-red-500/30 p-3 rounded-lg flex justify-between items-center group transition";
                     btn.innerHTML = `
-                        <span class="text-slate-200 font-bold group-hover:text-red-200">${role}</span>
-                        <span class="text-xs text-red-500 opacity-0 group-hover:opacity-100 uppercase font-bold">Remove</span>
+                        <span class="text-slate-200 font-bold text-sm group-hover:text-red-200">${role}</span>
+                        <span class="badge badge-red opacity-0 group-hover:opacity-100 transition">Remove</span>
                     `;
                     btn.onclick = () => updateRole(data.user_id, role, 'remove');
                     currentList.appendChild(btn);
@@ -287,14 +284,14 @@
                 availableList.innerHTML = '<div class="text-sm text-slate-500 italic">No roles available to assign.</div>';
             } else {
                 data.available_roles.forEach(role => {
-                    // Don't show if already has it
                     if (data.current_roles.includes(role)) return;
 
                     const btn = document.createElement('button');
-                    btn.className = "w-full text-left bg-slate-900 hover:bg-blue-900/30 border border-slate-700 hover:border-blue-500/50 p-3 rounded flex justify-between items-center group transition";
+                    // Modernized Button Style
+                    btn.className = "w-full text-left bg-white/5 hover:bg-blue-900/20 border border-white/5 hover:border-blue-500/30 p-3 rounded-lg flex justify-between items-center group transition";
                     btn.innerHTML = `
-                        <span class="text-slate-200 font-bold group-hover:text-blue-200">${role}</span>
-                        <span class="text-xs text-blue-500 opacity-0 group-hover:opacity-100 uppercase font-bold">Add</span>
+                        <span class="text-slate-200 font-bold text-sm group-hover:text-blue-200">${role}</span>
+                        <span class="badge badge-brand opacity-0 group-hover:opacity-100 transition">Add</span>
                     `;
                     btn.onclick = () => updateRole(data.user_id, role, 'add');
                     availableList.appendChild(btn);

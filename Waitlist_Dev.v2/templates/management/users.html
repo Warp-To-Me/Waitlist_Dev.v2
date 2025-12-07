@@ -1,21 +1,22 @@
 ﻿{% extends 'management/base_management.html' %}
 
 {% block management_content %}
+<!-- REMOVED: animate-fade-in -->
 <div class="flex flex-col gap-6">
 
     <!-- Header & Search -->
-    <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+    <div class="flex flex-col md:flex-row justify-between items-center gap-4 border-b border-white/5 pb-6">
         <div>
-            <h1 class="text-2xl font-bold text-white">Pilot Dossier</h1>
-            <p class="text-slate-400 text-sm">Search and inspect pilot profiles.</p>
+            <h1 class="heading-1">Pilot Dossier</h1>
+            <p class="text-slate-400 text-sm mt-1">Search and inspect pilot profiles.</p>
         </div>
 
-        <form method="get" class="w-full md:w-auto relative">
-            <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+        <form method="get" class="w-full md:w-auto relative group">
+            <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none transition group-focus-within:text-brand-500">
                 <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
             </div>
             <input type="text" name="q" value="{{ query }}"
-                   class="block w-full md:w-80 p-2.5 pl-10 text-sm text-white border border-slate-600 rounded-lg bg-slate-800 focus:ring-blue-500 focus:border-blue-500 placeholder-slate-500"
+                   class="input-field pl-10 md:w-80 bg-dark-900/50 border-white/10 focus:border-brand-500"
                    placeholder="Search Character...">
         </form>
     </div>
@@ -24,96 +25,108 @@
     {% if page_obj.has_other_pages %}
     <div class="flex justify-end gap-2 text-sm">
         {% if page_obj.has_previous %}
-        <a href="?page={{ page_obj.previous_page_number }}&q={{ query }}&sort={{ current_sort }}&dir={{ current_dir }}" class="px-3 py-1 bg-slate-800 border border-slate-600 rounded hover:bg-slate-700 text-slate-300">Previous</a>
+        <a href="?page={{ page_obj.previous_page_number }}&q={{ query }}&sort={{ current_sort }}&dir={{ current_dir }}" class="btn-secondary py-1 px-3 text-xs">Previous</a>
         {% endif %}
 
-        <span class="text-slate-400 py-1">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        <span class="text-slate-400 py-1 px-2 font-mono text-xs flex items-center">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
 
         {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}&q={{ query }}&sort={{ current_sort }}&dir={{ current_dir }}" class="px-3 py-1 bg-slate-800 border border-slate-600 rounded hover:bg-slate-700 text-slate-300">Next</a>
+        <a href="?page={{ page_obj.next_page_number }}&q={{ query }}&sort={{ current_sort }}&dir={{ current_dir }}" class="btn-secondary py-1 px-3 text-xs">Next</a>
         {% endif %}
     </div>
     {% endif %}
 
     <!-- Results Table -->
-    <div class="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden shadow-xl">
+    <div class="glass-panel overflow-hidden">
         <div class="overflow-x-auto">
             <table class="w-full text-sm text-left text-slate-400">
-                <thead class="text-xs uppercase bg-slate-900/50 text-slate-300">
+                <thead class="text-xs uppercase bg-white/5 text-slate-300 font-bold border-b border-white/5">
                     <tr>
                         <!-- Helper for sort link classes -->
-                        {% with active_class="text-amber-500 font-bold" inactive_class="text-slate-300 hover:text-white" %}
+                        {% with active_class="text-brand-500 font-bold" inactive_class="text-slate-400 hover:text-white transition" %}
 
-                        <th class="px-6 py-3 cursor-pointer select-none">
+                        <th class="px-6 py-4 cursor-pointer select-none group">
                             <a href="?q={{ query }}&sort=character&dir={% if current_sort == 'character' and current_dir == 'asc' %}desc{% else %}asc{% endif %}" class="flex items-center gap-1 {% if current_sort == 'character' %}{{ active_class }}{% else %}{{ inactive_class }}{% endif %}">
                                 Character
                                 {% if current_sort == 'character' %}
                                 <span class="text-[10px]">{% if current_dir == 'asc' %}▲{% else %}▼{% endif %}</span>
+                                {% else %}
+                                <span class="text-[10px] opacity-0 group-hover:opacity-50 transition">▼</span>
                                 {% endif %}
                             </a>
                         </th>
 
-                        <th class="px-6 py-3 cursor-pointer select-none">
+                        <th class="px-6 py-4 cursor-pointer select-none group">
                             <a href="?q={{ query }}&sort=main&dir={% if current_sort == 'main' and current_dir == 'asc' %}desc{% else %}asc{% endif %}" class="flex items-center gap-1 {% if current_sort == 'main' %}{{ active_class }}{% else %}{{ inactive_class }}{% endif %}">
                                 Main
                                 {% if current_sort == 'main' %}
                                 <span class="text-[10px]">{% if current_dir == 'asc' %}▲{% else %}▼{% endif %}</span>
+                                {% else %}
+                                <span class="text-[10px] opacity-0 group-hover:opacity-50 transition">▼</span>
                                 {% endif %}
                             </a>
                         </th>
 
-                        <th class="px-6 py-3 text-center cursor-pointer select-none">
+                        <th class="px-6 py-4 text-center cursor-pointer select-none group">
                             <a href="?q={{ query }}&sort=linked&dir={% if current_sort == 'linked' and current_dir == 'asc' %}desc{% else %}asc{% endif %}" class="flex items-center justify-center gap-1 {% if current_sort == 'linked' %}{{ active_class }}{% else %}{{ inactive_class }}{% endif %}">
                                 Linked
                                 {% if current_sort == 'linked' %}
                                 <span class="text-[10px]">{% if current_dir == 'asc' %}▲{% else %}▼{% endif %}</span>
+                                {% else %}
+                                <span class="text-[10px] opacity-0 group-hover:opacity-50 transition">▼</span>
                                 {% endif %}
                             </a>
                         </th>
 
-                        <th class="px-6 py-3 cursor-pointer select-none">
+                        <th class="px-6 py-4 cursor-pointer select-none group">
                             <a href="?q={{ query }}&sort=corporation&dir={% if current_sort == 'corporation' and current_dir == 'asc' %}desc{% else %}asc{% endif %}" class="flex items-center gap-1 {% if current_sort == 'corporation' %}{{ active_class }}{% else %}{{ inactive_class }}{% endif %}">
                                 Corporation
                                 {% if current_sort == 'corporation' %}
                                 <span class="text-[10px]">{% if current_dir == 'asc' %}▲{% else %}▼{% endif %}</span>
+                                {% else %}
+                                <span class="text-[10px] opacity-0 group-hover:opacity-50 transition">▼</span>
                                 {% endif %}
                             </a>
                         </th>
 
-                        <th class="px-6 py-3 cursor-pointer select-none">
+                        <th class="px-6 py-4 cursor-pointer select-none group">
                             <a href="?q={{ query }}&sort=alliance&dir={% if current_sort == 'alliance' and current_dir == 'asc' %}desc{% else %}asc{% endif %}" class="flex items-center gap-1 {% if current_sort == 'alliance' %}{{ active_class }}{% else %}{{ inactive_class }}{% endif %}">
                                 Alliance
                                 {% if current_sort == 'alliance' %}
                                 <span class="text-[10px]">{% if current_dir == 'asc' %}▲{% else %}▼{% endif %}</span>
+                                {% else %}
+                                <span class="text-[10px] opacity-0 group-hover:opacity-50 transition">▼</span>
                                 {% endif %}
                             </a>
                         </th>
 
-                        <th class="px-6 py-3 cursor-pointer select-none">
+                        <th class="px-6 py-4 cursor-pointer select-none group">
                             <a href="?q={{ query }}&sort=status&dir={% if current_sort == 'status' and current_dir == 'asc' %}desc{% else %}asc{% endif %}" class="flex items-center gap-1 {% if current_sort == 'status' %}{{ active_class }}{% else %}{{ inactive_class }}{% endif %}">
                                 Status
                                 {% if current_sort == 'status' %}
                                 <span class="text-[10px]">{% if current_dir == 'asc' %}▲{% else %}▼{% endif %}</span>
+                                {% else %}
+                                <span class="text-[10px] opacity-0 group-hover:opacity-50 transition">▼</span>
                                 {% endif %}
                             </a>
                         </th>
 
-                        <th class="px-6 py-3 text-right">Action</th>
+                        <th class="px-6 py-4 text-right">Action</th>
 
                         {% endwith %}
                     </tr>
                 </thead>
-                <tbody>
+                <tbody class="divide-y divide-white/5">
                     {% for char in page_obj %}
-                    <tr class="border-b border-slate-700 hover:bg-slate-700/50 transition">
+                    <tr class="hover:bg-white/5 transition group">
                         <!-- Character Info -->
                         <td class="px-6 py-4 font-medium text-white flex items-center gap-3">
                             <img src="https://images.evetech.net/characters/{{ char.character_id }}/portrait?size=32"
-                                 class="w-8 h-8 rounded border border-slate-600" alt="">
+                                 class="w-8 h-8 rounded border border-white/10 bg-dark-900" alt="">
                             <div>
-                                <div class="font-bold">{{ char.character_name }}</div>
+                                <div class="font-bold group-hover:text-brand-400 transition">{{ char.character_name }}</div>
                                 {% if char.is_main %}
-                                <span class="text-[10px] text-amber-500 bg-amber-900/20 px-1.5 py-0.5 rounded border border-amber-900/30">MAIN</span>
+                                <span class="badge badge-brand mt-1 inline-block">MAIN</span>
                                 {% endif %}
                             </div>
                         </td>
@@ -121,29 +134,29 @@
                         <!-- Main Character Column -->
                         <td class="px-6 py-4">
                             {% if char.is_main %}
-                            <span class="text-slate-500 italic">Self</span>
+                            <span class="text-slate-500 italic text-xs">Self</span>
                             {% else %}
-                            <span class="text-amber-400 font-bold">{{ char.main_char_name|default:"Unknown" }}</span>
+                            <span class="text-brand-400 font-bold text-xs bg-brand-900/10 px-2 py-1 rounded border border-brand-500/20">{{ char.main_char_name|default:"Unknown" }}</span>
                             {% endif %}
                         </td>
 
                         <!-- Linked Count -->
                         <td class="px-6 py-4 text-center">
-                            <span class="bg-slate-700 text-white px-2 py-1 rounded text-xs font-mono font-bold">{{ char.linked_count }}</span>
+                            <span class="bg-dark-900 text-slate-300 px-2 py-1 rounded text-xs font-mono font-bold border border-white/10">{{ char.linked_count }}</span>
                         </td>
 
                         <!-- Corp/Alliance -->
                         <td class="px-6 py-4">
-                            {{ char.corporation_name|default:"Unknown" }}
+                            <div class="truncate max-w-[150px]" title="{{ char.corporation_name }}">{{ char.corporation_name|default:"Unknown" }}</div>
                         </td>
                         <td class="px-6 py-4">
-                            {{ char.alliance_name|default:"-" }}
+                            <div class="truncate max-w-[150px]" title="{{ char.alliance_name }}">{{ char.alliance_name|default:"-" }}</div>
                         </td>
 
                         <!-- Last Updated -->
                         <td class="px-6 py-4">
                             <div class="flex items-center gap-2">
-                                <div class="text-xs">
+                                <div class="text-xs font-mono">
                                     <span class="text-slate-500">Updated:</span> <span class="text-slate-300">{{ char.last_updated|date:"M d, H:i" }}</span>
                                 </div>
                             </div>
@@ -152,15 +165,18 @@
                         <!-- Action -->
                         <td class="px-6 py-4 text-right">
                             <a href="{% url 'management_user_inspect_char' char.user.id char.character_id %}"
-                               class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded text-xs font-bold transition inline-flex items-center gap-1">
+                               class="btn-secondary py-1.5 px-3 text-xs inline-flex items-center gap-2 border-brand-500/30 hover:border-brand-500 hover:text-brand-400">
                                 <span>📄</span> Inspect
                             </a>
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="7" class="px-6 py-8 text-center text-slate-500 italic">
-                            No pilots found matching your search.
+                        <td colspan="7" class="px-6 py-12 text-center text-slate-500 italic bg-white/5">
+                            <div class="flex flex-col items-center justify-center">
+                                <span class="text-3xl mb-2 grayscale opacity-30">🔍</span>
+                                No pilots found matching your search.
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}
@@ -170,15 +186,15 @@
 
         <!-- Bottom Pagination -->
         {% if page_obj.has_other_pages %}
-        <div class="bg-slate-900/50 p-4 border-t border-slate-700 flex justify-center items-center gap-2">
+        <div class="bg-white/5 p-4 border-t border-white/5 flex justify-end items-center gap-2">
             {% if page_obj.has_previous %}
-            <a href="?page={{ page_obj.previous_page_number }}&q={{ query }}&sort={{ current_sort }}&dir={{ current_dir }}" class="px-3 py-1 bg-slate-800 border border-slate-600 rounded hover:bg-slate-700 text-slate-300">Previous</a>
+            <a href="?page={{ page_obj.previous_page_number }}&q={{ query }}&sort={{ current_sort }}&dir={{ current_dir }}" class="btn-secondary py-1 px-3 text-xs">Previous</a>
             {% endif %}
 
-            <span class="text-slate-400 text-sm">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+            <span class="text-slate-400 text-xs font-mono">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
 
             {% if page_obj.has_next %}
-            <a href="?page={{ page_obj.next_page_number }}&q={{ query }}&sort={{ current_sort }}&dir={{ current_dir }}" class="px-3 py-1 bg-slate-800 border border-slate-600 rounded hover:bg-slate-700 text-slate-300">Next</a>
+            <a href="?page={{ page_obj.next_page_number }}&q={{ query }}&sort={{ current_sort }}&dir={{ current_dir }}" class="btn-secondary py-1 px-3 text-xs">Next</a>
             {% endif %}
         </div>
         {% endif %}

@@ -1,125 +1,250 @@
 ﻿<!DOCTYPE html>
-<html lang="en" class="h-full bg-slate-900">
+<html lang="en" class="h-full bg-[#0B1120]">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Fleet Command{% endblock %}</title>
+
+    <!-- 1. MODERN FONT: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+    <!-- 2. TAILWIND CDN WITH PLUGIN SUPPORT -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        /* Strict Reset & App-like Layout Lock */
-        html, body {
-            height: 100%;
-            width: 100%;
-            margin: 0;
-            padding: 0;
-            background-color: #0f172a; /* Slate 900 */
-            overflow: hidden; /* CRITICAL: Prevent body scroll, force internal scrolling */
+
+    <!-- 3. MASTER DESIGN CONFIGURATION -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        // Custom Brand Palette
+                        brand: {
+                            50: '#fffbeb',
+                            100: '#fef3c7',
+                            200: '#fde68a',
+                            300: '#fcd34d',
+                            400: '#fbbf24',
+                            500: '#f59e0b', // Base Amber
+                            600: '#d97706',
+                            700: '#b45309',
+                            800: '#92400e',
+                            900: '#78350f',
+                            950: '#451a03',
+                        },
+                        dark: {
+                            800: '#1e293b',
+                            900: '#0f172a',
+                            950: '#020617', // Deepest background
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- 4. REUSABLE COMPONENT CLASSES (THE "MASTER" STYLES) -->
+    <style type="text/tailwindcss">
+        @layer utilities {
+            /* Hides scrollbar but allows scrolling */
+            .no-scrollbar::-webkit-scrollbar {
+                display: none;
+            }
+
+            .no-scrollbar {
+                -ms-overflow-style: none;
+                scrollbar-width: none;
+            }
+
+            /* Custom Scrollbar for modern look */
+            .custom-scrollbar::-webkit-scrollbar {
+                width: 6px;
+                height: 6px;
+            }
+
+            .custom-scrollbar::-webkit-scrollbar-track {
+                @apply bg-dark-900;
+            }
+
+            .custom-scrollbar::-webkit-scrollbar-thumb {
+                @apply bg-slate-700 rounded-full hover:bg-slate-600 transition;
+            }
         }
 
+        @layer components {
+            /* --- LAYOUTS --- */
+            .glass-panel {
+                @apply bg-slate-900/60 backdrop-blur-md border border-white/10 rounded-xl shadow-xl;
+            }
+
+            .glass-header {
+                @apply bg-slate-900/80 backdrop-blur-lg border-b border-white/5;
+            }
+
+            /* --- BUTTONS --- */
+            .btn {
+                @apply px-4 py-2 rounded-lg font-bold transition-all duration-200 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
+            }
+
+            .btn-primary {
+                @apply btn bg-gradient-to-r from-brand-500 to-brand-600 text-white shadow-lg shadow-brand-500/20 hover:shadow-brand-500/40 hover:brightness-110 border border-white/10;
+            }
+
+            .btn-secondary {
+                @apply btn bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 hover:text-white hover:border-slate-600;
+            }
+
+            .btn-danger {
+                @apply btn bg-red-900/20 text-red-400 border border-red-900/50 hover:bg-red-900/40 hover:text-red-300;
+            }
+
+            .btn-success {
+                @apply btn bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-900/20;
+            }
+
+            .btn-ghost {
+                @apply btn bg-transparent hover:bg-white/5 text-slate-400 hover:text-white;
+            }
+
+            /* --- TEXT --- */
+            .heading-1 {
+                @apply text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-400 tracking-tight;
+            }
+
+            .label-text {
+                @apply block text-slate-400 text-xs font-bold uppercase tracking-wider mb-2;
+            }
+
+            /* --- FORMS --- */
+            .input-field {
+                @apply w-full bg-dark-950/50 border border-slate-700 rounded-lg p-3 text-white focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none transition placeholder-slate-600 font-mono text-sm;
+            }
+
+            .select-field {
+                @apply w-full bg-dark-950/50 border border-slate-700 rounded-lg p-2.5 text-white focus:border-brand-500 outline-none transition appearance-none;
+            }
+
+            /* --- BADGES --- */
+            .badge {
+                @apply px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide border;
+            }
+
+            .badge-brand {
+                @apply bg-brand-900/20 text-brand-400 border-brand-500/30;
+            }
+
+            .badge-green {
+                @apply bg-green-900/20 text-green-400 border-green-500/30;
+            }
+
+            .badge-red {
+                @apply bg-red-900/20 text-red-400 border-red-500/30;
+            }
+
+            .badge-slate {
+                @apply bg-slate-800 text-slate-400 border-slate-700;
+            }
+
+            /* --- ANIMATION UTILITY --- */
+            /* UPDATED: Added will-change for performance */
+            .animate-fade-in {
+                animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+                will-change: transform, opacity;
+            }
+        }
+
+        /* Base styles */
         body {
-            display: flex;
-            flex-direction: column;
-            color: #e2e8f0;
-            background-image: radial-gradient(circle at 50% 50%, #1e293b 0%, #0f172a 100%);
+            font-family: 'Inter', sans-serif;
+            background-image: radial-gradient(circle at 50% 0%, #1e293b 0%, #020617 60%);
             background-attachment: fixed;
-        }
-
-        /* Smooth fade for content swapping */
-        .fade-in {
-            animation: fadeIn 0.2s ease-out;
         }
 
         @keyframes fadeIn {
             from {
                 opacity: 0;
+                transform: translateY(10px);
             }
 
             to {
                 opacity: 1;
+                transform: translateY(0);
             }
         }
     </style>
     {% block extra_head %}{% endblock %}
 </head>
-<body>
+<body class="h-full flex flex-col overflow-hidden text-slate-300">
     <!-- Persistent Navbar -->
-    <!-- z-50 ensures it stays on top. flex-shrink-0 prevents it from squishing. -->
-    <nav class="bg-slate-900/95 backdrop-blur border-b border-slate-700 z-50 shadow-lg flex-shrink-0 relative">
-        <div class="container mx-auto px-4 py-3 flex justify-between items-center h-16">
+    <nav class="glass-header z-50 flex-shrink-0 relative">
+        <div class="container mx-auto px-4 h-16 flex justify-between items-center">
 
-            <!-- Left Side: Brand & Main Navigation -->
+            <!-- Left: Brand -->
             <div class="flex items-center gap-8">
-                <!-- Brand Logo -->
-                <div class="flex items-center gap-4">
-                    <a href="{% url 'landing_page' %}" class="spa-link text-xl md:text-2xl font-bold text-amber-500 tracking-wider hover:text-amber-400 transition flex items-center gap-2">
-                        Warp To Me
-                    </a>
-                    {% if user.is_staff or user.is_superuser %}
-                    <span class="bg-red-900/40 text-red-400 text-[10px] px-2 py-0.5 rounded border border-red-900/50 tracking-widest uppercase hidden md:inline-block">System Admin</span>
-                    {% endif %}
-                </div>
+                <a href="{% url 'landing_page' %}" class="spa-link flex items-center gap-3 group">
+                    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center text-dark-950 font-bold text-xl shadow-lg shadow-brand-500/20 group-hover:scale-105 transition">W</div>
+                    <span class="text-xl font-bold text-white tracking-tight group-hover:text-brand-400 transition">WarpToMe</span>
+                </a>
 
-                <!-- Public Menu Links -->
-                <div class="hidden md:flex items-center gap-6 border-l border-slate-700 pl-6 h-8">
-                    <a href="{% url 'doctrine_list' %}" class="spa-link text-sm font-bold text-slate-400 hover:text-white hover:border-b-2 hover:border-amber-500 transition-all h-full flex items-center">
-                        DOCTRINES
+                {% if user.is_staff or user.is_superuser %}
+                <span class="badge badge-red hidden md:inline-block">System Admin</span>
+                {% endif %}
+
+                <!-- Desktop Menu -->
+                <div class="hidden md:flex items-center gap-1 border-l border-white/10 pl-6 h-8">
+                    <a href="{% url 'doctrine_list' %}" class="spa-link px-3 py-1.5 rounded-md text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 transition">
+                        Doctrines
                     </a>
                 </div>
             </div>
 
-            <!-- Right Side: User Controls -->
-            <div class="flex items-center gap-4">
+            <!-- Right: User Controls -->
+            <div class="flex items-center gap-3">
                 {% if user.is_authenticated %}
                 {% if navbar_char %}
-                <a href="{% url 'profile' %}" class="spa-link flex items-center gap-3 text-sm text-slate-300 bg-slate-800/50 py-1 px-3 rounded-full border border-slate-700 hover:bg-slate-700 hover:border-amber-500 hover:text-white transition group shadow-md">
-                    <img src="https://images.evetech.net/characters/{{ navbar_char.character_id }}/portrait?size=64" class="w-8 h-8 rounded-full group-hover:ring-2 ring-amber-500/50 transition" alt="Portrait">
+                <a href="{% url 'profile' %}" class="spa-link flex items-center gap-3 pl-1 pr-3 py-1 rounded-full border border-slate-700/50 bg-slate-800/50 hover:bg-slate-700 hover:border-brand-500/50 transition group">
+                    <img src="https://images.evetech.net/characters/{{ navbar_char.character_id }}/portrait?size=64" class="w-8 h-8 rounded-full border border-slate-600 group-hover:border-brand-400 transition" alt="Portrait">
                     <div class="flex flex-col text-left">
-                        <span class="font-bold leading-none">{{ navbar_char.character_name }}</span>
-                        {% if navbar_char.is_main %}
-                        <span class="text-[10px] text-amber-500 leading-none mt-0.5">MAIN</span>
-                        {% else %}
-                        <span class="text-[10px] text-slate-500 leading-none mt-0.5">ALT</span>
-                        {% endif %}
+                        <span class="text-xs font-bold text-white leading-none">{{ navbar_char.character_name }}</span>
+                        <span class="text-[10px] leading-none mt-0.5 {% if navbar_char.is_main %}text-brand-400{% else %}text-slate-500{% endif %}">
+                            {% if navbar_char.is_main %}MAIN{% else %}ALT{% endif %}
+                        </span>
                     </div>
                 </a>
                 {% endif %}
 
-                <div class="flex items-center gap-3 pl-2 border-l border-slate-700 ml-2">
+                <div class="flex items-center gap-2 pl-2 border-l border-white/10 ml-2">
                     {% if user_is_management %}
-                    <a href="{% url 'custom_admin' %}" class="spa-link text-blue-400 hover:text-blue-300 text-sm font-semibold transition border border-blue-900/50 px-3 py-1 rounded hover:bg-blue-900/20" title="Management Dashboard">Mgmt</a>
+                    <a href="{% url 'custom_admin' %}" class="spa-link btn-ghost p-2" title="Management Console">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
+                    </a>
                     {% endif %}
-                    {% if user.is_staff or user.is_superuser %}
-                    <a href="{% url 'admin:index' %}" target="_blank" class="text-purple-400 hover:text-purple-300 text-sm font-semibold transition border border-purple-900/50 px-3 py-1 rounded hover:bg-purple-900/20" title="Database Backend">DB</a>
-                    {% endif %}
-                    <a href="{% url 'logout' %}" data-no-spa class="text-red-400 hover:text-red-300 text-sm transition font-bold">Logout</a>
+                    <a href="{% url 'logout' %}" data-no-spa class="btn-ghost text-xs font-bold uppercase tracking-wider">Logout</a>
                 </div>
                 {% else %}
-                <a href="{% url 'sso_login' %}" data-no-spa class="bg-amber-600 hover:bg-amber-500 text-white font-bold px-4 py-1.5 rounded text-sm transition shadow-lg shadow-amber-900/20">Log In</a>
+                <a href="{% url 'sso_login' %}" data-no-spa class="btn-primary py-1.5 text-sm">
+                    <span>Log In</span>
+                </a>
                 {% endif %}
             </div>
         </div>
     </nav>
 
-    <!-- Main Content Block (Target for SPA Swapping) -->
-    <!--
-         flex-1: Takes ALL remaining height.
-         overflow-hidden: Prevents double scrollbars.
-         relative: Context for absolute positioning if needed.
-    -->
+    <!-- Main Content -->
     <main class="flex-1 relative overflow-hidden flex flex-col" id="main-content">
-        {% block content %}
-        {% endblock %}
+        {% block content %}{% endblock %}
     </main>
 
-    <!-- SPA Router Script -->
+    <!-- SPA Router -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // Remove any text nodes directly inside body that might cause spacing
-            // This targets the specific issue of "top gap"
             Array.from(document.body.childNodes).forEach(node => {
-                if (node.nodeType === Node.TEXT_NODE && !node.textContent.trim()) {
-                    node.remove();
-                }
+                if (node.nodeType === Node.TEXT_NODE && !node.textContent.trim()) { node.remove(); }
             });
 
             document.body.addEventListener('click', e => {
@@ -130,40 +255,27 @@
                 }
             });
 
-            window.addEventListener('popstate', () => {
-                navigateTo(window.location.href, false);
-            });
+            window.addEventListener('popstate', () => { navigateTo(window.location.href, false); });
         });
 
         function navigateTo(url, push = true) {
             if (push) history.pushState(null, null, url);
-
             fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
                 .then(response => response.text())
                 .then(html => {
                     const mainContent = document.getElementById('main-content');
-
-                    // Sanitize incoming HTML to remove top-level whitespace
-                    // This prevents the "bottom gap" issue if the server sends whitespace before the content
                     const tempDiv = document.createElement('div');
                     tempDiv.innerHTML = html;
+                    while (mainContent.firstChild) mainContent.removeChild(mainContent.firstChild);
+                    while (tempDiv.firstChild) mainContent.appendChild(tempDiv.firstChild);
 
-                    // Clear existing content completely
-                    while (mainContent.firstChild) {
-                        mainContent.removeChild(mainContent.firstChild);
+                    const contentChild = mainContent.firstElementChild;
+                    if (contentChild) {
+                        contentChild.classList.remove('animate-fade-in');
+                        void contentChild.offsetWidth; // Force reflow
+                        contentChild.classList.add('animate-fade-in');
                     }
 
-                    // Move new content in
-                    while (tempDiv.firstChild) {
-                        mainContent.appendChild(tempDiv.firstChild);
-                    }
-
-                    // Simple Fade Effect
-                    mainContent.classList.remove('fade-in');
-                    void mainContent.offsetWidth;
-                    mainContent.classList.add('fade-in');
-
-                    // Re-run scripts
                     mainContent.querySelectorAll('script').forEach(oldScript => {
                         const newScript = document.createElement('script');
                         Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));

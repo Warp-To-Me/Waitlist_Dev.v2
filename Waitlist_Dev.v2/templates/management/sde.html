@@ -2,12 +2,13 @@
 {% load humanize %}
 
 {% block management_content %}
-<div class="animate-fade-in space-y-8">
+<!-- REMOVED: animate-fade-in from here -->
+<div class="space-y-8">
 
     <!-- Header -->
-    <div class="flex flex-col md:flex-row justify-between items-end gap-4 border-b border-slate-700 pb-6">
+    <div class="flex flex-col md:flex-row justify-between items-end gap-4 border-b border-white/5 pb-6">
         <div>
-            <h1 class="text-3xl font-bold text-white tracking-tight">
+            <h1 class="heading-1">
                 SDE Database Status
             </h1>
             <p class="text-slate-400 text-sm mt-1 flex items-center gap-2">
@@ -16,8 +17,8 @@
             </p>
         </div>
         <div class="text-right">
-            <span class="text-xs text-slate-500 font-mono">DB ENGINE: MYSQL</span>
-            <div class="text-xs text-slate-400 font-mono">SCHEMA: v2024.11</div>
+            <span class="badge badge-slate font-mono">DB ENGINE: MYSQL</span>
+            <div class="text-xs text-slate-500 font-mono mt-1">SCHEMA: v2024.11</div>
         </div>
     </div>
 
@@ -25,48 +26,48 @@
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
 
         <!-- Total Items -->
-        <div class="bg-slate-800 rounded-lg border border-slate-700 p-6 shadow-xl relative overflow-hidden group">
-            <div class="absolute -right-6 -top-6 w-24 h-24 bg-blue-500/10 rounded-full blur-xl group-hover:bg-blue-500/20 transition duration-500"></div>
-            <div class="flex justify-between items-start mb-4">
-                <h3 class="text-slate-400 text-xs font-bold uppercase tracking-widest">Inventory Types</h3>
-                <span class="bg-slate-900 text-slate-300 text-[10px] px-2 py-0.5 rounded border border-slate-600">Items & Ships</span>
+        <div class="glass-panel p-6 relative overflow-hidden group">
+            <div class="absolute -right-6 -top-6 w-24 h-24 bg-blue-500/20 rounded-full blur-xl group-hover:bg-blue-500/30 transition duration-500"></div>
+            <div class="flex justify-between items-start mb-4 relative z-10">
+                <h3 class="label-text mb-0">Inventory Types</h3>
+                <span class="badge badge-slate">Items & Ships</span>
             </div>
-            <div class="flex items-baseline gap-2">
-                <span class="text-4xl font-bold text-white">{{ item_count|intcomma }}</span>
+            <div class="flex items-baseline gap-2 relative z-10">
+                <span class="text-4xl font-bold text-white font-mono">{{ item_count|intcomma }}</span>
             </div>
             <!-- Progress Bar Visual -->
-            <div class="w-full bg-slate-700/50 h-1.5 mt-6 rounded-full overflow-hidden">
-                <div class="bg-blue-500 h-full w-[85%] shadow-[0_0_10px_rgba(59,130,246,0.3)]"></div>
+            <div class="w-full bg-dark-900/50 h-1.5 mt-6 rounded-full overflow-hidden border border-white/5">
+                <div class="bg-blue-500 h-full w-[85%] shadow-[0_0_10px_rgba(59,130,246,0.5)]"></div>
             </div>
         </div>
 
         <!-- Total Attributes -->
-        <div class="bg-slate-800 rounded-lg border border-slate-700 p-6 shadow-xl relative overflow-hidden group">
-            <div class="absolute -right-6 -top-6 w-24 h-24 bg-amber-500/10 rounded-full blur-xl group-hover:bg-amber-500/20 transition duration-500"></div>
-            <div class="flex justify-between items-start mb-4">
-                <h3 class="text-slate-400 text-xs font-bold uppercase tracking-widest">Dogma Attributes</h3>
-                <span class="bg-slate-900 text-slate-300 text-[10px] px-2 py-0.5 rounded border border-slate-600">Stats & Slots</span>
+        <div class="glass-panel p-6 relative overflow-hidden group">
+            <div class="absolute -right-6 -top-6 w-24 h-24 bg-brand-500/20 rounded-full blur-xl group-hover:bg-brand-500/30 transition duration-500"></div>
+            <div class="flex justify-between items-start mb-4 relative z-10">
+                <h3 class="label-text mb-0">Dogma Attributes</h3>
+                <span class="badge badge-slate">Stats & Slots</span>
             </div>
-            <div class="flex items-baseline gap-2">
-                <span class="text-4xl font-bold text-white">{{ attr_count|intcomma }}</span>
+            <div class="flex items-baseline gap-2 relative z-10">
+                <span class="text-4xl font-bold text-white font-mono">{{ attr_count|intcomma }}</span>
             </div>
-            <div class="w-full bg-slate-700/50 h-1.5 mt-6 rounded-full overflow-hidden">
-                <div class="bg-amber-500 h-full w-[60%] shadow-[0_0_10px_rgba(245,158,11,0.3)]"></div>
+            <div class="w-full bg-dark-900/50 h-1.5 mt-6 rounded-full overflow-hidden border border-white/5">
+                <div class="bg-brand-500 h-full w-[60%] shadow-[0_0_10px_rgba(245,158,11,0.5)]"></div>
             </div>
         </div>
 
         <!-- Groups -->
-        <div class="bg-slate-800 rounded-lg border border-slate-700 p-6 shadow-xl relative overflow-hidden group">
-            <div class="absolute -right-6 -top-6 w-24 h-24 bg-green-500/10 rounded-full blur-xl group-hover:bg-green-500/20 transition duration-500"></div>
-            <div class="flex justify-between items-start mb-4">
-                <h3 class="text-slate-400 text-xs font-bold uppercase tracking-widest">Item Groups</h3>
-                <span class="bg-slate-900 text-slate-300 text-[10px] px-2 py-0.5 rounded border border-slate-600">Categories</span>
+        <div class="glass-panel p-6 relative overflow-hidden group">
+            <div class="absolute -right-6 -top-6 w-24 h-24 bg-green-500/20 rounded-full blur-xl group-hover:bg-green-500/30 transition duration-500"></div>
+            <div class="flex justify-between items-start mb-4 relative z-10">
+                <h3 class="label-text mb-0">Item Groups</h3>
+                <span class="badge badge-slate">Categories</span>
             </div>
-            <div class="flex items-baseline gap-2">
-                <span class="text-4xl font-bold text-white">{{ group_count|intcomma }}</span>
+            <div class="flex items-baseline gap-2 relative z-10">
+                <span class="text-4xl font-bold text-white font-mono">{{ group_count|intcomma }}</span>
             </div>
-            <div class="w-full bg-slate-700/50 h-1.5 mt-6 rounded-full overflow-hidden">
-                <div class="bg-green-500 h-full w-[40%] shadow-[0_0_10px_rgba(34,197,94,0.3)]"></div>
+            <div class="w-full bg-dark-900/50 h-1.5 mt-6 rounded-full overflow-hidden border border-white/5">
+                <div class="bg-green-500 h-full w-[40%] shadow-[0_0_10px_rgba(34,197,94,0.5)]"></div>
             </div>
         </div>
     </div>
@@ -75,13 +76,13 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
         <!-- CHART SECTION -->
-        <div class="lg:col-span-2 bg-slate-800 rounded-lg border border-slate-700 shadow-xl flex flex-col p-6">
+        <div class="lg:col-span-2 glass-panel flex flex-col p-6">
             <div class="flex justify-between items-center mb-6">
                 <h3 class="text-white font-bold text-lg flex items-center gap-2">
-                    <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+                    <span class="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]"></span>
                     Item Distribution
                 </h3>
-                <div class="text-[10px] text-slate-400 uppercase tracking-wider bg-slate-900 px-2 py-1 rounded border border-slate-700">Top 50 Groups</div>
+                <div class="badge badge-slate uppercase tracking-wider">Top 50 Groups</div>
             </div>
 
             <!-- Increased height for 50 items -->
@@ -94,22 +95,22 @@
         <div class="space-y-6">
 
             <!-- Instructions Card -->
-            <div class="bg-slate-800 rounded-lg border border-slate-700 shadow-xl p-6">
+            <div class="glass-panel p-6">
                 <h3 class="text-white font-bold mb-4 flex items-center gap-2">
                     <span class="text-xl">⚙️</span> Maintenance Console
                 </h3>
-                <p class="text-slate-400 text-sm mb-6">
+                <p class="text-slate-400 text-sm mb-6 leading-relaxed">
                     The SDE database requires periodic updates to stay in sync with EVE Online patches.
                     Imports are memory-intensive and must be run via the system console.
                 </p>
 
-                <div class="bg-black/30 rounded border border-slate-700 p-4 font-mono text-xs relative group">
+                <div class="bg-black/40 rounded-lg border border-white/10 p-4 font-mono text-xs relative group">
                     <div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition">
-                        <button onclick="navigator.clipboard.writeText('python manage.py sde_import')" class="text-slate-500 hover:text-white" title="Copy">📋</button>
+                        <button onclick="navigator.clipboard.writeText('python manage.py sde_import')" class="text-slate-500 hover:text-white transition" title="Copy">📋</button>
                     </div>
-                    <div class="text-slate-500 mb-2"># Run this command in terminal</div>
+                    <div class="text-slate-500 mb-2 select-none"># Run this command in terminal</div>
                     <div class="flex gap-2 select-all">
-                        <span class="text-amber-500">$</span>
+                        <span class="text-brand-500">$</span>
                         <span class="text-green-400">python</span>
                         <span class="text-blue-300">manage.py</span>
                         <span class="text-slate-200">sde_import</span>
@@ -118,12 +119,12 @@
             </div>
 
             <!-- Status Indicator -->
-            <div class="bg-slate-800 rounded-lg border border-slate-700 shadow-xl p-6 flex items-center justify-between">
+            <div class="glass-panel p-6 flex items-center justify-between">
                 <div>
-                    <h4 class="text-slate-400 text-xs uppercase font-bold mb-1">System State</h4>
+                    <h4 class="label-text mb-1">System State</h4>
                     <div class="text-white font-bold">Ready for Operations</div>
                 </div>
-                <div class="w-12 h-12 rounded-full bg-green-500/10 border border-green-500/50 flex items-center justify-center">
+                <div class="w-12 h-12 rounded-full bg-green-500/10 border border-green-500/30 flex items-center justify-center shadow-[0_0_15px_rgba(34,197,94,0.2)]">
                     <span class="text-green-400 text-xl">✓</span>
                 </div>
             </div>
@@ -132,30 +133,30 @@
 
     </div>
 
-    <!-- NEW SECTION: GROUP EXPLORER -->
-    <div class="bg-slate-800 rounded-lg border border-slate-700 shadow-xl overflow-hidden" id="group-explorer">
+    <!-- GROUP EXPLORER -->
+    <div class="glass-panel overflow-hidden" id="group-explorer">
         <!-- Explorer Header -->
-        <div class="p-6 border-b border-slate-700 flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-900/50">
+        <div class="p-6 border-b border-white/5 flex flex-col md:flex-row justify-between items-center gap-4 bg-white/5">
             <div>
                 <h2 class="text-xl font-bold text-white flex items-center gap-2">
                     <span>📂</span> Group Explorer
                 </h2>
-                <p class="text-xs text-slate-400">Browse all {{ group_count|intcomma }} item groups.</p>
+                <p class="text-xs text-slate-400 mt-1">Browse all {{ group_count|intcomma }} item groups.</p>
             </div>
-            <form method="get" class="w-full md:w-auto relative">
-                <input type="text" name="q" value="{{ search_query }}"
-                       class="bg-slate-800 border border-slate-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full md:w-64 pl-10 p-2.5"
-                       placeholder="Search groups...">
-                <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+            <form method="get" class="w-full md:w-auto relative group">
+                <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none group-focus-within:text-blue-500 transition">
                     <svg class="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                 </div>
+                <input type="text" name="q" value="{{ search_query }}"
+                       class="input-field pl-10 md:w-64 bg-dark-900/50"
+                       placeholder="Search groups...">
             </form>
         </div>
 
         <!-- Table -->
         <div class="overflow-x-auto">
             <table class="w-full text-sm text-left text-slate-400">
-                <thead class="text-xs uppercase bg-slate-900 text-slate-300">
+                <thead class="text-xs uppercase bg-white/5 text-slate-300 font-bold border-b border-white/5">
                     <tr>
                         <th class="px-6 py-4">Group ID</th>
                         <th class="px-6 py-4">Group Name</th>
@@ -164,15 +165,15 @@
                         <th class="px-6 py-4 text-right">Published</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-700">
+                <tbody class="divide-y divide-white/5">
                     {% for grp in groups_page %}
-                    <tr class="hover:bg-slate-700/50 transition">
-                        <td class="px-6 py-4 font-mono text-slate-500">{{ grp.group_id }}</td>
-                        <td class="px-6 py-4 font-bold text-white">{{ grp.group_name }}</td>
+                    <tr class="hover:bg-white/5 transition group">
+                        <td class="px-6 py-4 font-mono text-slate-500 group-hover:text-slate-300">{{ grp.group_id }}</td>
+                        <td class="px-6 py-4 font-bold text-white group-hover:text-blue-400 transition">{{ grp.group_name }}</td>
                         <td class="px-6 py-4 font-mono">{{ grp.category_id }}</td>
                         <td class="px-6 py-4 text-center">
                             {% if grp.calculated_count > 0 %}
-                            <span class="bg-blue-900/30 text-blue-400 px-2 py-1 rounded text-xs font-mono border border-blue-900/50">
+                            <span class="badge badge-brand bg-brand-900/10 text-brand-300 border-brand-500/20">
                                 {{ grp.calculated_count|intcomma }}
                             </span>
                             {% else %}
@@ -181,9 +182,9 @@
                         </td>
                         <td class="px-6 py-4 text-right">
                             {% if grp.published %}
-                            <span class="text-green-400 text-xs">● True</span>
+                            <span class="text-green-400 text-xs font-mono">● True</span>
                             {% else %}
-                            <span class="text-red-400 text-xs">● False</span>
+                            <span class="text-red-400 text-xs font-mono">● False</span>
                             {% endif %}
                         </td>
                     </tr>
@@ -196,21 +197,21 @@
 
         <!-- Pagination -->
         {% if groups_page.has_other_pages %}
-        <div class="bg-slate-900/50 p-4 border-t border-slate-700 flex justify-between items-center">
-            <div class="text-xs text-slate-500">
+        <div class="bg-white/5 p-4 border-t border-white/5 flex justify-between items-center">
+            <div class="text-xs text-slate-500 font-mono">
                 Showing page {{ groups_page.number }} of {{ groups_page.paginator.num_pages }}
             </div>
             <div class="flex gap-2">
                 {% if groups_page.has_previous %}
-                <a href="?page={{ groups_page.previous_page_number }}&q={{ search_query }}#group-explorer" class="px-3 py-1 bg-slate-800 border border-slate-600 rounded hover:bg-slate-700 text-slate-300 text-sm">Previous</a>
+                <a href="?page={{ groups_page.previous_page_number }}&q={{ search_query }}#group-explorer" class="btn-secondary py-1 px-3 text-xs">Previous</a>
                 {% else %}
-                <span class="px-3 py-1 bg-slate-800/50 border border-slate-700 rounded text-slate-600 text-sm cursor-not-allowed">Previous</span>
+                <span class="btn-secondary py-1 px-3 text-xs opacity-50 cursor-not-allowed">Previous</span>
                 {% endif %}
 
                 {% if groups_page.has_next %}
-                <a href="?page={{ groups_page.next_page_number }}&q={{ search_query }}#group-explorer" class="px-3 py-1 bg-slate-800 border border-slate-600 rounded hover:bg-slate-700 text-slate-300 text-sm">Next</a>
+                <a href="?page={{ groups_page.next_page_number }}&q={{ search_query }}#group-explorer" class="btn-secondary py-1 px-3 text-xs">Next</a>
                 {% else %}
-                <span class="px-3 py-1 bg-slate-800/50 border border-slate-700 rounded text-slate-600 text-sm cursor-not-allowed">Next</span>
+                <span class="btn-secondary py-1 px-3 text-xs opacity-50 cursor-not-allowed">Next</span>
                 {% endif %}
             </div>
         </div>
@@ -219,7 +220,7 @@
 
 </div>
 
-<!-- Chart.js Logic -->
+<!-- Chart.js Logic (Preserved but styled) -->
 <script>
     function initSDECharts() {
         if(typeof Chart === 'undefined') return;
@@ -238,7 +239,6 @@
                 datasets: [{
                     label: 'Item Count',
                     data: {{ group_data|safe }},
-                    // Inject Category IDs here
                     categoryIds: {{ group_cat_ids|safe }},
                     backgroundColor: gradient,
                     borderColor: '#3b82f6',
@@ -248,7 +248,7 @@
                 }]
             },
             options: {
-                indexAxis: 'y', // Switch to Horizontal
+                indexAxis: 'y',
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
@@ -257,14 +257,12 @@
                         backgroundColor: '#0f172a',
                         titleColor: '#e2e8f0',
                         bodyColor: '#94a3b8',
-                        borderColor: '#334155',
+                        borderColor: 'rgba(255,255,255,0.1)',
                         borderWidth: 1,
                         padding: 12,
                         displayColors: false,
                         callbacks: {
-                            // Custom Tooltip Line: Category ID
                             afterLabel: function(context) {
-                                // Retrieve the category ID from the dataset using the index of the bar hovered
                                 const catId = context.dataset.categoryIds[context.dataIndex];
                                 return 'Category ID: ' + catId;
                             }
@@ -272,16 +270,16 @@
                     }
                 },
                 scales: {
-                    x: { // Value Axis (Now X)
+                    x: {
                         beginAtZero: true,
-                        grid: { color: '#334155', borderDash: [5, 5] },
+                        grid: { color: 'rgba(255,255,255,0.05)', borderDash: [5, 5] },
                         ticks: { color: '#94a3b8' }
                     },
-                    y: { // Category Axis (Now Y)
+                    y: {
                         grid: { display: false },
                         ticks: {
                             color: '#cbd5e1',
-                            font: { weight: 'bold', size: 11 },
+                            font: { family: 'Inter', weight: 'bold', size: 11 },
                             autoSkip: false
                         }
                     }
@@ -290,7 +288,6 @@
         });
     }
 
-    // Load Chart.js if needed (SPA handling)
     if (typeof Chart !== 'undefined') {
         initSDECharts();
     } else {

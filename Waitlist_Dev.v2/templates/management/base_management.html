@@ -3,72 +3,70 @@
 {% block title %}Management Console{% endblock %}
 
 {% block content %}
-<!--
-    Layout Wrapper:
-    h-full: Fills the flex-1 container provided by base.html
-    w-full: Width 100%
--->
-<div class="flex flex-col md:flex-row h-full w-full overflow-hidden">
+<div class="flex flex-col md:flex-row h-full w-full overflow-hidden bg-dark-950 relative">
 
     <!-- Sidebar -->
-    <!-- overflow-y-auto allows the sidebar to scroll independently if needed -->
-    <aside class="w-full md:w-64 bg-slate-800 border-r border-slate-700 flex-shrink-0 overflow-y-auto z-20">
-        <div class="p-6 border-b border-slate-700">
-            <h2 class="text-sm uppercase tracking-widest text-slate-500 font-bold">Console</h2>
-            <p class="text-white font-bold text-lg">Fleet Command</p>
+    <aside class="w-full md:w-64 bg-dark-900/50 border-r border-white/5 flex-shrink-0 overflow-y-auto z-20 backdrop-blur-md">
+        <div class="p-6 border-b border-white/5">
+            <h2 class="label-text text-brand-500">Console</h2>
+            <p class="text-white font-bold text-lg tracking-tight">Fleet Command</p>
         </div>
 
-        <nav class="p-4 space-y-2">
+        <nav class="p-4 space-y-1">
             <!-- GENERAL -->
-            <a href="{% url 'custom_admin' %}"
-               class="block px-4 py-2 rounded transition {% if request.resolver_match.url_name == 'custom_admin' %}bg-blue-600 text-white{% else %}text-slate-400 hover:bg-slate-700 hover:text-white{% endif %}">
-                📊 Statistics
-            </a>
-            <a href="{% url 'management_users' %}"
-               class="block px-4 py-2 rounded transition {% if request.resolver_match.url_name == 'management_users' %}bg-blue-600 text-white{% else %}text-slate-400 hover:bg-slate-700 hover:text-white{% endif %}">
-                👥 Users
-            </a>
-            <a href="{% url 'management_roles' %}"
-               class="block px-4 py-2 rounded transition {% if request.resolver_match.url_name == 'management_roles' %}bg-blue-600 text-white{% else %}text-slate-400 hover:bg-slate-700 hover:text-white{% endif %}">
-                🛡️ Role Management
-            </a>
+            <div class="mb-4">
+                <span class="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-2">Analysis</span>
+                <a href="{% url 'custom_admin' %}"
+                   class="flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm font-medium {% if request.resolver_match.url_name == 'custom_admin' %}bg-brand-500/10 text-brand-400 border border-brand-500/20{% else %}text-slate-400 hover:text-white hover:bg-white/5{% endif %}">
+                    <span>📊</span> Overview
+                </a>
+                <a href="{% url 'management_users' %}"
+                   class="flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm font-medium {% if request.resolver_match.url_name == 'management_users' %}bg-brand-500/10 text-brand-400 border border-brand-500/20{% else %}text-slate-400 hover:text-white hover:bg-white/5{% endif %}">
+                    <span>👥</span> User Database
+                </a>
+                <a href="{% url 'management_roles' %}"
+                   class="flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm font-medium {% if request.resolver_match.url_name == 'management_roles' %}bg-brand-500/10 text-brand-400 border border-brand-500/20{% else %}text-slate-400 hover:text-white hover:bg-white/5{% endif %}">
+                    <span>🛡️</span> Roles
+                </a>
+            </div>
 
             {% if can_view_fleets %}
-            <div class="my-4 border-t border-slate-700 mx-4" title="Assault FC and above"></div>
-            <a href="{% url 'management_fleets' %}"
-               class="block px-4 py-2 rounded transition {% if request.resolver_match.url_name == 'management_fleets' %}bg-blue-600 text-white{% else %}text-slate-400 hover:bg-slate-700 hover:text-white{% endif %}">
-                🛸 Fleets
-            </a>
+            <div class="mb-4">
+                <span class="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-2">Operations</span>
+                <a href="{% url 'management_fleets' %}"
+                   class="flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm font-medium {% if request.resolver_match.url_name == 'management_fleets' %}bg-brand-500/10 text-brand-400 border border-brand-500/20{% else %}text-slate-400 hover:text-white hover:bg-white/5{% endif %}">
+                    <span>🛸</span> Fleet Ops
+                </a>
+            </div>
             {% endif %}
 
             {% if can_view_admin %}
-            <div class="my-4 border-t border-slate-700 mx-4" title="Admin Only"></div>
-            <a href="{% url 'manage_doctrines' %}"
-               class="block px-4 py-2 rounded transition {% if request.resolver_match.url_name == 'manage_doctrines' %}bg-blue-600 text-white{% else %}text-slate-400 hover:bg-slate-700 hover:text-white{% endif %}">
-                📜 Doctrines
-            </a>
-            <a href="{% url 'management_sde' %}"
-               class="block px-4 py-2 rounded transition {% if request.resolver_match.url_name == 'management_sde' %}bg-blue-600 text-white{% else %}text-slate-400 hover:bg-slate-700 hover:text-white{% endif %}">
-                💾 SDE Status
-            </a>
-            <a href="{% url 'management_celery' %}"
-               class="block px-4 py-2 rounded transition {% if request.resolver_match.url_name == 'management_celery' %}bg-blue-600 text-white{% else %}text-slate-400 hover:bg-slate-700 hover:text-white{% endif %}">
-                🐝 System Status
-            </a>
+            <div class="mb-4">
+                <span class="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-2">System</span>
+                <a href="{% url 'manage_doctrines' %}"
+                   class="flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm font-medium {% if request.resolver_match.url_name == 'manage_doctrines' %}bg-brand-500/10 text-brand-400 border border-brand-500/20{% else %}text-slate-400 hover:text-white hover:bg-white/5{% endif %}">
+                    <span>📜</span> Doctrines
+                </a>
+                <a href="{% url 'management_sde' %}"
+                   class="flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm font-medium {% if request.resolver_match.url_name == 'management_sde' %}bg-brand-500/10 text-brand-400 border border-brand-500/20{% else %}text-slate-400 hover:text-white hover:bg-white/5{% endif %}">
+                    <span>💾</span> SDE Data
+                </a>
+                <a href="{% url 'management_celery' %}"
+                   class="flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm font-medium {% if request.resolver_match.url_name == 'management_celery' %}bg-brand-500/10 text-brand-400 border border-brand-500/20{% else %}text-slate-400 hover:text-white hover:bg-white/5{% endif %}">
+                    <span>🐝</span> System Health
+                </a>
+            </div>
             {% endif %}
         </nav>
     </aside>
 
     <!-- Main Content Area -->
-    <!--
-         flex-grow: Takes remaining width
-         bg-slate-900: Solid background to prevent gaps
-         overflow-y-auto: The ONLY scrollbar for this section
-    -->
-    <div class="flex-grow bg-slate-900 h-full overflow-y-auto relative z-10" id="management-scroll-area">
-        <div class="p-4 md:p-8 min-h-full">
-            {% block management_content %}
-            {% endblock %}
+    <div class="flex-grow relative h-full bg-slate-900 z-10" id="management-content-wrapper">
+        <div class="absolute inset-0 overflow-y-auto custom-scrollbar" id="management-scroll-area">
+            <div class="p-6 md:p-10 min-h-full max-w-7xl mx-auto">
+                {% block management_content %}
+                {% endblock %}
+            </div>
         </div>
     </div>
 

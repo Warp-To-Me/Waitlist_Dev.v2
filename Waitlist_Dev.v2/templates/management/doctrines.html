@@ -1,130 +1,133 @@
 {% extends 'management/base_management.html' %}
 
 {% block management_content %}
-<div class="flex justify-between items-center mb-6">
-    <h1 class="text-2xl font-bold text-white">Doctrine Management</h1>
-</div>
-
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-
-    <!-- LEFT: Create/Edit Form -->
-    <div class="bg-slate-800 p-6 rounded-lg border border-slate-700 shadow-xl h-fit sticky top-6">
-        <div class="flex justify-between items-center mb-4">
-            <h2 class="text-lg font-bold text-amber-500" id="form-title">Import Fit</h2>
-            <button onclick="resetForm()" id="cancel-btn" class="hidden text-xs text-red-400 hover:text-white underline">Cancel Edit</button>
-        </div>
-
-        <form method="POST" action="{% url 'manage_doctrines' %}" id="doctrine-form">
-            {% csrf_token %}
-            <input type="hidden" name="action" id="form-action" value="create">
-            <input type="hidden" name="fit_id" id="fit_id" value="">
-
-            <div class="mb-4">
-                <label class="block text-slate-400 text-xs font-bold mb-2">Category</label>
-                <select name="category_id" id="category_id" class="w-full bg-slate-900 border border-slate-600 text-white text-sm rounded p-2 focus:ring-amber-500 focus:border-amber-500">
-                    {% for cat in categories %}
-                    <option value="{{ cat.id }}">{{ cat.name }} {% if cat.parent %}(Sub){% endif %}</option>
-                    {% for sub in cat.subcategories.all %}
-                    <option value="{{ sub.id }}">-- {{ sub.name }}</option>
-                    {% endfor %}
-                    {% endfor %}
-                </select>
-            </div>
-
-            <div class="mb-4">
-                <label class="block text-slate-400 text-xs font-bold mb-2">EFT Block</label>
-                <textarea name="eft_paste" id="eft_paste" rows="8" class="w-full bg-slate-950 text-white font-mono text-xs p-3 rounded border border-slate-600 focus:border-amber-500" placeholder="[Hull Name, Fit Name]..."></textarea>
-                <p class="text-[10px] text-slate-500 mt-1">Accepts EFT/Pyfa formats.</p>
-            </div>
-
-            <div class="mb-4">
-                <label class="block text-slate-400 text-xs font-bold mb-2">Tags / Labels</label>
-                <div class="flex flex-wrap gap-2">
-                    {% for tag in tags %}
-                    <label class="cursor-pointer">
-                        <input type="checkbox" name="tags" value="{{ tag.id }}" class="peer sr-only tag-checkbox">
-                        <span class="px-2 py-1 rounded text-xs font-bold border border-slate-600 bg-slate-900 text-slate-400 peer-checked:border-amber-500 peer-checked:text-amber-500 peer-checked:bg-amber-900/20 transition select-none block">
-                            {{ tag.name }}
-                        </span>
-                    </label>
-                    {% endfor %}
-                </div>
-            </div>
-
-            <div class="mb-4">
-                <label class="block text-slate-400 text-xs font-bold mb-2">Internal Notes</label>
-                <input type="text" name="description" id="description" class="w-full bg-slate-900 border border-slate-600 text-white text-sm rounded p-2">
-            </div>
-
-            <button type="submit" id="submit-btn" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 rounded transition">
-                Parse & Save
-            </button>
-        </form>
+<!-- REMOVED: animate-fade-in from here -->
+<div class="flex flex-col gap-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center border-b border-white/5 pb-6">
+        <h1 class="heading-1">Doctrine Management</h1>
     </div>
 
-    <!-- RIGHT: List of Fits -->
-    <div class="lg:col-span-2 bg-slate-800 rounded-lg border border-slate-700 overflow-hidden shadow-xl">
-        <div class="p-4 bg-slate-900/50 border-b border-slate-700">
-            <h3 class="font-bold text-slate-200">Existing Fits</h3>
-        </div>
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm text-left text-slate-400">
-                <thead class="text-xs uppercase bg-slate-900/50 text-slate-300">
-                    <tr>
-                        <th class="px-6 py-3">Hull</th>
-                        <th class="px-6 py-3">Fit Name</th>
-                        <th class="px-6 py-3">Category</th>
-                        <th class="px-6 py-3">Tags</th>
-                        <th class="px-6 py-3 text-right">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for fit in fits %}
-                    <tr class="border-b border-slate-700 hover:bg-slate-700/50">
-                        <td class="px-6 py-4 font-bold text-white">{{ fit.ship_type.type_name }}</td>
-                        <td class="px-6 py-4">{{ fit.name }}</td>
-                        <td class="px-6 py-4">
-                            {% if fit.category.parent %}{{ fit.category.parent.name }} > {% endif %}
-                            {{ fit.category.name }}
-                        </td>
-                        <td class="px-6 py-4">
-                            <div class="flex flex-wrap gap-1">
-                                {% for tag in fit.tags.all %}
-                                <span class="px-1.5 py-0.5 rounded text-[10px] {{ tag.style_classes }}">
-                                    {{ tag.name }}
-                                </span>
-                                {% empty %}
-                                <span class="text-slate-600 text-[10px]">-</span>
-                                {% endfor %}
-                            </div>
-                        </td>
-                        <!-- UPDATED BUTTON CONTAINER: Added 'contents' class to form -->
-                        <td class="px-6 py-4 text-right flex justify-end items-center gap-3">
-                            <!-- EDIT BUTTON -->
-                            <button onclick="editFit(
-                                '{{ fit.id }}',
-                                '{{ fit.category.id }}',
-                                `{{ fit.eft_format|escapejs }}`,
-                                `{{ fit.description|escapejs }}`,
-                                [{% for t in fit.tags.all %}{{ t.id }},{% endfor %}]
-                            )" class="text-blue-500 hover:text-blue-400 font-bold text-xs bg-blue-900/20 px-3 py-1.5 rounded border border-blue-900/50 hover:bg-blue-900/30 transition">
-                                EDIT
-                            </button>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
 
-                            <!-- DELETE FORM -->
-                            <form method="POST" onsubmit="return confirm('Are you sure?');" class="contents">
-                                {% csrf_token %}
-                                <input type="hidden" name="action" value="delete">
-                                <input type="hidden" name="fit_id" value="{{ fit.id }}">
-                                <button type="submit" class="text-red-500 hover:text-red-400 font-bold text-xs bg-red-900/20 px-3 py-1.5 rounded border border-red-900/50 hover:bg-red-900/30 transition">DELETE</button>
-                            </form>
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr><td colspan="5" class="p-6 text-center italic">No fits found.</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <!-- LEFT: Create/Edit Form -->
+        <div class="glass-panel p-6 h-fit sticky top-6">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-lg font-bold text-brand-500 tracking-wide" id="form-title">Import Fit</h2>
+                <button onclick="resetForm()" id="cancel-btn" class="hidden text-xs text-red-400 hover:text-white underline decoration-red-500/30 hover:decoration-white transition">Cancel Edit</button>
+            </div>
+
+            <form method="POST" action="{% url 'manage_doctrines' %}" id="doctrine-form" class="space-y-4">
+                {% csrf_token %}
+                <input type="hidden" name="action" id="form-action" value="create">
+                <input type="hidden" name="fit_id" id="fit_id" value="">
+
+                <div>
+                    <label class="label-text">Category</label>
+                    <select name="category_id" id="category_id" class="select-field">
+                        {% for cat in categories %}
+                        <option value="{{ cat.id }}">{{ cat.name }} {% if cat.parent %}(Sub){% endif %}</option>
+                        {% for sub in cat.subcategories.all %}
+                        <option value="{{ sub.id }}">-- {{ sub.name }}</option>
+                        {% endfor %}
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div>
+                    <label class="label-text">EFT Block</label>
+                    <textarea name="eft_paste" id="eft_paste" rows="8" class="input-field font-mono text-xs" placeholder="[Hull Name, Fit Name]..."></textarea>
+                    <p class="text-[10px] text-slate-500 mt-1 pl-1">Accepts EFT/Pyfa formats.</p>
+                </div>
+
+                <div>
+                    <label class="label-text">Tags / Labels</label>
+                    <div class="flex flex-wrap gap-2 p-3 rounded-lg border border-white/5 bg-black/20">
+                        {% for tag in tags %}
+                        <label class="cursor-pointer">
+                            <input type="checkbox" name="tags" value="{{ tag.id }}" class="peer sr-only tag-checkbox">
+                            <span class="px-2 py-1 rounded text-[10px] font-bold border border-slate-700 bg-slate-800 text-slate-400 peer-checked:border-brand-500 peer-checked:text-brand-400 peer-checked:bg-brand-900/20 transition select-none block hover:border-slate-500">
+                                {{ tag.name }}
+                            </span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div>
+                    <label class="label-text">Internal Notes</label>
+                    <input type="text" name="description" id="description" class="input-field">
+                </div>
+
+                <button type="submit" id="submit-btn" class="btn-primary w-full shadow-lg shadow-brand-500/20">
+                    Parse & Save
+                </button>
+            </form>
+        </div>
+
+        <!-- RIGHT: List of Fits -->
+        <div class="lg:col-span-2 glass-panel overflow-hidden">
+            <div class="p-4 bg-white/5 border-b border-white/5">
+                <h3 class="font-bold text-slate-200">Existing Fits</h3>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left text-slate-400">
+                    <thead class="text-xs uppercase bg-white/5 text-slate-300 font-bold">
+                        <tr>
+                            <th class="px-6 py-3">Hull</th>
+                            <th class="px-6 py-3">Fit Name</th>
+                            <th class="px-6 py-3">Category</th>
+                            <th class="px-6 py-3">Tags</th>
+                            <th class="px-6 py-3 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-white/5">
+                        {% for fit in fits %}
+                        <tr class="hover:bg-white/5 transition group">
+                            <td class="px-6 py-4 font-bold text-white">{{ fit.ship_type.type_name }}</td>
+                            <td class="px-6 py-4">{{ fit.name }}</td>
+                            <td class="px-6 py-4">
+                                {% if fit.category.parent %}<span class="opacity-50">{{ fit.category.parent.name }} > </span>{% endif %}
+                                {{ fit.category.name }}
+                            </td>
+                            <td class="px-6 py-4">
+                                <div class="flex flex-wrap gap-1">
+                                    {% for tag in fit.tags.all %}
+                                    <span class="badge badge-slate text-[10px]">
+                                        {{ tag.name }}
+                                    </span>
+                                    {% empty %}
+                                    <span class="text-slate-600 text-[10px]">-</span>
+                                    {% endfor %}
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 text-right flex justify-end items-center gap-2">
+                                <!-- EDIT BUTTON -->
+                                <button onclick="editFit(
+                                    '{{ fit.id }}',
+                                    '{{ fit.category.id }}',
+                                    `{{ fit.eft_format|escapejs }}`,
+                                    `{{ fit.description|escapejs }}`,
+                                    [{% for t in fit.tags.all %}{{ t.id }},{% endfor %}]
+                                )" class="btn-secondary py-1 px-2 text-[10px] border-blue-500/30 text-blue-400 hover:bg-blue-500/10">
+                                    EDIT
+                                </button>
+
+                                <!-- DELETE FORM -->
+                                <form method="POST" onsubmit="return confirm('Are you sure?');" class="contents">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="fit_id" value="{{ fit.id }}">
+                                    <button type="submit" class="btn-danger py-1 px-2 text-[10px]">DEL</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="5" class="p-8 text-center italic text-slate-500">No fits found.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 </div>
@@ -145,13 +148,17 @@
 
         // 3. Change Mode to Update
         document.getElementById('form-action').value = 'update';
-        document.getElementById('submit-btn').textContent = 'Update Fit';
-        document.getElementById('submit-btn').classList.remove('bg-amber-600', 'hover:bg-amber-500');
-        document.getElementById('submit-btn').classList.add('bg-blue-600', 'hover:bg-blue-500');
 
-        document.getElementById('form-title').textContent = 'Edit Fit';
-        document.getElementById('form-title').classList.remove('text-amber-500');
-        document.getElementById('form-title').classList.add('text-blue-500');
+        const btn = document.getElementById('submit-btn');
+        btn.textContent = 'Update Fit';
+        // Swap Brand (Amber) style for Blue style to indicate Edit Mode
+        btn.classList.remove('btn-primary', 'shadow-brand-500/20');
+        btn.classList.add('bg-blue-600', 'hover:bg-blue-500', 'text-white', 'shadow-lg', 'shadow-blue-500/20', 'btn');
+
+        const title = document.getElementById('form-title');
+        title.textContent = 'Edit Fit';
+        title.classList.remove('text-brand-500');
+        title.classList.add('text-blue-500');
 
         document.getElementById('cancel-btn').classList.remove('hidden');
 
@@ -164,13 +171,16 @@
         document.getElementById('fit_id').value = '';
         document.getElementById('form-action').value = 'create';
 
-        document.getElementById('submit-btn').textContent = 'Parse & Save';
-        document.getElementById('submit-btn').classList.add('bg-amber-600', 'hover:bg-amber-500');
-        document.getElementById('submit-btn').classList.remove('bg-blue-600', 'hover:bg-blue-500');
+        const btn = document.getElementById('submit-btn');
+        btn.textContent = 'Parse & Save';
+        // Reset to original Master Design class
+        btn.classList.remove('bg-blue-600', 'hover:bg-blue-500', 'text-white', 'shadow-lg', 'shadow-blue-500/20', 'btn');
+        btn.classList.add('btn-primary', 'shadow-brand-500/20');
 
-        document.getElementById('form-title').textContent = 'Import Fit';
-        document.getElementById('form-title').classList.add('text-amber-500');
-        document.getElementById('form-title').classList.remove('text-blue-500');
+        const title = document.getElementById('form-title');
+        title.textContent = 'Import Fit';
+        title.classList.add('text-brand-500');
+        title.classList.remove('text-blue-500');
 
         document.getElementById('cancel-btn').classList.add('hidden');
     }

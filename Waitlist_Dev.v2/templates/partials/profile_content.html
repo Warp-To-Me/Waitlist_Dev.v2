@@ -1,24 +1,24 @@
 ﻿{% load humanize %}
 
 <!-- HEADER & CHARACTER SELECTION WRAPPER -->
-<div class="bg-slate-800 rounded-xl border border-slate-700 mb-8 shadow-xl relative overflow-hidden flex flex-col lg:flex-row">
+<div class="glass-panel mb-8 relative overflow-hidden flex flex-col lg:flex-row">
 
     <!-- INSPECTION BANNER -->
     {% if is_inspection_mode %}
-    <div class="absolute top-0 left-0 w-full bg-blue-600/90 text-white text-xs font-bold px-2 py-0.5 z-50 text-center">
+    <div class="absolute top-0 left-0 w-full bg-blue-600/90 text-white text-xs font-bold px-2 py-0.5 z-50 text-center backdrop-blur">
         READ-ONLY INSPECTION MODE
     </div>
     {% endif %}
 
     <!-- LEFT: Character List Area -->
-    <div class="w-full lg:w-auto lg:flex-1 lg:min-w-0 p-6 border-b lg:border-b-0 lg:border-r border-slate-700 relative pt-8">
+    <div class="w-full lg:w-auto lg:flex-1 lg:min-w-0 p-6 border-b lg:border-b-0 lg:border-r border-white/5 relative pt-8">
         <div class="flex justify-between items-center mb-4">
             <h2 class="text-xl font-bold text-white flex items-center gap-2">
                 👥 Pilots
-                <span class="text-xs font-normal text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full border border-slate-700">{{ characters|length }}</span>
+                <span class="badge badge-slate">{{ characters|length }}</span>
             </h2>
             {% if not is_inspection_mode %}
-            <a href="{% url 'add_alt' %}" data-no-spa class="bg-amber-600 hover:bg-amber-500 text-white text-xs px-3 py-1.5 rounded font-bold transition shadow-lg shadow-amber-900/20 inline-flex items-center gap-2">
+            <a href="{% url 'add_alt' %}" data-no-spa class="btn-primary text-xs px-3 py-1.5 shadow-lg shadow-brand-500/20 inline-flex items-center gap-2">
                 <span>+</span> Link Alt
             </a>
             {% endif %}
@@ -27,22 +27,22 @@
         <!-- Scrollable Character List -->
         <div class="relative group-container">
             <button onclick="scrollContainer('left')" class="absolute left-0 top-1/2 -translate-y-1/2 -ml-2 lg:-ml-4 z-10 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white p-2 rounded-full border border-slate-600 shadow-xl hidden md:flex items-center justify-center transition hover:scale-110"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg></button>
-            <div id="char-scroll-container" class="flex gap-4 overflow-x-auto pb-4 pt-2 scroll-smooth no-scrollbar">
+
+            <div id="char-scroll-container" class="flex gap-4 overflow-x-auto pb-4 pt-2 scroll-smooth custom-scrollbar">
                 {% for char in characters %}
                 <!-- ID for auto-scroll targeting -->
                 <div class="relative group flex-shrink-0" id="char-card-{{ char.character_id }}">
                     <!-- Update Link URL based on Mode -->
                     {% if is_inspection_mode %}
-                    <!-- FIXED: URL name changed to management_user_inspect_char -->
-                    <a href="{% url 'management_user_inspect_char' inspect_user_id char.character_id %}" class="flex items-center gap-3 p-2 pr-4 rounded-lg border transition w-48 {% if char == active_char %}bg-slate-800 border-amber-500 ring-1 ring-amber-500/50 shadow-lg{% else %}bg-slate-800/50 border-slate-700 hover:bg-slate-700{% endif %}">
+                    <a href="{% url 'management_user_inspect_char' inspect_user_id char.character_id %}" class="flex items-center gap-3 p-2 pr-4 rounded-xl border transition w-48 {% if char == active_char %}bg-white/10 border-brand-500/50 shadow-[0_0_15px_rgba(245,158,11,0.15)]{% else %}bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/10{% endif %}">
                         {% else %}
-                        <a href="{% url 'switch_character' char.character_id %}" data-no-spa class="flex items-center gap-3 p-2 pr-4 rounded-lg border transition w-48 {% if char == active_char %}bg-slate-800 border-amber-500 ring-1 ring-amber-500/50 shadow-lg{% else %}bg-slate-800/50 border-slate-700 hover:bg-slate-700{% endif %}">
+                        <a href="{% url 'switch_character' char.character_id %}" data-no-spa class="flex items-center gap-3 p-2 pr-4 rounded-xl border transition w-48 {% if char == active_char %}bg-white/10 border-brand-500/50 shadow-[0_0_15px_rgba(245,158,11,0.15)]{% else %}bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/10{% endif %}">
                             {% endif %}
 
                             <img src="https://images.evetech.net/characters/{{ char.character_id }}/portrait?size=64" class="w-10 h-10 rounded-full border border-slate-600" alt="">
                             <div class="text-left overflow-hidden">
                                 <div class="text-sm font-bold truncate {% if char == active_char %}text-white{% else %}text-slate-400{% endif %}">{{ char.character_name }}</div>
-                                <div class="text-xs text-slate-500 flex gap-2">{% if char.is_main %}<span class="text-amber-500 font-bold">MAIN</span>{% else %}<span>Alt</span>{% endif %}</div>
+                                <div class="text-xs text-slate-500 flex gap-2">{% if char.is_main %}<span class="text-brand-500 font-bold">MAIN</span>{% else %}<span>Alt</span>{% endif %}</div>
                             </div>
                         </a>
 
@@ -57,8 +57,8 @@
     </div>
 
     <!-- RIGHT: Account Totals Card -->
-    <div class="w-full lg:w-80 flex-shrink-0 p-6 bg-slate-900/30 flex flex-col justify-center pt-8">
-        <h3 class="text-xs uppercase font-bold text-slate-500 mb-4 tracking-wider border-b border-slate-700 pb-2 flex items-center gap-2">
+    <div class="w-full lg:w-80 flex-shrink-0 p-6 bg-black/20 flex flex-col justify-center pt-8">
+        <h3 class="label-text mb-4 border-b border-white/5 pb-2 flex items-center gap-2">
             <span>📊</span> Account Aggregate
         </h3>
 
@@ -66,13 +66,13 @@
             <!-- Total Characters -->
             <div class="flex justify-between items-center group">
                 <span class="text-slate-400 text-sm group-hover:text-white transition">Total Pilots</span>
-                <span class="text-white font-bold bg-slate-900/50 px-2 py-0.5 rounded border border-slate-700/50">{{ characters|length }}</span>
+                <span class="badge badge-slate">{{ characters|length }}</span>
             </div>
 
             <!-- Total SP -->
             <div class="flex justify-between items-center group">
                 <span class="text-slate-400 text-sm group-hover:text-white transition">Total Skillpoints</span>
-                <span class="text-amber-400 font-mono font-bold">{{ account_total_sp|intcomma }}</span>
+                <span class="text-brand-400 font-mono font-bold">{{ account_total_sp|intcomma }}</span>
             </div>
 
             <!-- Total ISK -->
@@ -105,70 +105,65 @@
 
 </div>
 
-<!-- TOKEN MISSING WARNING (Only show if NOT in inspection mode) -->
+<!-- TOKEN MISSING WARNING -->
 {% if token_missing and not is_inspection_mode %}
-<div class="bg-slate-800 rounded-xl border border-slate-700 p-12 text-center shadow-2xl">
+<div class="glass-panel p-12 text-center border-red-500/20 shadow-red-900/10">
     <div class="inline-block p-4 bg-red-900/20 rounded-full mb-4 border border-red-900/50">
         <span class="text-4xl">⚠️</span>
     </div>
     <h2 class="text-3xl font-bold text-white mb-2">Authorization Required</h2>
     <p class="text-slate-400 max-w-lg mx-auto mb-8 text-lg">
         The EVE Online authorization token for <strong class="text-white">{{ active_char.character_name }}</strong> has expired or is missing.
-        Please re-authorize to restore connectivity and view skills/assets.
     </p>
 
-    <a href="{% url 'add_alt' %}" data-no-spa class="inline-flex items-center gap-3 bg-amber-600 hover:bg-amber-500 text-white text-lg font-bold py-4 px-10 rounded-lg transition shadow-lg shadow-amber-900/20">
+    <a href="{% url 'add_alt' %}" data-no-spa class="btn-primary bg-red-600 hover:bg-red-500 border-red-500 shadow-red-900/20">
         <span>🔐</span> Re-Authorize Character
     </a>
-    <p class="text-xs text-slate-600 mt-4">You will be redirected to EVE Online SSO login page.</p>
 </div>
 
 {% else %}
-<!-- NORMAL PROFILE VIEW (Only show if token exists OR in inspection mode) -->
-<!-- STATS & IMPLANTS BLOCK -->
-<div class="bg-slate-800 rounded-xl border border-slate-700 mb-8 shadow-2xl relative overflow-hidden flex flex-col lg:flex-row">
-    <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-600"></div>
+<!-- NORMAL PROFILE VIEW -->
+<div class="glass-panel mb-8 relative overflow-hidden flex flex-col lg:flex-row">
+    <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-brand-500 via-brand-400 to-brand-600"></div>
 
-    <!-- MOVED: Loading Overlay is now contained specifically within this relative Card -->
-    <!-- Only render refresh overlay in normal mode -->
     {% if not is_inspection_mode %}
-    <div id="refresh-overlay" class="hidden absolute inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center transition-all duration-300">
-        <div class="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+    <div id="refresh-overlay" class="hidden absolute inset-0 bg-dark-900/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center transition-all duration-300">
+        <div class="w-10 h-10 border-4 border-brand-500 border-t-transparent rounded-full animate-spin mb-3"></div>
         <p class="text-white font-bold text-sm animate-pulse">Syncing...</p>
     </div>
     {% endif %}
 
     <!-- Left: Character Stats -->
-    <div class="p-6 flex-grow border-b lg:border-b-0 lg:border-r border-slate-700">
+    <div class="p-6 flex-grow border-b lg:border-b-0 lg:border-r border-white/5">
         <div class="flex flex-col md:flex-row gap-6 h-full items-start">
             <!-- Portrait & Name -->
             <div class="flex flex-col items-center md:items-start min-w-[140px]">
                 <img src="https://images.evetech.net/characters/{{ active_char.character_id }}/portrait?size=128"
-                     class="w-28 h-28 rounded border-4 border-slate-900 shadow-lg mb-2" alt="">
+                     class="w-28 h-28 rounded-lg border-2 border-white/10 shadow-2xl mb-2" alt="">
                 <h1 class="text-xl font-bold text-white text-center md:text-left leading-tight">{{ active_char.character_name }}</h1>
                 <div class="text-[10px] text-slate-500 mt-1">Updated: <span id="last-updated-time">{{ active_char.last_updated|date:"H:i" }}</span></div>
             </div>
 
-            <!-- Stacked Stats Grid (Compact) -->
+            <!-- Stacked Stats Grid (Modernized) -->
             <div class="flex-grow grid grid-cols-1 sm:grid-cols-2 gap-3 w-full text-sm">
 
                 <!-- Corp & Alliance -->
-                <div class="bg-slate-900/50 p-2 rounded border border-slate-700/50 flex flex-col justify-center space-y-1">
+                <div class="bg-white/5 p-3 rounded-lg border border-white/5 flex flex-col justify-center space-y-1">
                     <div>
-                        <div class="text-[10px] text-slate-500 uppercase font-bold">Corporation</div>
-                        <div class="text-slate-200 font-medium truncate leading-tight" title="{{ active_char.corporation_name }}">{{ active_char.corporation_name|default:"Unknown" }}</div>
+                        <div class="label-text mb-0">Corporation</div>
+                        <div class="text-slate-200 font-medium truncate leading-tight">{{ active_char.corporation_name|default:"Unknown" }}</div>
                     </div>
-                    <div class="h-px bg-slate-700/50 w-full"></div>
+                    <div class="h-px bg-white/5 w-full my-1"></div>
                     <div>
-                        <div class="text-[10px] text-slate-500 uppercase font-bold">Alliance</div>
-                        <div class="text-slate-200 font-medium truncate leading-tight" title="{{ active_char.alliance_name }}">{{ active_char.alliance_name|default:"-" }}</div>
+                        <div class="label-text mb-0">Alliance</div>
+                        <div class="text-slate-200 font-medium truncate leading-tight">{{ active_char.alliance_name|default:"-" }}</div>
                     </div>
                 </div>
 
-                <!-- Wallet & LP (Individual) -->
-                <div class="bg-slate-900/50 p-2 rounded border border-slate-700/50 flex flex-col justify-center space-y-1">
+                <!-- Wallet & LP -->
+                <div class="bg-white/5 p-3 rounded-lg border border-white/5 flex flex-col justify-center space-y-1">
                     <div>
-                        <div class="text-[10px] text-slate-500 uppercase font-bold">Wallet</div>
+                        <div class="label-text mb-0">Wallet</div>
                         <div class="text-green-400 font-mono font-medium truncate leading-tight">
                             {% if obfuscate_financials %}
                             <span class="blur-sm select-none">******</span>
@@ -177,9 +172,9 @@
                             {% endif %}
                         </div>
                     </div>
-                    <div class="h-px bg-slate-700/50 w-full"></div>
+                    <div class="h-px bg-white/5 w-full my-1"></div>
                     <div>
-                        <div class="text-[10px] text-slate-500 uppercase font-bold">CONCORD LP</div>
+                        <div class="label-text mb-0">CONCORD LP</div>
                         <div class="text-purple-400 font-mono font-medium truncate leading-tight">
                             {% if obfuscate_financials %}
                             <span class="blur-sm select-none">******</span>
@@ -191,20 +186,20 @@
                 </div>
 
                 <!-- SP & Ship -->
-                <div class="col-span-1 sm:col-span-2 bg-slate-900/50 p-2 rounded border border-slate-700/50 flex items-center justify-between gap-4">
+                <div class="col-span-1 sm:col-span-2 bg-white/5 p-3 rounded-lg border border-white/5 flex items-center justify-between gap-4">
                     <div>
-                        <div class="text-[10px] text-slate-500 uppercase font-bold">Skill Points</div>
-                        <div class="text-amber-400 font-mono text-base font-bold leading-tight">{{ active_char.total_sp|default:"0"|intcomma }} SP</div>
+                        <div class="label-text mb-0">Skill Points</div>
+                        <div class="text-brand-400 font-mono text-lg font-bold leading-tight">{{ active_char.total_sp|default:"0"|intcomma }} SP</div>
                     </div>
 
-                    <div class="flex items-center gap-2 text-right">
+                    <div class="flex items-center gap-3 text-right">
                         <div class="overflow-hidden">
-                            <div class="text-[10px] text-slate-500 uppercase font-bold">Active Ship</div>
-                            <div class="text-white font-medium truncate text-xs" title="{{ active_char.current_ship_name }}">{{ active_char.current_ship_name|default:"Unknown" }}</div>
+                            <div class="label-text mb-0">Active Ship</div>
+                            <div class="text-white font-medium truncate text-xs">{{ active_char.current_ship_name|default:"Unknown" }}</div>
                             <div class="text-[10px] text-slate-400 truncate">{{ active_char.ship_type_name }}</div>
                         </div>
                         {% if active_char.current_ship_type_id %}
-                        <img src="https://images.evetech.net/types/{{ active_char.current_ship_type_id }}/icon?size=32" class="w-8 h-8 rounded border border-slate-600" alt="">
+                        <img src="https://images.evetech.net/types/{{ active_char.current_ship_type_id }}/icon?size=32" class="w-10 h-10 rounded border border-white/10" alt="">
                         {% endif %}
                     </div>
                 </div>
@@ -214,13 +209,13 @@
     </div>
 
     <!-- Right: Implants -->
-    <div class="p-6 lg:w-80 bg-slate-900/30 flex flex-col">
-        <h3 class="text-xs uppercase font-bold text-slate-500 mb-3 flex items-center gap-2">🧠 Active Implants</h3>
-        <div class="space-y-0.5">
+    <div class="p-6 lg:w-80 bg-black/20 flex flex-col">
+        <h3 class="label-text mb-3 flex items-center gap-2">🧠 Active Implants</h3>
+        <div class="space-y-1">
             {% for imp in esi.implants %}
-            <div class="flex items-center gap-2 group p-0.5 hover:bg-slate-800/50 rounded transition">
-                <img src="{{ imp.icon_url }}" class="w-5 h-5 rounded border border-slate-600 bg-slate-900 group-hover:border-amber-500 transition flex-shrink-0" alt="">
-                <span class="text-[10px] text-slate-300 group-hover:text-white leading-tight truncate">{{ imp.name }}</span>
+            <div class="flex items-center gap-3 group p-1.5 hover:bg-white/5 rounded-lg transition">
+                <img src="{{ imp.icon_url }}" class="w-6 h-6 rounded border border-white/10 bg-dark-900 group-hover:border-brand-500 transition flex-shrink-0" alt="">
+                <span class="text-xs text-slate-300 group-hover:text-white leading-tight truncate">{{ imp.name }}</span>
             </div>
             {% empty %}
             <div class="text-slate-600 text-sm italic text-center py-4">No implants active.</div>
@@ -230,12 +225,12 @@
 </div>
 
 <!-- TABS -->
-<div class="mb-6 border-b border-slate-700">
+<div class="mb-6 border-b border-white/10">
     <nav class="flex space-x-8" aria-label="Tabs">
-        <button onclick="openTab('tab-skills')" id="btn-tab-skills" class="tab-btn border-b-2 border-amber-500 text-amber-500 py-4 px-1 font-medium text-sm transition">Current Skills</button>
-        <button onclick="openTab('tab-queue')" id="btn-tab-queue" class="tab-btn border-b-2 border-transparent text-slate-400 hover:text-slate-300 py-4 px-1 font-medium text-sm transition">Skill Queue</button>
-        <button onclick="openTab('tab-history')" id="btn-tab-history" class="tab-btn border-b-2 border-transparent text-slate-400 hover:text-slate-300 py-4 px-1 font-medium text-sm transition">Corp History</button>
-        <button onclick="openTab('tab-skill-history')" id="btn-tab-skill-history" class="tab-btn border-b-2 border-transparent text-slate-400 hover:text-slate-300 py-4 px-1 font-medium text-sm transition">Skill History</button>
+        <button onclick="openTab('tab-skills')" id="btn-tab-skills" class="tab-btn border-b-2 border-brand-500 text-brand-500 py-4 px-1 font-bold text-sm transition">Current Skills</button>
+        <button onclick="openTab('tab-queue')" id="btn-tab-queue" class="tab-btn border-b-2 border-transparent text-slate-400 hover:text-white py-4 px-1 font-medium text-sm transition">Skill Queue</button>
+        <button onclick="openTab('tab-history')" id="btn-tab-history" class="tab-btn border-b-2 border-transparent text-slate-400 hover:text-white py-4 px-1 font-medium text-sm transition">Corp History</button>
+        <button onclick="openTab('tab-skill-history')" id="btn-tab-skill-history" class="tab-btn border-b-2 border-transparent text-slate-400 hover:text-white py-4 px-1 font-medium text-sm transition">Skill History</button>
     </nav>
 </div>
 
@@ -246,18 +241,18 @@
         {% if grouped_skills %}
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {% for group, skills in grouped_skills.items %}
-            <div class="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
-                <div class="bg-slate-900/50 px-4 py-2 border-b border-slate-700 flex justify-between items-center">
+            <div class="glass-panel overflow-hidden border-white/5">
+                <div class="bg-white/5 px-4 py-2 border-b border-white/5 flex justify-between items-center">
                     <h3 class="font-bold text-slate-200 text-sm">{{ group }}</h3>
-                    <span class="text-xs text-slate-500">{{ skills|length }} Skills</span>
+                    <span class="badge badge-slate">{{ skills|length }}</span>
                 </div>
                 <div class="p-2 space-y-1">
                     {% for skill in skills %}
-                    <div class="flex justify-between items-center px-2 py-1 hover:bg-slate-700/30 rounded group">
+                    <div class="flex justify-between items-center px-2 py-1.5 hover:bg-white/5 rounded group">
                         <span class="text-sm text-slate-300 group-hover:text-white transition">{{ skill.name }}</span>
                         <div class="flex gap-[2px]">
                             {% for i in "12345" %}
-                            <div class="w-3 h-3 border border-slate-600 {% if forloop.counter <= skill.level %}bg-white{% else %}bg-slate-800{% endif %}"></div>
+                            <div class="w-3 h-3 rounded-sm border border-slate-600/50 {% if forloop.counter <= skill.level %}bg-slate-200 shadow-[0_0_5px_rgba(255,255,255,0.5)]{% else %}bg-dark-900/50{% endif %}"></div>
                             {% endfor %}
                         </div>
                     </div>
@@ -267,7 +262,7 @@
             {% endfor %}
         </div>
         {% else %}
-        <div class="text-center py-12 text-slate-500 border-2 border-dashed border-slate-700 rounded bg-slate-900/20">
+        <div class="text-center py-12 text-slate-500 border-2 border-dashed border-slate-700 rounded-xl bg-white/5">
             <p class="mb-4">No skills loaded yet.</p>
         </div>
         {% endif %}
@@ -275,30 +270,30 @@
 
     <!-- Skill Queue -->
     <div id="tab-queue" class="tab-content hidden">
-        <div class="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+        <div class="glass-panel overflow-hidden">
             <table class="w-full text-sm text-left text-slate-400">
-                <thead class="text-xs uppercase bg-slate-900/50 text-slate-300">
+                <thead class="text-xs uppercase bg-white/5 text-slate-300 font-bold">
                     <tr>
-                        <th class="px-6 py-3">Skill</th>
-                        <th class="px-6 py-3 text-center">Finished Level</th>
-                        <th class="px-6 py-3 text-right">Ends</th>
+                        <th class="px-6 py-4">Skill</th>
+                        <th class="px-6 py-4 text-center">Finished Level</th>
+                        <th class="px-6 py-4 text-right">Ends</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for item in esi.queue %}
-                    <tr class="border-b border-slate-700 hover:bg-slate-700/30">
+                    <tr class="border-b border-white/5 hover:bg-white/5 transition">
                         <td class="px-6 py-4 font-medium text-white">{{ item.name }}</td>
                         <td class="px-6 py-4 flex justify-center">
                             <div class="flex gap-[2px]">
                                 {% for i in "12345" %}
-                                <div class="w-3 h-3 border border-slate-600 {% if forloop.counter <= item.finished_level %}bg-amber-500{% else %}bg-slate-800{% endif %}"></div>
+                                <div class="w-3 h-3 rounded-sm border border-slate-600/50 {% if forloop.counter <= item.finished_level %}bg-brand-500 shadow-[0_0_5px_rgba(245,158,11,0.5)]{% else %}bg-dark-900/50{% endif %}"></div>
                                 {% endfor %}
                             </div>
                         </td>
-                        <td class="px-6 py-4 text-slate-500 text-right">{{ item.finish_date|slice:":10" }} <span class="text-xs text-slate-600">{{ item.finish_date|slice:"11:16" }}</span></td>
+                        <td class="px-6 py-4 text-slate-500 text-right">{{ item.finish_date|slice:":10" }} <span class="text-xs text-slate-600 font-mono">{{ item.finish_date|slice:"11:16" }}</span></td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="3" class="px-6 py-4 text-center">No queue data.</td></tr>
+                    <tr><td colspan="3" class="px-6 py-8 text-center italic">No queue data.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -309,13 +304,13 @@
     <div id="tab-history" class="tab-content hidden">
         <div class="space-y-4 max-w-3xl">
             {% for entry in esi.history %}
-            <div class="flex items-center gap-4 bg-slate-800 p-4 rounded border border-slate-700 hover:bg-slate-750 transition">
-                <img src="https://images.evetech.net/corporations/{{ entry.corporation_id }}/logo?size=64" class="w-12 h-12 rounded" alt="">
+            <div class="flex items-center gap-4 glass-panel p-4 hover:border-white/20 transition group">
+                <img src="https://images.evetech.net/corporations/{{ entry.corporation_id }}/logo?size=64" class="w-12 h-12 rounded-lg" alt="">
                 <div>
-                    <div class="text-white font-bold text-lg">{{ entry.corporation_name }}</div>
-                    <div class="text-xs text-slate-500 flex gap-4">
+                    <div class="text-white font-bold text-lg group-hover:text-brand-400 transition">{{ entry.corporation_name }}</div>
+                    <div class="text-xs text-slate-500 flex gap-4 mt-1">
                         <span>Joined: {{ entry.start_date|date:"M d, Y" }}</span>
-                        <span class="font-mono">ID: {{ entry.corporation_id }}</span>
+                        <span class="font-mono opacity-50">ID: {{ entry.corporation_id }}</span>
                     </div>
                 </div>
             </div>
@@ -325,33 +320,33 @@
         </div>
     </div>
 
-    <!-- Skill History Log (New Tab) -->
+    <!-- Skill History Log -->
     <div id="tab-skill-history" class="tab-content hidden">
-        <div class="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+        <div class="glass-panel overflow-hidden">
             <table class="w-full text-sm text-left text-slate-400">
-                <thead class="text-xs uppercase bg-slate-900/50 text-slate-300">
+                <thead class="text-xs uppercase bg-white/5 text-slate-300 font-bold">
                     <tr>
-                        <th class="px-6 py-3">Date</th>
-                        <th class="px-6 py-3">Skill</th>
-                        <th class="px-6 py-3 text-center">Level Change</th>
-                        <th class="px-6 py-3 text-right">SP Change</th>
+                        <th class="px-6 py-4">Date</th>
+                        <th class="px-6 py-4">Skill</th>
+                        <th class="px-6 py-4 text-center">Level Change</th>
+                        <th class="px-6 py-4 text-right">SP Change</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for entry in esi.skill_history %}
-                    <tr class="border-b border-slate-700 hover:bg-slate-700/30">
-                        <td class="px-6 py-4 text-slate-500 whitespace-nowrap">
-                            {{ entry.logged_at|date:"M d" }}
-                            <span class="text-xs text-slate-600 ml-1">{{ entry.logged_at|date:"H:i" }}</span>
+                    <tr class="border-b border-white/5 hover:bg-white/5 transition">
+                        <td class="px-6 py-4 text-slate-500 whitespace-nowrap font-mono text-xs">
+                            {{ entry.logged_at|date:"Y-m-d" }}
+                            <span class="text-slate-600 ml-1">{{ entry.logged_at|date:"H:i" }}</span>
                         </td>
                         <td class="px-6 py-4 font-medium text-white">{{ entry.name }}</td>
                         <td class="px-6 py-4 text-center">
                             {% if entry.old_level == entry.new_level %}
                             <span class="text-slate-600">-</span>
                             {% elif entry.new_level > entry.old_level %}
-                            <span class="text-green-400 font-bold">{{ entry.old_level }} ➝ {{ entry.new_level }}</span>
+                            <span class="badge badge-green">{{ entry.old_level }} ➝ {{ entry.new_level }}</span>
                             {% else %}
-                            <span class="text-red-400 font-bold">{{ entry.old_level }} ➝ {{ entry.new_level }}</span>
+                            <span class="badge badge-red">{{ entry.old_level }} ➝ {{ entry.new_level }}</span>
                             {% endif %}
                         </td>
                         <td class="px-6 py-4 text-right font-mono">
@@ -365,7 +360,7 @@
                         </td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="4" class="px-6 py-8 text-center text-slate-500 italic">No skill changes recorded yet.</td></tr>
+                    <tr><td colspan="4" class="px-6 py-12 text-center text-slate-500 italic">No skill changes recorded yet.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>

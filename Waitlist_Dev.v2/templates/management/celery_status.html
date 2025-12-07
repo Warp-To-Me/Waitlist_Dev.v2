@@ -1,15 +1,15 @@
 ﻿{% extends 'management/base_management.html' %}
 
 {% block management_content %}
-<div class="flex justify-between items-center mb-6">
-    <h1 class="text-2xl font-bold text-white flex items-center gap-3">
-        System Monitor
-        <span id="socket-indicator" class="text-xs font-normal text-slate-500 bg-slate-800 px-2 py-1 rounded border border-slate-700 flex items-center gap-2">
+<div class="flex justify-between items-center mb-6 border-b border-white/5 pb-6">
+    <div class="flex items-center gap-4">
+        <h1 class="heading-1">System Monitor</h1>
+        <span id="socket-indicator" class="badge badge-slate flex items-center gap-2 normal-case font-normal">
             <span class="w-2 h-2 rounded-full bg-slate-500"></span> Connecting...
         </span>
-    </h1>
+    </div>
 
-    <button onclick="window.location.reload()" class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1 rounded text-sm transition flex items-center gap-2 shadow-lg">
+    <button onclick="window.location.reload()" class="btn-secondary text-xs py-1.5 shadow-lg">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
         </svg>
@@ -18,7 +18,9 @@
 </div>
 
 <!-- DYNAMIC CONTENT CONTAINER -->
-<div id="celery-status-container">
+<!-- REMOVED: animate-fade-in from here -->
+<!-- Added opacity-0 to ensure it is invisible until the router handles it, or just let the router add the class which handles opacity -->
+<div id="celery-status-container" class="space-y-8">
     {% include 'partials/celery_content.html' %}
 </div>
 
@@ -31,7 +33,6 @@
         const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
         const path = protocol + window.location.host + '/ws/system/monitor/';
 
-        // Close existing socket if somehow stuck open
         if (socket) {
             socket.close();
         }
@@ -40,9 +41,8 @@
 
         socket.onopen = function (e) {
             console.log("System Monitor: Connected");
-            indicator.innerHTML = '<span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Live Stream';
-            indicator.classList.remove('text-slate-500', 'bg-slate-800', 'border-slate-700', 'text-red-400', 'bg-red-900/20', 'border-red-900/50');
-            indicator.classList.add('text-green-400', 'bg-green-900/20', 'border-green-900/50');
+            indicator.innerHTML = '<span class="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_5px_rgba(34,197,94,0.5)]"></span> Live Stream';
+            indicator.className = 'badge badge-green flex items-center gap-2 normal-case font-normal transition-all duration-300';
         };
 
         socket.onmessage = function (e) {
@@ -53,39 +53,31 @@
         };
 
         socket.onclose = function (e) {
-            // 4003: Custom code from Consumer meaning "Auth Failed"
             if (e.code === 4003) {
                 console.error("Session invalid. Reloading page...");
-                indicator.innerHTML = 'Session Expired. Reloading...';
+                indicator.innerHTML = 'Session Expired';
+                indicator.className = 'badge badge-red';
                 window.location.reload();
                 return;
             }
 
             console.warn('System Monitor: Socket closed. Reconnecting in 1s...');
             indicator.innerHTML = '<span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span> Reconnecting...';
-            indicator.classList.remove('text-green-400', 'bg-green-900/20', 'border-green-900/50');
-            indicator.classList.add('text-red-400', 'bg-red-900/20', 'border-red-900/50');
+            indicator.className = 'badge badge-red flex items-center gap-2 normal-case font-normal';
 
-            // Fast retry to catch server coming back up
             setTimeout(connect, 1000);
         };
 
         socket.onerror = function (err) {
             console.error('System Monitor: Socket Error', err);
-            socket.close(); // Triggers onclose
+            socket.close();
         };
     }
 
-    // Initialize Connection
     connect();
 
-    // Clean up
-    window.addEventListener('popstate', () => {
-        if (socket) socket.close();
-    });
-    window.addEventListener('beforeunload', () => {
-        if (socket) socket.close();
-    });
+    window.addEventListener('popstate', () => { if (socket) socket.close(); });
+    window.addEventListener('beforeunload', () => { if (socket) socket.close(); });
 
 </script>
 {% endblock %}

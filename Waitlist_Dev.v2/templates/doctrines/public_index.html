@@ -4,16 +4,17 @@
 
 {% block content %}
 <!-- Main Scroll Wrapper -->
-<div class="h-full overflow-y-auto" id="doctrine-scroll-wrapper">
-    <div class="container mx-auto p-4 md:p-8 pb-24">
-        <!-- Added pb-24 for bottom spacing -->
+<!-- FIX: Used 'absolute inset-0' to guarantee scroll behavior -->
+<div class="absolute inset-0 overflow-y-auto custom-scrollbar" id="doctrine-scroll-wrapper">
+    <div class="container mx-auto p-4 md:p-8 pb-32">
+
         <!-- HEADER -->
-        <div class="flex flex-col md:flex-row justify-between items-end gap-4 mb-8">
+        <div class="flex flex-col md:flex-row justify-between items-end gap-6 mb-8 border-b border-white/5 pb-6">
             <div>
-                <h1 class="text-3xl font-bold text-white">
-                    <span class="text-amber-500">Doctrine</span> Fittings
+                <h1 class="heading-1">
+                    <span class="text-brand-500">Doctrine</span> Fittings
                 </h1>
-                <p class="text-slate-400 text-sm mt-1">
+                <p class="text-slate-400 text-sm mt-2 font-medium">
                     Approved fleet compositions. Click on a category to expand it.
                 </p>
             </div>
@@ -26,13 +27,13 @@
                 <input type="text"
                        id="fit-search"
                        onkeyup="filterFits()"
-                       class="block w-full p-3 pl-10 text-sm text-white border border-slate-600 rounded-lg bg-slate-800 focus:ring-amber-500 focus:border-amber-500 placeholder-slate-500 shadow-xl transition focus:bg-slate-700"
+                       class="input-field pl-10"
                        placeholder="Search ship, fit name, or role...">
             </div>
         </div>
 
         <!-- CONTENT AREA -->
-        <div id="doctrine-container" class="animate-fade-in">
+        <div id="doctrine-container" class="animate-fade-in space-y-4">
             {% include 'doctrines/public_content.html' %}
         </div>
 
@@ -42,29 +43,27 @@
 <!-- FIT DETAIL MODAL -->
 <div id="fit-modal" class="fixed inset-0 z-50 hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
     <!-- Backdrop -->
-    <div id="modal-backdrop" class="fixed inset-0 bg-slate-900/90 backdrop-blur-sm transition-opacity"></div>
+    <div id="modal-backdrop" class="fixed inset-0 bg-dark-950/80 backdrop-blur-sm transition-opacity"></div>
 
     <!-- Scroll Container -->
-    <div class="fixed inset-0 z-10 overflow-y-auto" id="modal-scroll-container">
+    <div class="fixed inset-0 z-10 overflow-y-auto custom-scrollbar" id="modal-scroll-container">
         <div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
 
             <!-- Modal Panel -->
-            <!-- onclick="event.stopPropagation()" is CRITICAL here.
-                 It stops clicks inside the card from bubbling up to the scroll container. -->
-            <div id="modal-panel" class="relative transform overflow-hidden rounded-lg bg-slate-800 text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-4xl border border-slate-700 flex flex-col max-h-[90vh]" onclick="event.stopPropagation()">
+            <div id="modal-panel" class="relative transform overflow-hidden rounded-xl bg-slate-900 border border-white/10 text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-4xl flex flex-col max-h-[85vh]" onclick="event.stopPropagation()">
 
                 <!-- Header -->
-                <div class="bg-slate-900 px-4 py-3 sm:px-6 flex justify-between items-center border-b border-slate-700 shrink-0 gap-4">
+                <div class="glass-header px-6 py-4 flex justify-between items-center shrink-0 gap-4">
                     <div class="flex items-center gap-4">
                         <div class="relative w-12 h-12 flex-shrink-0">
-                            <img id="modal-header-icon" src="" class="w-full h-full rounded-full" alt="Ship Icon">
+                            <img id="modal-header-icon" src="" class="w-full h-full rounded-lg border border-white/10" alt="Ship Icon">
                         </div>
                         <div>
-                            <h3 class="text-lg font-semibold leading-6 text-white" id="modal-hull">Hull Name</h3>
-                            <p class="text-sm text-amber-500 font-mono" id="modal-fitname">Fit Name</p>
+                            <h3 class="text-xl font-bold text-white tracking-tight" id="modal-hull">Hull Name</h3>
+                            <p class="text-sm text-brand-500 font-mono font-bold" id="modal-fitname">Fit Name</p>
                         </div>
                     </div>
-                    <button type="button" onclick="closeModal()" class="text-slate-400 hover:text-white transition">
+                    <button type="button" onclick="closeModal()" class="text-slate-400 hover:text-white transition p-2 hover:bg-white/5 rounded-full">
                         <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                         </svg>
@@ -72,26 +71,26 @@
                 </div>
 
                 <!-- Content Grid -->
-                <div class="px-4 py-4 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-6 overflow-hidden h-full">
+                <div class="px-6 py-6 grid grid-cols-1 md:grid-cols-3 gap-8 overflow-hidden h-full bg-dark-900/50">
 
                     <!-- Left: Description & Actions -->
-                    <div class="md:col-span-1 flex flex-col overflow-y-auto pr-2 h-full">
-                        <div class="bg-slate-900/50 p-4 rounded border border-slate-700/50 mb-4 flex-grow overflow-y-auto custom-scrollbar">
-                            <h4 class="text-xs uppercase font-bold text-slate-500 mb-2 border-b border-slate-800 pb-1">Fitting Notes</h4>
+                    <div class="md:col-span-1 flex flex-col overflow-y-auto pr-2 h-full custom-scrollbar">
+                        <div class="glass-panel p-4 mb-4 flex-grow overflow-y-auto custom-scrollbar border-white/5">
+                            <h4 class="label-text border-b border-white/5 pb-2 mb-2">Fitting Notes</h4>
                             <p id="modal-desc" class="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap font-sans"></p>
                         </div>
 
                         <div class="mt-auto space-y-2 shrink-0">
-                            <button onclick="copyToClipboard()" class="w-full text-xs bg-amber-600 hover:bg-amber-500 text-white px-3 py-3 rounded font-bold transition shadow-lg shadow-amber-900/20 flex items-center justify-center gap-2 active:scale-95 group">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-amber-200 group-hover:text-white" viewBox="0 0 20 20" fill="currentColor"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" /><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" /></svg>
+                            <button onclick="copyToClipboard()" class="btn-primary w-full text-xs py-3 shadow-lg shadow-brand-500/10">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" /><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" /></svg>
                                 Copy EFT to Clipboard
                             </button>
                             <textarea id="modal-eft" class="sr-only"></textarea>
                         </div>
                     </div>
 
-                    <!-- Right: Visual Slots (Scrollable) -->
-                    <div class="md:col-span-2 bg-slate-950 rounded-lg border border-slate-800 shadow-inner overflow-y-auto p-4 custom-scrollbar" id="modal-slots">
+                    <!-- Right: Visual Slots -->
+                    <div class="md:col-span-2 glass-panel p-4 overflow-y-auto custom-scrollbar shadow-inner bg-black/20 border-white/5" id="modal-slots">
                         <div class="flex items-center justify-center h-full text-slate-500 animate-pulse">Loading fitting data...</div>
                     </div>
                 </div>
@@ -99,25 +98,6 @@
         </div>
     </div>
 </div>
-
-<style>
-    .custom-scrollbar::-webkit-scrollbar {
-        width: 8px;
-    }
-
-    .custom-scrollbar::-webkit-scrollbar-track {
-        background: #0f172a;
-    }
-
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-        background: #334155;
-        border-radius: 4px;
-    }
-
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-            background: #475569;
-        }
-</style>
 
 <script>
     // --- ACCORDION LOGIC ---
@@ -185,28 +165,28 @@
                 if (data.slots && data.slots.length > 0) {
                     data.slots.forEach(group => {
                         html += `
-                        <div class="mb-3">
-                            <div class="flex items-baseline gap-2 mb-0.5 border-b border-slate-800 pb-0.5">
+                        <div class="mb-4">
+                            <div class="flex items-baseline gap-2 mb-1 border-b border-white/5 pb-1">
                                 <h5 class="text-slate-400 text-[10px] uppercase font-bold tracking-wider">${group.name}</h5>
                                 ${group.is_hardpoint ? `<span class="text-[9px] text-slate-600 font-mono">(${group.used} / ${group.total})</span>` : ''}
                             </div>
-                            <div class="space-y-[1px]"> <!-- Tighter spacing between rows -->
+                            <div class="space-y-1">
                         `;
 
                         // Modules
                         group.modules.forEach((mod, index) => {
-                            const bgClass = index % 2 === 0 ? 'bg-slate-900/40' : 'bg-slate-900/10';
+                            const bgClass = index % 2 === 0 ? 'bg-white/5' : 'bg-transparent';
 
                             html += `
-                            <div class="flex items-center gap-2 ${bgClass} hover:bg-slate-800/60 px-1 py-0.5 rounded transition group h-7">
+                            <div class="flex items-center gap-3 ${bgClass} hover:bg-white/10 px-2 py-1 rounded transition group h-8 border border-transparent hover:border-white/5">
                                 <img src="https://images.evetech.net/types/${mod.id}/icon?size=32"
-                                     class="w-5 h-5 rounded flex-shrink-0"
+                                     class="w-6 h-6 rounded flex-shrink-0"
                                      alt="${mod.name}"
                                      loading="lazy">
                                 <div class="flex-grow min-w-0">
-                                    <div class="text-[11px] text-slate-300 font-medium truncate group-hover:text-white transition">${mod.name}</div>
+                                    <div class="text-xs text-slate-300 font-medium truncate group-hover:text-white transition">${mod.name}</div>
                                 </div>
-                                ${!group.is_hardpoint && mod.quantity > 1 ? `<span class="text-[10px] text-slate-500 font-mono px-1.5">x${mod.quantity}</span>` : ''}
+                                ${!group.is_hardpoint && mod.quantity > 1 ? `<span class="text-[10px] text-brand-400 font-mono px-1.5 bg-brand-900/20 rounded border border-brand-500/30">x${mod.quantity}</span>` : ''}
                             </div>
                             `;
                         });
@@ -214,13 +194,10 @@
                         // Empty Slots
                         if (group.is_hardpoint && group.empties_count > 0) {
                             for (let i = 0; i < group.empties_count; i++) {
-                                const currentIndex = group.modules.length + i;
-                                const bgClass = currentIndex % 2 === 0 ? 'bg-slate-900/40' : 'bg-slate-900/10';
-
                                 html += `
-                                <div class="flex items-center gap-2 ${bgClass} px-1 py-0.5 rounded opacity-30 select-none h-6">
-                                    <div class="w-4 h-4 rounded bg-slate-800/50 ml-0.5"></div>
-                                    <span class="text-[10px] text-slate-500 italic">[Empty ${group.name.replace(/s$/, '')}]</span>
+                                <div class="flex items-center gap-3 px-2 py-1 rounded opacity-30 select-none h-8">
+                                    <div class="w-5 h-5 rounded bg-white/10 ml-0.5"></div>
+                                    <span class="text-[10px] text-slate-500 italic font-mono tracking-wide">[Empty Slot]</span>
                                 </div>
                                 `;
                             }
@@ -244,10 +221,6 @@
         document.getElementById('fit-modal').classList.add('hidden');
     }
 
-    // FIXED LOGIC:
-    // We attach the listener to the scroll container, which covers the entire screen (z-10).
-    // The panel inside has 'onclick="event.stopPropagation()"', so clicks inside the panel never bubble here.
-    // Therefore, any click event that reaches this listener MUST be on the background/empty space.
     const scrollContainer = document.getElementById('modal-scroll-container');
     if (scrollContainer) {
         scrollContainer.addEventListener('click', function (e) {
@@ -262,7 +235,7 @@
         navigator.clipboard.writeText(copyText.value).then(() => {
             const btn = document.querySelector('button[onclick="copyToClipboard()"]');
             const originalText = btn.innerHTML;
-            btn.innerHTML = '<span class="text-green-300">Copied!</span>';
+            btn.innerHTML = '<span class="text-green-300 font-bold">Copied!</span>';
             setTimeout(() => { btn.innerHTML = originalText; }, 1500);
         });
     }
