@@ -4,23 +4,24 @@
 {% block title %}Waitlist: {{ fleet.name }}{% endblock %}
 
 {% block content %}
-<div class="absolute inset-0 flex flex-col overflow-hidden bg-slate-900">
+<!-- ADDED: opacity-0 to prevent flash of unstyled content -->
+<div class="absolute inset-0 flex flex-col overflow-hidden bg-dark-950 opacity-0 animate-fade-in">
 
     <!-- HEADER BAR -->
-    <div class="bg-slate-800 border-b border-slate-700 p-4 relative flex justify-center items-center shadow-md z-20 shrink-0 min-h-[4rem]">
+    <div class="glass-header p-4 relative flex justify-center items-center z-20 shrink-0 min-h-[4rem]">
 
-        <div class="flex items-center gap-4">
-            <div class="bg-amber-600/20 p-2 rounded border border-amber-600/50 hidden sm:block">
+        <div class="flex items-center gap-6">
+            <div class="bg-brand-500/10 p-2.5 rounded-lg border border-brand-500/20 hidden sm:block shadow-[0_0_15px_rgba(245,158,11,0.2)]">
                 <span class="text-2xl">🛸</span>
             </div>
             <div class="text-center">
-                <h1 class="text-xl font-bold text-white leading-none">{{ fleet.name }}</h1>
-                <p class="text-xs text-slate-400 mt-1 flex justify-center items-center gap-2">
-                    <span class="font-bold text-slate-300">FC:</span>
-                    {{ fc_name }}
-                    <span id="connection-status" class="w-2 h-2 rounded-full bg-red-500" title="Disconnected"></span>
+                <h1 class="heading-1 leading-none text-2xl md:text-3xl">{{ fleet.name }}</h1>
+                <p class="text-xs text-slate-400 mt-2 flex justify-center items-center gap-3 font-mono">
+                    <span class="label-text mb-0 text-[10px]">FC</span>
+                    <span class="text-white font-bold">{{ fc_name }}</span>
+                    <span id="connection-status" class="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]" title="Disconnected"></span>
                     {% if is_fc and not is_commander %}
-                    <a href="{% url 'take_fleet_command' fleet.join_token %}" class="text-[10px] bg-red-900/30 text-red-400 border border-red-900 px-2 py-0.5 rounded hover:bg-red-900/50 transition uppercase font-bold">
+                    <a href="{% url 'take_fleet_command' fleet.join_token %}" class="btn-danger py-0.5 px-2 text-[10px] uppercase font-bold tracking-wider">
                         Take Command
                     </a>
                     {% endif %}
@@ -30,7 +31,7 @@
 
         <div class="absolute right-4 top-1/2 -translate-y-1/2">
             <button onclick="document.getElementById('xup-modal').classList.remove('hidden')"
-                    class="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold px-4 md:px-6 py-2 rounded shadow-lg shadow-amber-500/20 transition flex items-center gap-2 text-sm md:text-base">
+                    class="btn-primary py-2 px-6 shadow-brand-500/20">
                 <span>➕</span> <span class="hidden md:inline">X-UP</span>
             </button>
         </div>
@@ -38,6 +39,7 @@
 
     <!-- MAIN BOARD -->
     <div class="flex-grow overflow-x-auto overflow-y-hidden p-4 custom-scrollbar relative">
+        <!-- CHANGED: gap-4 to gap-2 -->
         <div class="flex gap-2 h-full min-w-max mx-auto w-fit">
             {% include 'waitlist/column.html' with title="X-UP" color="amber" entries=columns.pending id="pending" is_pending=True %}
             {% include 'waitlist/column.html' with title="LOGI" color="green" entries=columns.logi id="logi" %}
@@ -46,13 +48,13 @@
             {% include 'waitlist/column.html' with title="OTHER" color="green" entries=columns.other id="other" %}
 
             {% if is_fc %}
-            <div class="w-80 flex flex-col bg-slate-800 rounded-lg border border-slate-700 shadow-xl overflow-hidden h-full ml-2">
-                <div class="bg-blue-900/20 border-b border-blue-900/30 p-3">
-                    <h3 class="font-bold text-blue-100 uppercase text-sm tracking-wider">Fleet Overview</h3>
+            <div class="w-80 flex flex-col glass-panel overflow-hidden h-full ml-2 border-white/10">
+                <div class="bg-blue-500/10 border-b border-blue-500/20 p-3">
+                    <h3 class="label-text text-blue-400 mb-0 text-center">Fleet Overview</h3>
                 </div>
                 <div class="flex-grow p-4 overflow-y-auto text-slate-400 text-sm italic custom-scrollbar">
                     <p>Fleet composition loading...</p>
-                    <div class="mt-4 text-xs text-slate-500">
+                    <div class="mt-4 text-xs text-slate-500 border-t border-white/5 pt-2">
                         (Requires ESI write_fleet scope)
                     </div>
                 </div>
@@ -65,30 +67,30 @@
 <!-- MODALS -->
 <!-- X-UP MODAL -->
 <div id="xup-modal" class="fixed inset-0 z-50 hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-    <div class="fixed inset-0 bg-slate-900/90 backdrop-blur-sm transition-opacity"></div>
+    <div class="fixed inset-0 bg-dark-950/80 backdrop-blur-sm transition-opacity"></div>
     <div class="fixed inset-0 z-10 overflow-y-auto" onclick="closeXUpModal()">
         <div class="flex min-h-full items-center justify-center p-4 text-center">
-            <div class="bg-slate-800 rounded-lg border border-slate-700 shadow-2xl w-full max-w-lg overflow-hidden transform transition-all" onclick="event.stopPropagation()">
-                <div class="bg-slate-900 p-4 border-b border-slate-700 flex justify-between items-center">
-                    <h3 class="font-bold text-white">Join Waitlist</h3>
-                    <button onclick="closeXUpModal()" class="text-slate-400 hover:text-white">✕</button>
+            <div class="relative transform overflow-hidden rounded-xl bg-slate-900 border border-white/10 text-left shadow-2xl transition-all w-full max-w-lg" onclick="event.stopPropagation()">
+                <div class="glass-header px-6 py-4 flex justify-between items-center">
+                    <h3 class="font-bold text-white text-lg">Join Waitlist</h3>
+                    <button onclick="closeXUpModal()" class="text-slate-400 hover:text-white transition p-1 hover:bg-white/10 rounded-full">✕</button>
                 </div>
-                <form id="xup-form" action="{% url 'x_up_submit' fleet.join_token %}" method="POST" class="p-6 space-y-4 text-left">
+                <form id="xup-form" action="{% url 'x_up_submit' fleet.join_token %}" method="POST" class="p-6 space-y-6">
                     {% csrf_token %}
                     <div>
-                        <label class="block text-slate-400 text-xs font-bold uppercase mb-2">Pilot</label>
-                        <select name="character_id" class="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white focus:border-amber-500 outline-none">
+                        <label class="label-text">Pilot</label>
+                        <select name="character_id" class="select-field">
                             {% for char in user_chars %}
                             <option value="{{ char.character_id }}">{{ char.character_name }}</option>
                             {% endfor %}
                         </select>
                     </div>
                     <div>
-                        <label class="block text-slate-400 text-xs font-bold uppercase mb-2">Paste Fit (EFT / Pyfa / In-Game)</label>
-                        <textarea name="eft_paste" rows="8" required class="w-full bg-slate-950 text-slate-300 font-mono text-xs p-3 rounded border border-slate-600 focus:border-amber-500 outline-none placeholder-slate-600" placeholder="[Megathron, Baltec]&#10;Damage Control II&#10;..."></textarea>
+                        <label class="label-text">Paste Fit (EFT / Pyfa / In-Game)</label>
+                        <textarea name="eft_paste" rows="8" required class="input-field font-mono text-xs" placeholder="[Megathron, Baltec]&#10;Damage Control II&#10;..."></textarea>
                     </div>
-                    <div id="xup-error" class="hidden bg-red-900/30 border border-red-900/50 text-red-300 text-xs p-3 rounded"></div>
-                    <button type="submit" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 rounded mt-4 transition shadow-lg shadow-amber-900/20">Submit Request</button>
+                    <div id="xup-error" class="hidden bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-3 rounded-lg"></div>
+                    <button type="submit" class="btn-primary w-full py-3 shadow-lg shadow-brand-500/20">Submit Request</button>
                 </form>
             </div>
         </div>
@@ -97,46 +99,47 @@
 
 <!-- ENTRY INSPECTION MODAL -->
 <div id="entry-modal" class="fixed inset-0 z-50 hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-    <div class="fixed inset-0 bg-slate-900/90 backdrop-blur-sm transition-opacity" onclick="closeEntryModal()"></div>
+    <div class="fixed inset-0 bg-dark-950/80 backdrop-blur-sm transition-opacity" onclick="closeEntryModal()"></div>
     <div class="fixed inset-0 z-10 overflow-y-auto" onclick="closeEntryModal()">
         <div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
-            <div class="relative transform overflow-hidden rounded-lg bg-slate-800 text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-4xl border border-slate-700 flex flex-col max-h-[90vh]" onclick="event.stopPropagation()">
-                <div class="bg-slate-900 px-4 py-3 sm:px-6 flex justify-between items-center border-b border-slate-700 shrink-0 gap-4">
+            <div class="relative transform overflow-hidden rounded-xl bg-slate-900 border border-white/10 text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-4xl flex flex-col max-h-[90vh]" onclick="event.stopPropagation()">
+                <div class="glass-header px-6 py-4 flex justify-between items-center shrink-0 gap-4">
                     <div class="flex items-center gap-4">
                         <div class="relative w-12 h-12 flex-shrink-0">
-                            <img id="entry-icon" src="" class="w-full h-full rounded-full bg-slate-800 border border-slate-600" alt="Ship Icon">
+                            <img id="entry-icon" src="" class="w-full h-full rounded-lg border border-white/10 bg-dark-900" alt="Ship Icon">
                         </div>
                         <div>
-                            <h3 class="text-lg font-semibold leading-6 text-white" id="entry-ship">Ship Name</h3>
-                            <p class="text-sm text-slate-400 font-mono">Pilot: <span id="entry-pilot" class="text-amber-500 font-bold">Name</span></p>
+                            <h3 class="text-lg font-bold leading-tight text-white" id="entry-ship">Ship Name</h3>
+                            <p class="text-sm text-slate-400 font-mono mt-1">Pilot: <span id="entry-pilot" class="text-brand-500 font-bold">Name</span></p>
                         </div>
                     </div>
-                    <button type="button" onclick="closeEntryModal()" class="text-slate-400 hover:text-white transition">✕</button>
+                    <button type="button" onclick="closeEntryModal()" class="text-slate-400 hover:text-white transition p-1 hover:bg-white/10 rounded-full">✕</button>
                 </div>
-                <div class="px-4 py-4 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-6 overflow-hidden h-full">
+
+                <div class="px-6 py-6 grid grid-cols-1 md:grid-cols-3 gap-8 overflow-hidden h-full bg-dark-900/50">
                     <div class="md:col-span-1 flex flex-col h-full overflow-hidden">
-                        <div class="bg-slate-950 p-3 rounded border border-slate-800 mb-4 flex-grow overflow-y-auto custom-scrollbar relative group">
-                            <button onclick="copyEntryEft()" class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition text-slate-500 hover:text-white p-1 bg-slate-800 rounded border border-slate-700">📋</button>
-                            <h4 class="text-[10px] uppercase font-bold text-slate-500 mb-2 border-b border-slate-800 pb-1 sticky top-0 bg-slate-950">Submitted Fit</h4>
+                        <div class="glass-panel p-4 mb-4 flex-grow overflow-y-auto custom-scrollbar relative group border-white/5 bg-black/20">
+                            <button onclick="copyEntryEft()" class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition text-slate-500 hover:text-white p-1.5 bg-white/10 rounded-lg backdrop-blur">📋</button>
+                            <h4 class="label-text border-b border-white/5 pb-2 mb-2 sticky top-0 bg-transparent backdrop-blur-sm">Submitted Fit</h4>
                             <pre id="entry-eft" class="text-[10px] text-slate-400 font-mono whitespace-pre-wrap break-all"></pre>
                         </div>
                         <div class="mt-auto space-y-3 shrink-0">
-                            <button onclick="copyEntryEft()" id="btn-copy-eft" class="w-full text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-2 rounded font-bold transition flex items-center justify-center gap-2 border border-slate-600">
+                            <button onclick="copyEntryEft()" id="btn-copy-eft" class="btn-secondary w-full text-xs py-2">
                                 <span>📋</span> Copy to Clipboard
                             </button>
-                            <div id="entry-actions" class="grid grid-cols-2 gap-2 hidden pt-2 border-t border-slate-700">
-                                <button onclick="modalAction('approve')" class="bg-green-600 hover:bg-green-500 text-white font-bold py-3 rounded text-sm transition shadow-lg shadow-green-900/20 flex flex-col items-center justify-center leading-none">
+                            <div id="entry-actions" class="grid grid-cols-2 gap-3 hidden pt-4 border-t border-white/5">
+                                <button onclick="modalAction('approve')" class="btn-success py-3 text-sm flex flex-col items-center leading-none">
                                     <span>✔ Approve</span>
-                                    <span class="text-[10px] font-normal opacity-75 mt-1">Move to Role</span>
+                                    <span class="text-[9px] font-normal opacity-75 mt-1">Move to Role</span>
                                 </button>
-                                <button onclick="modalAction('deny')" class="bg-red-900/80 hover:bg-red-700 text-red-100 border border-red-800 font-bold py-3 rounded text-sm transition shadow-lg shadow-red-900/20 flex flex-col items-center justify-center leading-none">
+                                <button onclick="modalAction('deny')" class="btn-danger py-3 text-sm flex flex-col items-center leading-none bg-red-500/10 hover:bg-red-500/20 border-red-500/30">
                                     <span>✖ Reject</span>
-                                    <span class="text-[10px] font-normal opacity-75 mt-1">Remove Entry</span>
+                                    <span class="text-[9px] font-normal opacity-75 mt-1">Remove Entry</span>
                                 </button>
                             </div>
                         </div>
                     </div>
-                    <div class="md:col-span-2 bg-slate-900/50 rounded-lg border border-slate-700/50 shadow-inner overflow-y-auto p-4 custom-scrollbar" id="entry-slots">
+                    <div class="md:col-span-2 glass-panel p-4 overflow-y-auto custom-scrollbar shadow-inner bg-black/20 border-white/5" id="entry-slots">
                         <div class="flex items-center justify-center h-full text-slate-500 animate-pulse">Loading fitting data...</div>
                     </div>
                 </div>
@@ -148,7 +151,7 @@
 <script>
     const USER_IS_FC = {{ is_fc|yesno:"true,false" }};
     const FLEET_ID = "{{ fleet.id }}";
-    const CSRF_TOKEN = '{{ csrf_token }}'; // Added CSRF Token
+    const CSRF_TOKEN = '{{ csrf_token }}';
     let socket = null;
 
     function initWebSocket() {
@@ -160,7 +163,11 @@
 
         socket.onopen = () => {
             console.log("Fleet Socket: Connected");
-            if(statusDot) { statusDot.classList.remove('bg-red-500'); statusDot.classList.add('bg-green-500'); statusDot.title = "Connected"; }
+            if(statusDot) {
+                statusDot.classList.remove('bg-red-500', 'shadow-red-500/50');
+                statusDot.classList.add('bg-green-500', 'shadow-[0_0_8px_rgba(34,197,94,0.6)]');
+                statusDot.title = "Connected";
+            }
         };
 
         socket.onmessage = (e) => {
@@ -170,7 +177,11 @@
 
         socket.onclose = () => {
             console.log("Fleet Socket: Disconnected");
-            if(statusDot) { statusDot.classList.remove('bg-green-500'); statusDot.classList.add('bg-red-500'); statusDot.title = "Disconnected"; }
+            if(statusDot) {
+                statusDot.classList.remove('bg-green-500', 'shadow-[0_0_8px_rgba(34,197,94,0.6)]');
+                statusDot.classList.add('bg-red-500');
+                statusDot.title = "Disconnected";
+            }
             setTimeout(initWebSocket, 2000);
         };
     }
@@ -202,8 +213,9 @@
 
             if (column) {
                 column.appendChild(newCard);
-                newCard.classList.add('ring-2', 'ring-white');
-                setTimeout(() => newCard.classList.remove('ring-2', 'ring-white'), 500);
+                // Modern highlight effect
+                newCard.classList.add('ring-2', 'ring-brand-500', 'shadow-[0_0_15px_rgba(245,158,11,0.3)]');
+                setTimeout(() => newCard.classList.remove('ring-2', 'ring-brand-500', 'shadow-[0_0_15px_rgba(245,158,11,0.3)]'), 1000);
             }
             updateCounts();
         }
@@ -220,10 +232,10 @@
         });
     }
 
-    // --- FC ACTIONS (Added) ---
+    // --- FC ACTIONS ---
     function sendAction(entryId, action) {
         fetch(`/fleet/action/${entryId}/${action}/`, {
-            method: 'POST', // Use POST for state changes
+            method: 'POST',
             headers: {
                 'X-CSRFToken': CSRF_TOKEN,
                 'X-Requested-With': 'XMLHttpRequest'
@@ -240,7 +252,6 @@
             if (!data.success) {
                 alert("Error: " + (data.error || "Unknown error"));
             }
-            // Success is handled by WebSocket update
         })
         .catch(err => console.error("Network Error:", err));
     }
@@ -259,8 +270,9 @@
         const errorBox = document.getElementById('xup-error');
         const submitBtn = form.querySelector('button[type="submit"]');
         submitBtn.disabled = true;
-        submitBtn.textContent = "Processing...";
+        submitBtn.innerHTML = '<span class="animate-spin mr-2">⟳</span> Processing...';
         errorBox.classList.add('hidden');
+
         fetch(form.action, { method: 'POST', body: new FormData(form), headers: { 'X-Requested-With': 'XMLHttpRequest' } })
         .then(response => response.json())
         .then(data => {
@@ -292,17 +304,37 @@
                 document.getElementById('entry-icon').src = `https://images.evetech.net/types/${data.hull_id}/icon?size=64`;
                 document.getElementById('entry-eft').textContent = data.raw_eft;
                 if(data.is_fc && data.status === 'pending') { document.getElementById('entry-actions').classList.remove('hidden'); }
+
                 let html = '';
                 if(data.slots && data.slots.length > 0) {
                     data.slots.forEach(group => {
-                        html += `<div class="mb-3"><div class="flex items-baseline gap-2 mb-0.5 border-b border-slate-800 pb-0.5"><h5 class="text-slate-400 text-[10px] uppercase font-bold tracking-wider">${group.name}</h5>${group.is_hardpoint ? `<span class="text-[9px] text-slate-600 font-mono">(${group.used} / ${group.total})</span>` : ''}</div><div class="space-y-[1px]">`;
+                        html += `
+                        <div class="mb-4">
+                            <div class="flex items-baseline gap-2 mb-1 border-b border-white/5 pb-1">
+                                <h5 class="label-text mb-0 text-[10px]">${group.name}</h5>
+                                ${group.is_hardpoint ? `<span class="text-[9px] text-slate-500 font-mono">(${group.used} / ${group.total})</span>` : ''}
+                            </div>
+                            <div class="space-y-1">`;
+
                         group.modules.forEach((mod, index) => {
-                            const bgClass = index % 2 === 0 ? 'bg-slate-800/40' : 'bg-slate-800/10';
-                            html += `<div class="flex items-center gap-2 ${bgClass} hover:bg-slate-800/60 px-1 py-0.5 rounded transition h-7"><img src="https://images.evetech.net/types/${mod.id}/icon?size=32" class="w-5 h-5 rounded flex-shrink-0"><div class="flex-grow min-w-0"><div class="text-[11px] text-slate-300 truncate">${mod.name}</div></div>${!group.is_hardpoint && mod.quantity > 1 ? `<span class="text-[10px] text-slate-500 font-mono px-1.5">x${mod.quantity}</span>` : ''}</div>`;
+                            const bgClass = index % 2 === 0 ? 'bg-white/5' : 'bg-transparent';
+                            html += `
+                            <div class="flex items-center gap-2 ${bgClass} hover:bg-white/10 px-2 py-1 rounded transition group h-8 border border-transparent hover:border-white/5">
+                                <img src="https://images.evetech.net/types/${mod.id}/icon?size=32" class="w-6 h-6 rounded flex-shrink-0" loading="lazy">
+                                <div class="flex-grow min-w-0">
+                                    <div class="text-xs text-slate-300 font-medium truncate group-hover:text-white transition">${mod.name}</div>
+                                </div>
+                                ${!group.is_hardpoint && mod.quantity > 1 ? `<span class="text-[10px] text-brand-400 font-mono px-1.5 bg-brand-900/20 rounded border border-brand-500/30">x${mod.quantity}</span>` : ''}
+                            </div>`;
                         });
+
                         if (group.is_hardpoint && group.empties_count > 0) {
                             for (let i = 0; i < group.empties_count; i++) {
-                                html += `<div class="flex items-center gap-2 bg-slate-900/20 px-1 py-0.5 rounded opacity-30 h-6"><div class="w-4 h-4 rounded bg-slate-800/50 ml-0.5"></div><span class="text-[10px] text-slate-500 italic">Empty Slot</span></div>`;
+                                html += `
+                                <div class="flex items-center gap-2 px-2 py-1 rounded opacity-30 select-none h-8">
+                                    <div class="w-5 h-5 rounded bg-white/10 ml-0.5"></div>
+                                    <span class="text-[10px] text-slate-500 italic font-mono tracking-wide">[Empty Slot]</span>
+                                </div>`;
                             }
                         }
                         html += `</div></div>`;
@@ -314,12 +346,13 @@
     }
 
     function modalAction(action) { if(!currentEntryId) return; closeEntryModal(); sendAction(currentEntryId, action); }
-    function copyEntryEft() { const text = document.getElementById("entry-eft").textContent; navigator.clipboard.writeText(text).then(() => { const btn = document.getElementById('btn-copy-eft'); const original = btn.innerHTML; btn.innerHTML = '<span class="text-green-300">✔ Copied!</span>'; setTimeout(() => { btn.innerHTML = original; }, 1500); }); }
+    function copyEntryEft() { const text = document.getElementById("entry-eft").textContent; navigator.clipboard.writeText(text).then(() => { const btn = document.getElementById('btn-copy-eft'); const original = btn.innerHTML; btn.innerHTML = '<span class="text-green-300 font-bold">✔ Copied!</span>'; setTimeout(() => { btn.innerHTML = original; }, 1500); }); }
 </script>
 
 <style>
     .custom-scrollbar::-webkit-scrollbar {
         width: 6px;
+        height: 6px;
     }
 
     .custom-scrollbar::-webkit-scrollbar-track {

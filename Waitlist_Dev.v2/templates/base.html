@@ -266,16 +266,33 @@
                     const mainContent = document.getElementById('main-content');
                     const tempDiv = document.createElement('div');
                     tempDiv.innerHTML = html;
+
+                    // --- FIX FOR FLASHING ANIMATION ---
+                    // 1. Identify the new root element
+                    const newContent = tempDiv.firstElementChild;
+
+                    // 2. Pre-apply opacity-0 so it is invisible the moment it hits the DOM
+                    if (newContent) {
+                        // Remove potential conflict classes if the server sent them
+                        newContent.classList.remove('animate-fade-in');
+                        newContent.classList.add('opacity-0');
+                    }
+
+                    // 3. Clear and Append
                     while (mainContent.firstChild) mainContent.removeChild(mainContent.firstChild);
                     while (tempDiv.firstChild) mainContent.appendChild(tempDiv.firstChild);
 
-                    const contentChild = mainContent.firstElementChild;
-                    if (contentChild) {
-                        contentChild.classList.remove('animate-fade-in');
-                        void contentChild.offsetWidth; // Force reflow
-                        contentChild.classList.add('animate-fade-in');
+                    // 4. Trigger Animation
+                    if (newContent) {
+                        // Force Browser Reflow (Critical step to register the opacity-0 state)
+                        void newContent.offsetWidth;
+
+                        // Swap classes to start animation
+                        newContent.classList.remove('opacity-0');
+                        newContent.classList.add('animate-fade-in');
                     }
 
+                    // Re-execute scripts
                     mainContent.querySelectorAll('script').forEach(oldScript => {
                         const newScript = document.createElement('script');
                         Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
