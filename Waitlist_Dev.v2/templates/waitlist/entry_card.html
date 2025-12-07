@@ -1,0 +1,50 @@
+﻿<div id="entry-{{ entry.id }}"
+     class="bg-slate-800 border border-slate-600 rounded p-3 relative group hover:border-amber-500 transition shadow-sm mb-2 entry-card"
+     data-entry-id="{{ entry.id }}">
+
+    <!-- Time Indicator -->
+    <div class="absolute top-2 right-2 text-[10px] font-mono
+         {% if entry.time_waiting>
+        15 %}text-red-400{% else %}text-amber-400{% endif %}">
+        {{ entry.time_waiting }}m
+    </div>
+
+    <!-- Pilot Info -->
+    <div class="flex items-center gap-3 mb-2">
+        <img src="https://images.evetech.net/characters/{{ entry.character.character_id }}/portrait?size=64"
+             class="w-10 h-10 rounded border border-slate-600" alt="">
+        <div>
+            <div class="font-bold text-sm text-white truncate w-32">{{ entry.character.character_name }}</div>
+            <div class="text-[10px] text-slate-400">{{ entry.character.corporation_name|truncatechars:20 }}</div>
+        </div>
+    </div>
+
+    <!-- Fit Info -->
+    <div class="flex items-center gap-2 bg-slate-900/50 p-1.5 rounded border border-slate-700/50 mb-2 cursor-pointer hover:bg-slate-900"
+         onclick="openFit({{ entry.fit.id }})">
+        <img src="https://images.evetech.net/types/{{ entry.fit.ship_type.type_id }}/icon?size=32"
+             class="w-8 h-8 rounded bg-slate-800" alt="">
+        <div class="overflow-hidden">
+            <div class="text-xs font-bold text-slate-200 truncate">{{ entry.fit.ship_type.type_name }}</div>
+            <div class="text-[10px] text-slate-500 truncate">{{ entry.fit.name }}</div>
+        </div>
+    </div>
+
+    <!-- Stats (Mocked) -->
+    <div class="flex justify-between text-[9px] text-slate-500 uppercase tracking-wide border-t border-slate-700/50 pt-2 mt-2">
+        <span>Total: <span class="text-slate-300">12h</span></span>
+        <span>Hull: <span class="text-slate-300">4h</span></span>
+    </div>
+
+    <!-- FC Actions -->
+    {% if is_fc %}
+    <div class="flex gap-2 mt-3 pt-2 border-t border-slate-700" id="actions-{{ entry.id }}">
+        {% if entry.status == 'pending' %}
+        <button onclick="sendAction({{ entry.id }}, 'approve')" class="flex-1 bg-green-700 hover:bg-green-600 text-white text-xs py-1 rounded text-center font-bold">✔</button>
+        <button onclick="sendAction({{ entry.id }}, 'deny')" class="flex-1 bg-red-900/50 hover:bg-red-700 text-red-300 hover:text-white text-xs py-1 rounded text-center font-bold">✖</button>
+        {% else %}
+        <button onclick="sendAction({{ entry.id }}, 'invite')" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-xs py-1 rounded text-center font-bold">Invite</button>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>

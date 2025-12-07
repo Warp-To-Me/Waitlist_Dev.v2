@@ -36,6 +36,7 @@
     <Compile Include="esi_auth\apps.py" />
     <Compile Include="esi_calls\apps.py" />
     <Compile Include="esi_calls\esi_network.py" />
+    <Compile Include="esi_calls\fleet_service.py" />
     <Compile Include="esi_calls\management\commands\__init__.py" />
     <Compile Include="esi_calls\management\__init__.py" />
     <Compile Include="esi_calls\token_manager.py" />
@@ -51,6 +52,8 @@
     <Compile Include="scheduler\__init__.py" />
     <Compile Include="waitlist_data\admin.py" />
     <Compile Include="waitlist_data\apps.py" />
+    <Compile Include="waitlist_data\consumers.py" />
+    <Compile Include="waitlist_data\forms.py" />
     <Compile Include="waitlist_data\views.py" />
     <Compile Include="waitlist_project\apps.py" />
     <Compile Include="waitlist_project\asgi.py" />
@@ -99,6 +102,9 @@
     <Content Include="templates\partials\celery_content.html" />
     <Content Include="templates\partials\profile_content.html" />
     <Content Include="templates\profile.html" />
+    <Content Include="templates\waitlist\column.html" />
+    <Content Include="templates\waitlist\dashboard.html" />
+    <Content Include="templates\waitlist\entry_card.html" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="core\" />
@@ -118,6 +124,7 @@
     <Folder Include="templates\management\" />
     <Folder Include="templates\doctrines\" />
     <Folder Include="templates\partials\" />
+    <Folder Include="templates\waitlist\" />
     <Folder Include="waitlist_project\" />
     <Folder Include="templates\" />
     <Folder Include="waitlist_data\" />

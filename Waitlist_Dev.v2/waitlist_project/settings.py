@@ -118,9 +118,11 @@ EVE_SCOPES = (
     "esi-skills.read_skillqueue.v1 "
     "esi-clones.read_implants.v1 "
     "esi-location.read_ship_type.v1 "
-    "esi-location.read_online.v1 "  # NEW: Required for active filter
+    "esi-location.read_online.v1 "
     "esi-wallet.read_character_wallet.v1 "
-    "esi-characters.read_loyalty.v1"
+    "esi-characters.read_loyalty.v1 "
+    "esi-fleets.read_fleet.v1 "
+    "esi-fleets.write_fleet.v1"
 )
 
 # CHANNEL LAYERS

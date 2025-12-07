@@ -1,28 +1,32 @@
 from django.db import models
 from django.contrib.auth.models import User
-from pilot_data.models import ItemType
+from pilot_data.models import ItemType, EveCharacter
 
 class Fleet(models.Model):
     """
-    Represents an active fleet in the system.
+    Represents an active fleet session.
     """
     name = models.CharField(max_length=100)
+    # The Commander is the User managing the tool, not necessarily the in-game character initially
     commander = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='commanded_fleets')
+    
+    # ESI Fleet ID (For tracking in-game status)
+    esi_fleet_id = models.BigIntegerField(null=True, blank=True)
+    
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     
+    # Configuration for the dashboard columns (JSON)
+    # Example: ["Logistics", "DPS", "Sniper", "Ewar"]
+    # We default to standard ones for now.
+    
     def __str__(self):
-        return self.name
+        return f"{self.name} (FC: {self.commander.username if self.commander else 'None'})"
 
-# --- DOCTRINE MODELS ---
+# --- DOCTRINE MODELS (Existing) ---
 
 class DoctrineTag(models.Model):
-    """
-    Custom labels for fits (e.g., 'Shield', 'Armor', 'Optimal', 'Sniper').
-    Includes styling information for the frontend badge.
-    """
     name = models.CharField(max_length=50, unique=True)
-    # Tailwind classes for badge styling (e.g., "bg-blue-900/30 text-blue-400 border-blue-900/50")
     style_classes = models.CharField(max_length=255, default="bg-slate-700 text-slate-300 border-slate-600")
     order = models.IntegerField(default=0)
 
@@ -50,24 +54,13 @@ class DoctrineCategory(models.Model):
 class DoctrineFit(models.Model):
     name = models.CharField(max_length=255)
     category = models.ForeignKey(DoctrineCategory, on_delete=models.CASCADE, related_name='fits')
-    
-    # The Hull (Linked to SDE)
     ship_type = models.ForeignKey(ItemType, on_delete=models.CASCADE, related_name='doctrines')
-    
-    # Store the raw text for easy "Copy to Clipboard"
     eft_format = models.TextField()
-    
     description = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
-    # Tags to identify formatting style or specific roles (Logi, DPS)
     is_doctrinal = models.BooleanField(default=True)
-    
-    # Manual sorting
     order = models.IntegerField(default=0)
-
-    # NEW: Tagging System
     tags = models.ManyToManyField(DoctrineTag, blank=True, related_name='fits')
 
     class Meta:
@@ -77,9 +70,6 @@ class DoctrineFit(models.Model):
         return f"{self.ship_type.type_name} - {self.name}"
 
 class FitModule(models.Model):
-    """
-    Individual items inside a fit. Used for advanced filtering later.
-    """
     SLOT_CHOICES = [
         ('high', 'High Slot'),
         ('mid', 'Mid Slot'),
@@ -93,8 +83,41 @@ class FitModule(models.Model):
     fit = models.ForeignKey(DoctrineFit, on_delete=models.CASCADE, related_name='modules')
     item_type = models.ForeignKey(ItemType, on_delete=models.CASCADE)
     quantity = models.IntegerField(default=1)
-    
     slot = models.CharField(max_length=20, choices=SLOT_CHOICES, default='cargo')
 
     def __str__(self):
         return f"{self.quantity}x {self.item_type.type_name}"
+
+# --- WAITLIST ENTRIES (New) ---
+
+class WaitlistEntry(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'X-Up (Pending)'),
+        ('approved', 'Approved'),
+        ('invited', 'Invited'),
+        ('rejected', 'Rejected'),
+    ]
+
+    fleet = models.ForeignKey(Fleet, on_delete=models.CASCADE, related_name='entries')
+    character = models.ForeignKey(EveCharacter, on_delete=models.CASCADE, related_name='waitlist_entries')
+    fit = models.ForeignKey(DoctrineFit, on_delete=models.SET_NULL, null=True, related_name='active_entries')
+    
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    # Track when they were approved/invited for statistics
+    approved_at = models.DateTimeField(null=True, blank=True)
+    invited_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['created_at'] # FIFO (First In, First Out)
+
+    def __str__(self):
+        return f"{self.character.character_name} - {self.fit.name if self.fit else 'No Fit'}"
+    
+    @property
+    def time_waiting(self):
+        # Calculate minutes waiting
+        from django.utils import timezone
+        diff = timezone.now() - self.created_at
+        return int(diff.total_seconds() / 60)

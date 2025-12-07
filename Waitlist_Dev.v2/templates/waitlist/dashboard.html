@@ -1,0 +1,121 @@
+﻿{% extends base_template|default:'base.html' %}
+{% load humanize %}
+
+{% block title %}Waitlist: {{ fleet.name }}{% endblock %}
+
+{% block content %}
+<div class="h-full flex flex-col overflow-hidden bg-slate-900">
+
+    <!-- HEADER BAR -->
+    <div class="bg-slate-800 border-b border-slate-700 p-4 flex justify-between items-center shadow-md z-20">
+        <div class="flex items-center gap-4">
+            <div class="bg-amber-600/20 p-2 rounded border border-amber-600/50">
+                <span class="text-2xl">🛸</span>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold text-white leading-none">{{ fleet.name }}</h1>
+                <p class="text-xs text-slate-400 mt-1 flex items-center gap-2">
+                    <span class="font-bold text-slate-300">FC:</span>
+                    {{ fleet.commander.username }}
+                    {% if is_fc and not is_commander %}
+                    <a href="{% url 'take_fleet_command' fleet.id %}" class="text-[10px] bg-red-900/30 text-red-400 border border-red-900 px-2 py-0.5 rounded hover:bg-red-900/50 transition uppercase font-bold">
+                        Take Command
+                    </a>
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-4">
+            <!-- X-UP BUTTON (Triggers Modal) -->
+            <button onclick="document.getElementById('xup-modal').classList.remove('hidden')"
+                    class="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold px-6 py-2 rounded shadow-lg shadow-amber-500/20 transition flex items-center gap-2">
+                <span>➕</span> X-UP
+            </button>
+        </div>
+    </div>
+
+    <!-- MAIN BOARD (Horizontal Scroll) -->
+    <div class="flex-grow overflow-x-auto overflow-y-hidden p-4">
+        <div class="flex gap-4 h-full min-w-max">
+
+            <!-- COLUMN: PENDING (X-UP) -->
+            {% include 'waitlist/column.html' with title="X-UP" color="amber" entries=columns.pending is_pending=True %}
+
+            <!-- COLUMN: LOGISTICS -->
+            {% include 'waitlist/column.html' with title="LOGI" color="green" entries=columns.logi %}
+
+            <!-- COLUMN: DPS -->
+            {% include 'waitlist/column.html' with title="DPS" color="green" entries=columns.dps %}
+
+            <!-- COLUMN: SNIPER -->
+            {% include 'waitlist/column.html' with title="SNIPER" color="green" entries=columns.sniper %}
+
+            <!-- COLUMN: OTHER -->
+            {% include 'waitlist/column.html' with title="OTHER" color="green" entries=columns.other %}
+
+            {% if is_fc %}
+            <!-- COLUMN: FLEET OVERVIEW (Right Side Panel) -->
+            <div class="w-80 flex flex-col bg-slate-800 rounded-lg border border-slate-700 shadow-xl overflow-hidden h-full ml-4">
+                <div class="bg-blue-900/20 border-b border-blue-900/30 p-3">
+                    <h3 class="font-bold text-blue-100 uppercase text-sm tracking-wider">Fleet Overview</h3>
+                </div>
+                <div class="flex-grow p-4 overflow-y-auto text-slate-400 text-sm italic">
+                    <!-- Placeholder for ESI Fleet Data -->
+                    <p>Fleet composition loading...</p>
+                    <div class="mt-4 text-xs text-slate-500">
+                        (Requires ESI write_fleet scope)
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+        </div>
+    </div>
+
+</div>
+
+<!-- X-UP MODAL -->
+<div id="xup-modal" class="fixed inset-0 z-50 hidden bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-800 rounded-lg border border-slate-700 shadow-2xl w-full max-w-md overflow-hidden">
+        <div class="bg-slate-900 p-4 border-b border-slate-700 flex justify-between items-center">
+            <h3 class="font-bold text-white">Join Waitlist</h3>
+            <button onclick="document.getElementById('xup-modal').classList.add('hidden')" class="text-slate-400 hover:text-white">✕</button>
+        </div>
+
+        <form action="{% url 'x_up_submit' fleet.id %}" method="POST" class="p-6 space-y-4">
+            {% csrf_token %}
+
+            <!-- Character Select -->
+            <div>
+                <label class="block text-slate-400 text-xs font-bold uppercase mb-2">Pilot</label>
+                <select name="character_id" class="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white focus:border-amber-500 outline-none">
+                    {% for char in user_chars %}
+                    <option value="{{ char.character_id }}">{{ char.character_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Fit Select (Simple dropdown for now, could be search later) -->
+            <div>
+                <label class="block text-slate-400 text-xs font-bold uppercase mb-2">Doctrine Fit</label>
+                <!-- We will populate this via JS or render in Django. For now, assuming basic select -->
+                <select name="fit_id" class="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white focus:border-amber-500 outline-none">
+                    {% for category in categories %} <!-- Assume categories passed or global query -->
+                    <optgroup label="{{ category.name }}">
+                        {% for fit in category.fits.all %}
+                        <option value="{{ fit.id }}">{{ fit.ship_type.type_name }} - {{ fit.name }}</option>
+                        {% endfor %}
+                    </optgroup>
+                    {% endfor %}
+                </select>
+                <!-- NOTE: Ideally this dropdown is populated by the view context 'doctrines' -->
+            </div>
+
+            <button type="submit" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 rounded mt-4">
+                Submit Request
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}
