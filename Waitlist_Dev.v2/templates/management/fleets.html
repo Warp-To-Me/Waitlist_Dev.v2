@@ -1,10 +1,11 @@
-{% extends 'management/base_management.html' %}
+﻿{% extends 'management/base_management.html' %}
 
 {% block management_content %}
 <div class="flex justify-between items-center mb-6">
     <h1 class="text-2xl font-bold text-white">Active & Recent Fleets</h1>
-    <button class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded text-sm font-bold transition shadow-lg shadow-blue-900/20">
-        + Create Fleet
+    <button onclick="document.getElementById('create-fleet-modal').classList.remove('hidden')"
+            class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded text-sm font-bold transition shadow-lg shadow-blue-900/20 flex items-center gap-2">
+        <span>+</span> Create Fleet
     </button>
 </div>
 
@@ -12,16 +13,51 @@
     {% if fleets %}
     <ul class="space-y-4">
         {% for fleet in fleets %}
-        <li class="p-4 bg-slate-900/50 rounded border border-slate-700 flex justify-between items-center">
-            <div>
-                <h3 class="font-bold text-lg text-white">{{ fleet.name }}</h3>
-                <p class="text-sm text-slate-500">FC: {{ fleet.commander.eve_character.character_name }}</p>
+        <li class="p-4 bg-slate-900/50 rounded border border-slate-700 flex flex-col md:flex-row justify-between md:items-center gap-4 group">
+            <div class="flex items-center gap-4">
+                <div class="bg-slate-800 p-3 rounded border border-slate-700">
+                    <span class="text-2xl">🛸</span>
+                </div>
+                <div>
+                    <h3 class="font-bold text-lg text-white flex items-center gap-2">
+                        {{ fleet.name }}
+                        {% if fleet.is_active %}
+                        <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                        {% endif %}
+                    </h3>
+                    <div class="text-sm text-slate-500 flex gap-4">
+                        <span>FC: <strong class="text-slate-400">{{ fleet.commander.username }}</strong></span>
+                        <span>{{ fleet.created_at|date:"M d, H:i" }}</span>
+                    </div>
+                </div>
             </div>
-            <div>
+
+            <div class="flex items-center gap-2">
                 {% if fleet.is_active %}
-                <span class="bg-green-900/30 text-green-400 px-3 py-1 rounded text-xs border border-green-900">ACTIVE</span>
+                <!-- Updated URL to use fleet.join_token -->
+                <a href="{% url 'fleet_dashboard' fleet.join_token %}" target="_blank"
+                   class="bg-green-600 hover:bg-green-500 text-white px-3 py-1.5 rounded text-xs font-bold transition flex items-center gap-1">
+                    <span>↗</span> Open Board
+                </a>
+
+                <form method="POST" onsubmit="return confirm('Are you sure you want to close this fleet?');">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="close">
+                    <input type="hidden" name="fleet_id" value="{{ fleet.id }}">
+                    <button type="submit" class="bg-amber-600 hover:bg-amber-500 text-white px-3 py-1.5 rounded text-xs font-bold transition">
+                        Close Fleet
+                    </button>
+                </form>
                 {% else %}
-                <span class="bg-slate-700 text-slate-400 px-3 py-1 rounded text-xs">CLOSED</span>
+                <span class="bg-slate-700 text-slate-400 px-3 py-1.5 rounded text-xs font-mono">CLOSED</span>
+                {% if can_view_admin %}
+                <form method="POST" onsubmit="return confirm('DELETE this fleet record? This cannot be undone.');">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="delete">
+                    <input type="hidden" name="fleet_id" value="{{ fleet.id }}">
+                    <button type="submit" class="text-red-500 hover:text-red-400 text-xs underline px-2">Delete</button>
+                </form>
+                {% endif %}
                 {% endif %}
             </div>
         </li>
@@ -30,7 +66,44 @@
     {% else %}
     <div class="text-center py-12 text-slate-500 border-2 border-dashed border-slate-700 rounded bg-slate-900/20">
         <p class="mb-4">No fleets recorded.</p>
+        <p class="text-sm">Create a fleet to start a waitlist session.</p>
     </div>
     {% endif %}
+</div>
+
+<!-- CREATE MODAL -->
+<div id="create-fleet-modal" class="fixed inset-0 z-50 hidden bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-800 rounded-lg border border-slate-700 shadow-2xl w-full max-w-md overflow-hidden relative">
+        <div class="bg-slate-900 p-4 border-b border-slate-700 flex justify-between items-center">
+            <h3 class="font-bold text-white">Create New Fleet</h3>
+            <button onclick="document.getElementById('create-fleet-modal').classList.add('hidden')" class="text-slate-400 hover:text-white">✕</button>
+        </div>
+
+        <form method="POST" class="p-6 space-y-4">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create">
+
+            <div>
+                <label class="block text-slate-400 text-xs font-bold uppercase mb-2">Fleet Name</label>
+                <input type="text" name="name" required
+                       class="w-full bg-slate-900 border border-slate-600 rounded p-3 text-white focus:border-blue-500 outline-none placeholder-slate-600"
+                       placeholder="e.g. Saturday Roam, Home Defense...">
+            </div>
+
+            <div class="bg-blue-900/20 p-3 rounded border border-blue-900/50 text-xs text-blue-200">
+                <p><strong>Note:</strong> Creating a fleet opens a waitlist board immediately. You can link it to an in-game fleet ID later from the dashboard.</p>
+            </div>
+
+            <div class="flex justify-end gap-3 pt-2">
+                <button type="button" onclick="document.getElementById('create-fleet-modal').classList.add('hidden')"
+                        class="text-slate-400 hover:text-white px-4 py-2 text-sm">
+                    Cancel
+                </button>
+                <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 py-2 rounded text-sm transition">
+                    Launch Fleet
+                </button>
+            </div>
+        </form>
+    </div>
 </div>
 {% endblock %}

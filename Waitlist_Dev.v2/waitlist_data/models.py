@@ -1,3 +1,4 @@
+import uuid
 from django.db import models
 from django.contrib.auth.models import User
 from pilot_data.models import ItemType, EveCharacter
@@ -7,18 +8,17 @@ class Fleet(models.Model):
     Represents an active fleet session.
     """
     name = models.CharField(max_length=100)
-    # The Commander is the User managing the tool, not necessarily the in-game character initially
     commander = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='commanded_fleets')
     
     # ESI Fleet ID (For tracking in-game status)
     esi_fleet_id = models.BigIntegerField(null=True, blank=True)
     
+    # PUBLIC JOIN TOKEN (UUID)
+    # used for URLs instead of the integer ID to prevent guessing
+    join_token = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    
-    # Configuration for the dashboard columns (JSON)
-    # Example: ["Logistics", "DPS", "Sniper", "Ewar"]
-    # We default to standard ones for now.
     
     def __str__(self):
         return f"{self.name} (FC: {self.commander.username if self.commander else 'None'})"
@@ -102,22 +102,23 @@ class WaitlistEntry(models.Model):
     character = models.ForeignKey(EveCharacter, on_delete=models.CASCADE, related_name='waitlist_entries')
     fit = models.ForeignKey(DoctrineFit, on_delete=models.SET_NULL, null=True, related_name='active_entries')
     
+    # Store the actual paste the user provided
+    raw_eft = models.TextField(blank=True, default="")
+    
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
     
-    # Track when they were approved/invited for statistics
     approved_at = models.DateTimeField(null=True, blank=True)
     invited_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        ordering = ['created_at'] # FIFO (First In, First Out)
+        ordering = ['created_at']
 
     def __str__(self):
         return f"{self.character.character_name} - {self.fit.name if self.fit else 'No Fit'}"
     
     @property
     def time_waiting(self):
-        # Calculate minutes waiting
         from django.utils import timezone
         diff = timezone.now() - self.created_at
         return int(diff.total_seconds() / 60)

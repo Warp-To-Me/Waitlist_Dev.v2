@@ -149,7 +149,54 @@ def _get_character_data(active_char):
 # --- Public Views ---
 
 def landing_page(request):
-    context = { 'base_template': get_template_base(request) }
+    """
+    Public landing page.
+    Logic:
+    1. Fetches active fleets.
+    2. If Authenticated AND exactly 1 fleet is active -> Redirect immediately to Dashboard.
+    3. If Multiple fleets -> Show list (enriched with FC Character Names).
+    """
+    active_fleets_qs = Fleet.objects.filter(is_active=True).select_related('commander').order_by('-created_at')
+    
+    # 1. Auto-Redirect Logic
+    if request.user.is_authenticated and active_fleets_qs.count() == 1:
+        # FIXED: Use 'token' and 'join_token' instead of 'fleet_id' and 'id'
+        return redirect('fleet_dashboard', token=active_fleets_qs.first().join_token)
+
+    # 2. Enrich Data (Resolve FC Character Names)
+    # We convert to a list so we can modify the objects with 'fc_name'
+    fleets_list = list(active_fleets_qs)
+    
+    if fleets_list:
+        commander_user_ids = [f.commander_id for f in fleets_list]
+        
+        # Bulk Fetch: Try to find 'Main' characters for these commanders
+        mains = EveCharacter.objects.filter(
+            user_id__in=commander_user_ids, 
+            is_main=True
+        ).values('user_id', 'character_name')
+        
+        # Map: UserID -> Character Name
+        fc_name_map = {m['user_id']: m['character_name'] for m in mains}
+        
+        # Fallback: For commanders with no "Main" set, grab *any* character
+        missing_ids = set(commander_user_ids) - set(fc_name_map.keys())
+        if missing_ids:
+            others = EveCharacter.objects.filter(user_id__in=missing_ids).values('user_id', 'character_name')
+            # Just take the first one found per user to ensure we have a name
+            for o in others:
+                if o['user_id'] not in fc_name_map:
+                    fc_name_map[o['user_id']] = o['character_name']
+
+        # Apply names to fleet objects
+        for fleet in fleets_list:
+            # Default to username if absolutely no characters found (e.g. Superuser admin with no link)
+            fleet.fc_name = fc_name_map.get(fleet.commander_id, fleet.commander.username)
+
+    context = { 
+        'active_fleets': fleets_list,
+        'base_template': get_template_base(request) 
+    }
     return render(request, 'landing.html', context)
 
 # --- Profile & Alt Management ---
@@ -373,7 +420,34 @@ def management_user_inspect(request, user_id, char_id=None):
 @login_required
 @user_passes_test(is_fleet_command)
 def management_fleets(request):
-    fleets = Fleet.objects.all().order_by('-created_at')[:50]
+    """
+    Management view for listing, creating, and closing fleets.
+    """
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'create':
+            name = request.POST.get('name')
+            if name:
+                Fleet.objects.create(name=name, commander=request.user, is_active=True)
+                
+        elif action == 'close':
+            fleet_id = request.POST.get('fleet_id')
+            fleet = get_object_or_404(Fleet, id=fleet_id)
+            fleet.is_active = False
+            fleet.save()
+            
+        elif action == 'delete':
+            fleet_id = request.POST.get('fleet_id')
+            # Only Admins can hard delete, but FCs can archive/close
+            if is_admin(request.user):
+                Fleet.objects.filter(id=fleet_id).delete()
+        
+        return redirect('management_fleets')
+
+    # Get all active fleets first, then closed fleets
+    fleets = Fleet.objects.all().order_by('-is_active', '-created_at')[:50]
+    
     context = {
         'fleets': fleets,
         'base_template': get_template_base(request)
