@@ -10,7 +10,7 @@ from datetime import timedelta
 from django.conf import settings
 from django.views.decorators.http import require_POST
 import json
-import base64  # Added for JWT decoding
+import base64  # Added for JWT decoding and Rule Export
 
 # Import Utils
 from core.utils import (
@@ -769,6 +769,107 @@ def api_delete_rules(request):
     deleted_count, _ = FitAnalysisRule.objects.filter(group=group).delete()
     
     return JsonResponse({'success': True, 'deleted': deleted_count})
+
+# --- EXPORT / IMPORT API (NEW) ---
+
+@login_required
+@user_passes_test(can_manage_analysis_rules)
+def api_export_rules(request):
+    """
+    Exports ALL FitAnalysisRules to a Base64 encoded JSON string.
+    """
+    rules = FitAnalysisRule.objects.select_related('group', 'attribute').all().order_by('group__group_name')
+    
+    # Serialize rules into a portable format
+    export_data = []
+    
+    for r in rules:
+        export_data.append({
+            'group_id': r.group.group_id,
+            'group_name': r.group.group_name, # Included for readability if inspecting JSON manually
+            'attr_id': r.attribute.attribute_id,
+            'attr_name': r.attribute.name,
+            'logic': r.comparison_logic,
+            'tolerance': r.tolerance_percent,
+            'priority': r.priority
+        })
+        
+    json_str = json.dumps(export_data)
+    encoded_str = base64.b64encode(json_str.encode('utf-8')).decode('utf-8')
+    
+    return JsonResponse({'success': True, 'export_string': encoded_str, 'count': len(export_data)})
+
+@login_required
+@user_passes_test(can_manage_analysis_rules)
+@require_POST
+def api_import_rules(request):
+    """
+    Imports rules from a Base64 string.
+    Wipes ALL existing rules and replaces them with the imported set.
+    """
+    from django.db import transaction
+    
+    try:
+        data = json.loads(request.body)
+        import_string = data.get('import_string', '')
+        
+        if not import_string:
+            return JsonResponse({'success': False, 'error': 'Empty import string.'})
+            
+        # Decode
+        try:
+            json_bytes = base64.b64decode(import_string)
+            rules_list = json.loads(json_bytes.decode('utf-8'))
+        except Exception:
+            return JsonResponse({'success': False, 'error': 'Invalid Base64 or JSON format.'})
+            
+        if not isinstance(rules_list, list):
+            return JsonResponse({'success': False, 'error': 'Invalid data structure (expected list).'})
+
+        # Execution
+        created_count = 0
+        missing_sde_count = 0
+        
+        with transaction.atomic():
+            # 1. WIPE EXISTING RULES
+            FitAnalysisRule.objects.all().delete()
+            
+            # 2. Bulk Create
+            new_rules = []
+            
+            # Prefetch known groups/attributes to avoid N+1 queries during validation
+            # Since SDE is large, we fetch IDs as sets for O(1) checking
+            valid_group_ids = set(ItemGroup.objects.values_list('group_id', flat=True))
+            valid_attr_ids = set(AttributeDefinition.objects.values_list('attribute_id', flat=True))
+            
+            for item in rules_list:
+                gid = item.get('group_id')
+                aid = item.get('attr_id')
+                
+                # Check SDE Integrity
+                if gid not in valid_group_ids or aid not in valid_attr_ids:
+                    missing_sde_count += 1
+                    continue
+                    
+                new_rules.append(FitAnalysisRule(
+                    group_id=gid,
+                    attribute_id=aid,
+                    comparison_logic=item.get('logic', 'higher'),
+                    tolerance_percent=item.get('tolerance', 0.0),
+                    priority=item.get('priority', 0)
+                ))
+            
+            FitAnalysisRule.objects.bulk_create(new_rules)
+            created_count = len(new_rules)
+            
+        msg = f"Imported {created_count} rules."
+        if missing_sde_count > 0:
+            msg += f" (Skipped {missing_sde_count} due to missing SDE data)."
+            
+        return JsonResponse({'success': True, 'message': msg})
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': f"Server Error: {str(e)}"})
 
 # --- ROLES MANAGEMENT ---
 

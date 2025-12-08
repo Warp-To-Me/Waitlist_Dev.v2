@@ -23,7 +23,11 @@ urlpatterns = [
     path('api/mgmt/rules/list/', core_views.api_list_configured_groups, name='api_list_configured_groups'),
     path('api/mgmt/rules/discovery/<int:group_id>/', core_views.api_rule_discovery, name='api_rule_discovery'),
     path('api/mgmt/rules/save/', core_views.api_save_rules, name='api_save_rules'),
-    path('api/mgmt/rules/delete/', core_views.api_delete_rules, name='api_delete_rules'), # NEW
+    path('api/mgmt/rules/delete/', core_views.api_delete_rules, name='api_delete_rules'),
+    
+    # --- RULE EXPORT/IMPORT ---
+    path('api/mgmt/rules/export/', core_views.api_export_rules, name='api_export_rules'),
+    path('api/mgmt/rules/import/', core_views.api_import_rules, name='api_import_rules'),
 
     # Roles Management
     path('management/roles/', core_views.management_roles, name='management_roles'),

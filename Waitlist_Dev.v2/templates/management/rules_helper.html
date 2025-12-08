@@ -9,9 +9,18 @@
             <h1 class="heading-1">Doctrine Rule Helper</h1>
             <p class="text-slate-400 text-sm mt-1">Configure logic for comparing non-doctrine modules.</p>
         </div>
-        <button onclick="saveRules()" id="btn-save" class="hidden btn-success shadow-lg shadow-green-500/20">
-            <span>💾</span> Save Selected Rules
-        </button>
+        <div class="flex gap-3">
+            <button onclick="saveRules()" id="btn-save" class="hidden btn-success shadow-lg shadow-green-500/20">
+                <span>💾</span> Save Selected Rules
+            </button>
+            <div class="h-8 w-px bg-white/10 mx-2"></div>
+            <button onclick="exportRules()" class="btn-secondary text-xs border-brand-500/30 text-brand-400 hover:bg-brand-500/10">
+                <span>📤</span> Export Rules
+            </button>
+            <button onclick="openImportModal()" class="btn-secondary text-xs hover:text-white">
+                <span>📥</span> Import
+            </button>
+        </div>
     </div>
 
     <!-- CONTROL BAR -->
@@ -101,6 +110,45 @@
         </div>
     </div>
 
+</div>
+
+<!-- EXPORT MODAL -->
+<div id="export-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-dark-950/80 backdrop-blur-sm px-4">
+    <div class="bg-slate-900 border border-white/10 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden transform transition-all scale-95 opacity-0" id="export-modal-panel">
+        <div class="glass-header px-6 py-4 border-b border-white/5 flex justify-between items-center">
+            <h3 class="font-bold text-white text-lg">Export Rules</h3>
+            <button onclick="closeModal('export-modal')" class="text-slate-400 hover:text-white">✕</button>
+        </div>
+        <div class="p-6">
+            <p class="text-slate-400 text-sm mb-4">Copy the string below to import into another instance.</p>
+            <textarea id="export-textarea" class="w-full bg-black/30 border border-slate-700 rounded p-3 text-xs font-mono text-brand-400 h-32 focus:ring-1 focus:ring-brand-500 outline-none resize-none" readonly></textarea>
+            <div class="flex justify-end gap-2 mt-4">
+                <button onclick="closeModal('export-modal')" class="btn-ghost text-xs">Close</button>
+                <button onclick="copyExport()" class="btn-primary text-xs px-6">Copy to Clipboard</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- IMPORT MODAL -->
+<div id="import-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-dark-950/80 backdrop-blur-sm px-4">
+    <div class="bg-slate-900 border border-white/10 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden transform transition-all scale-95 opacity-0" id="import-modal-panel">
+        <div class="glass-header px-6 py-4 border-b border-white/5 flex justify-between items-center">
+            <h3 class="font-bold text-white text-lg">Import Rules</h3>
+            <button onclick="closeModal('import-modal')" class="text-slate-400 hover:text-white">✕</button>
+        </div>
+        <div class="p-6">
+            <div class="bg-amber-900/20 border border-amber-500/30 p-3 rounded text-amber-200 text-xs mb-4 flex items-start gap-2">
+                <span class="text-lg">⚠️</span>
+                <p><strong>Warning:</strong> Importing rules will <u>overwrite</u> all currently configured analysis rules in this system. Ensure you have a backup if needed.</p>
+            </div>
+            <textarea id="import-textarea" class="w-full bg-black/30 border border-slate-700 rounded p-3 text-xs font-mono text-white h-32 focus:ring-1 focus:ring-brand-500 outline-none resize-none" placeholder="Paste export string here..."></textarea>
+            <div class="flex justify-end gap-2 mt-4">
+                <button onclick="closeModal('import-modal')" class="btn-ghost text-xs">Cancel</button>
+                <button onclick="submitImport()" id="btn-submit-import" class="btn-primary text-xs px-6">Import & Overwrite</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -436,6 +484,86 @@
                 btn.disabled = false;
                 btn.innerHTML = originalText;
             }
+        });
+    }
+
+    // --- IMPORT / EXPORT LOGIC ---
+
+    function openModal(id) {
+        const modal = document.getElementById(id);
+        const panel = document.getElementById(id + '-panel');
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+            panel.classList.remove('scale-95', 'opacity-0');
+            panel.classList.add('scale-100', 'opacity-100');
+        }, 10);
+    }
+
+    function closeModal(id) {
+        const modal = document.getElementById(id);
+        const panel = document.getElementById(id + '-panel');
+        panel.classList.remove('scale-100', 'opacity-100');
+        panel.classList.add('scale-95', 'opacity-0');
+        setTimeout(() => { modal.classList.add('hidden'); }, 200);
+    }
+
+    function exportRules() {
+        fetch("{% url 'api_export_rules' %}")
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    const txt = document.getElementById('export-textarea');
+                    txt.value = data.export_string;
+                    openModal('export-modal');
+                } else {
+                    alert("Export failed: " + data.error);
+                }
+            })
+            .catch(e => alert("Network error during export."));
+    }
+
+    function copyExport() {
+        const txt = document.getElementById('export-textarea');
+        txt.select();
+        navigator.clipboard.writeText(txt.value);
+        alert("Copied to clipboard!");
+    }
+
+    function openImportModal() {
+        document.getElementById('import-textarea').value = '';
+        openModal('import-modal');
+    }
+
+    function submitImport() {
+        const str = document.getElementById('import-textarea').value.trim();
+        if (!str) return alert("Please paste the import string.");
+
+        const btn = document.getElementById('btn-submit-import');
+        const orig = btn.textContent;
+        btn.textContent = "Processing...";
+        btn.disabled = true;
+
+        fetch("{% url 'api_import_rules' %}", {
+            method: 'POST',
+            headers: { 'X-CSRFToken': CSRF_TOKEN, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ import_string: str })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                closeModal('import-modal');
+                location.reload(); // Refresh to show new rules
+            } else {
+                alert("Import failed: " + data.error);
+            }
+            btn.textContent = orig;
+            btn.disabled = false;
+        })
+        .catch(e => {
+            alert("Network error during import.");
+            btn.textContent = orig;
+            btn.disabled = false;
         });
     }
 </script>
