@@ -32,11 +32,22 @@ def _start_sso_flow(request):
     state_token = secrets.token_urlsafe(32)
     request.session['sso_state'] = state_token
 
+    # 1. Default to Base Scopes
+    scopes = settings.EVE_SCOPES_BASE
+
+    # 2. If User is FC, append FC Scopes
+    if request.user.is_authenticated:
+        is_fc = request.user.is_superuser or \
+                request.user.groups.filter(capabilities__slug='access_fleet_command').exists()
+        
+        if is_fc:
+            scopes = f"{scopes} {settings.EVE_SCOPES_FC}"
+
     params = {
         'response_type': 'code',
         'redirect_uri': settings.EVE_CALLBACK_URL,
         'client_id': settings.EVE_CLIENT_ID,
-        'scope': settings.EVE_SCOPES,
+        'scope': scopes,
         'state': state_token 
     }
     base_url = "https://login.eveonline.com/v2/oauth/authorize/"

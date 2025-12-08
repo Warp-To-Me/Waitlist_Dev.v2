@@ -33,6 +33,9 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'django.contrib.humanize', # Added for number formatting (1,000,000)
     
+    # FIX: Use 'fernet_fields' instead of 'django_fernet_fields'
+    'fernet_fields',
+    
     # Third party
     'channels',
     #'django_apscheduler',
@@ -111,8 +114,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 EVE_CLIENT_ID = os.getenv('EVE_CLIENT_ID')
 EVE_CALLBACK_URL = os.getenv('EVE_CALLBACK_URL', 'http://localhost:8000/auth/sso/callback/')
 
-# Updated Scopes for Wallet, LP, and Online Status
-EVE_SCOPES = (
+# --- SCOPE CONFIGURATION ---
+
+# 1. Base Scopes (Required for all pilots)
+EVE_SCOPES_BASE = (
     "publicData "
     "esi-skills.read_skills.v1 "
     "esi-skills.read_skillqueue.v1 "
@@ -120,10 +125,17 @@ EVE_SCOPES = (
     "esi-location.read_ship_type.v1 "
     "esi-location.read_online.v1 "
     "esi-wallet.read_character_wallet.v1 "
-    "esi-characters.read_loyalty.v1 "
+    "esi-characters.read_loyalty.v1"
+)
+
+# 2. FC Scopes (Required only for Fleet Commanders)
+EVE_SCOPES_FC = (
     "esi-fleets.read_fleet.v1 "
     "esi-fleets.write_fleet.v1"
 )
+
+# 3. Combined Master List (For Auditing/Backwards Compatibility)
+EVE_SCOPES = f"{EVE_SCOPES_BASE} {EVE_SCOPES_FC}"
 
 # CHANNEL LAYERS
 CHANNEL_LAYERS = {
@@ -165,3 +177,11 @@ CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 LOGIN_URL = 'access_denied'      # Redirect here instead of 'sso_login'
 LOGIN_REDIRECT_URL = 'profile'   
 LOGOUT_REDIRECT_URL = 'landing_page'
+
+# --- CELERY GEVENT FIX ---
+import os
+import sys
+
+# Detect if running as Celery worker
+if 'celery' in sys.argv[0]:
+    os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"

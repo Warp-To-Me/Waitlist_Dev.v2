@@ -2,9 +2,13 @@ from core.utils import ROLE_HIERARCHY
 
 def navbar_context(request):
     """
-    Adds 'navbar_char' and 'user_is_management' to every template context.
+    Adds 'navbar_char', 'user_is_management', and 'current_theme' to every template context.
     """
     context = {}
+    
+    # --- 3. Theme Logic (New) ---
+    # Default to 'default' if no cookie is set
+    context['current_theme'] = request.COOKIES.get('site_theme', 'default')
     
     if not request.user.is_authenticated:
         return context

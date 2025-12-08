@@ -69,7 +69,8 @@ class FleetConsumer(AsyncWebsocketConsumer):
                 # We fetch fresh tokens/ids every loop to ensure validity
                 fleet_data = await self.get_fleet_context()
                 
-                if fleet_data and fleet_data['esi_fleet_id']:
+                # FIX: Use .get() to avoid KeyError if fleet_data contains an error message
+                if fleet_data and fleet_data.get('esi_fleet_id'):
                     # 2. Call Service (Cached internally)
                     composite_data, _ = await sync_to_async(get_fleet_composition)(
                         fleet_data['esi_fleet_id'], 
@@ -132,14 +133,15 @@ class FleetConsumer(AsyncWebsocketConsumer):
             # --- CRITICAL FIX: Ensure Token is Valid ---
             # This refreshes the FC's token if needed, preventing "FC must refresh page" issue
             if not check_token(fc_char):
-                return {'error': 'FC Token Invalid'}
+                return {'error': 'FC Token Invalid / Expired'}
 
             # Ensure ESI Fleet ID exists
             if not fleet.esi_fleet_id:
                 # Try to fetch it if missing
                 try:
                     headers = {'Authorization': f'Bearer {fc_char.access_token}'}
-                    resp = requests.get(f"{ESI_BASE}/characters/{fc_char.character_id}/fleet/", headers=headers)
+                    # Added timeout to prevent hanging
+                    resp = requests.get(f"{ESI_BASE}/characters/{fc_char.character_id}/fleet/", headers=headers, timeout=5)
                     if resp.status_code == 200:
                         data = resp.json()
                         fleet.esi_fleet_id = data['fleet_id']

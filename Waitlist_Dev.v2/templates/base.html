@@ -1,5 +1,5 @@
 ﻿<!DOCTYPE html>
-<html lang="en" class="h-full bg-[#0B1120]">
+<html lang="en" class="h-full bg-dark-950">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -13,7 +13,145 @@
     <!-- 2. TAILWIND CDN WITH PLUGIN SUPPORT -->
     <script src="https://cdn.tailwindcss.com"></script>
 
-    <!-- 3. MASTER DESIGN CONFIGURATION -->
+    <!-- 3. THEMING ENGINE (Total Conversion) -->
+    <style>
+        /* DYNAMIC RACIAL PALETTES
+           We override the base 'dark' (backgrounds) and 'slate' (UI elements)
+           variables to tint the entire interface, not just the buttons.
+        */
+        :root {
+            /* --- DEFAULT: MINMATAR (Rust/Industrial) --- */
+            /* Backgrounds (Gritty, Warm Darks) */
+            --c-dark-950: 20 18 18; /* Main BG: Deep Industrial Grey */
+            --c-dark-900: 35 28 28; /* Panel BG: Warm Dark Brown */
+            --c-dark-800: 55 45 45; /* Accents: Lighter Rust-Grey */
+            /* UI Elements (Red-Tinted Greys) */
+            --c-slate-900: 35 28 28;
+            --c-slate-800: 55 45 45; /* Card BG */
+            --c-slate-700: 85 65 60; /* Borders: Rusted Steel */
+            /* Text (Warm Greys) */
+            --c-slate-400: 168 162 158; /* Warm Grey Text */
+            --c-slate-300: 214 211 209;
+            --c-white: 255 247 237; /* Off-white */
+            /* Brand: Rust / Amber */
+            --brand-50: 255 251 235;
+            --brand-100: 254 243 199;
+            --brand-200: 253 230 138;
+            --brand-300: 252 211 77;
+            --brand-400: 251 191 36;
+            --brand-500: 217 119 6; /* RUST ORANGE base */
+            --brand-600: 180 83 9;
+            --brand-700: 146 64 14;
+            --brand-800: 120 53 15;
+            --brand-900: 69 26 3;
+            --brand-950: 69 26 3;
+        }
+
+        /* --- CALDARI (Corporate/Cold/Blue) --- */
+        body.theme-caldari {
+            /* Backgrounds (Deep Navy/Cold Steel) */
+            --c-dark-950: 2 6 23; /* Main BG: Deepest Navy */
+            --c-dark-900: 15 23 42; /* Panel BG: Corporate Blue-Black */
+            --c-dark-800: 30 41 59; /* Accents: Steel Blue */
+            /* UI Elements (Cool Greys) */
+            --c-slate-900: 15 23 42;
+            --c-slate-800: 30 41 59;
+            --c-slate-700: 51 65 85; /* Borders: Steel */
+            /* Text (Cool White) */
+            --c-slate-400: 148 163 184;
+            --c-slate-300: 203 213 225;
+            --c-white: 248 250 252;
+            /* Brand: State Blue */
+            --brand-50: 239 246 255;
+            --brand-100: 219 234 254;
+            --brand-200: 191 219 254;
+            --brand-300: 147 197 253;
+            --brand-400: 96 165 250;
+            --brand-500: 59 130 246; /* STATE BLUE */
+            --brand-600: 37 99 235;
+            --brand-700: 29 78 216;
+            --brand-800: 30 64 175;
+            --brand-900: 30 58 138;
+            --brand-950: 23 37 84;
+        }
+
+        /* --- GALLENTE (Progressive/Organic/Green) --- */
+        body.theme-gallente {
+            /* Reduced saturation on backgrounds to prevent "washout" */
+            --c-dark-950: 5 15 12; /* Main BG: Near Black with faint green tint */
+            --c-dark-900: 13 25 25; /* Panel BG: Dark Slate Green (More neutral) */
+            --c-dark-800: 20 40 35; /* Accents: Distinct Panel Highlight */
+            /* UI Elements (Teal-Greys) */
+            --c-slate-900: 13 25 25;
+            --c-slate-800: 20 40 35;
+            --c-slate-700: 40 70 60; /* Borders: Clearer structural definition */
+            /* Text (Slightly cooler/brighter for contrast) */
+            --c-slate-400: 140 170 165;
+            --c-slate-300: 210 235 230;
+            --c-white: 245 255 252;
+            /* Brand: Federation Green */
+            --brand-50: 236 253 245;
+            --brand-100: 209 250 229;
+            --brand-200: 167 243 208;
+            --brand-300: 110 231 183;
+            --brand-400: 52 211 153;
+            --brand-500: 16 185 129; /* FEDERATION GREEN */
+            --brand-600: 5 150 105;
+            --brand-700: 4 120 87;
+            --brand-800: 6 95 70;
+            --brand-900: 6 78 59;
+            --brand-950: 2 44 34;
+        }
+
+        /* --- AMARR (Imperial/Golden/Brown) --- */
+        body.theme-amarr {
+            /* Deepened blacks to remove the "orange overlay" feel */
+            --c-dark-950: 15 10 5; /* Main BG: Deepest Obsidian/Brown */
+            --c-dark-900: 28 20 10; /* Panel BG: Dark Chocolate */
+            --c-dark-800: 45 30 15; /* Accents: Dark Bronze */
+            /* UI Elements (Golden Greys) */
+            --c-slate-900: 28 20 10;
+            --c-slate-800: 45 30 15;
+            --c-slate-700: 80 60 30; /* Borders: Aged Gold (Distinct) */
+            /* Text (Warm/Papyrus tones) */
+            --c-slate-400: 160 145 125;
+            --c-slate-300: 220 210 195;
+            --c-white: 255 252 245;
+            /* Brand: Imperial Gold */
+            --brand-50: 254 252 232;
+            --brand-100: 254 249 195;
+            --brand-200: 254 240 138;
+            --brand-300: 253 224 71;
+            --brand-400: 250 204 21;
+            --brand-500: 234 179 8; /* IMPERIAL GOLD */
+            --brand-600: 202 138 4;
+            --brand-700: 161 98 7;
+            --brand-800: 133 77 14;
+            --brand-900: 113 63 18;
+            --brand-950: 66 32 6;
+        }
+
+        /* --- LIGHT MODE (Clean/Tactical) --- */
+        body.theme-light {
+            /* Backgrounds (High Contrast White/Grey) */
+            --c-dark-950: 241 245 249; /* Slate-100 */
+            --c-dark-900: 255 255 255; /* White */
+            --c-dark-800: 226 232 240; /* Slate-200 */
+            /* UI Elements */
+            --c-slate-900: 255 255 255;
+            --c-slate-800: 248 250 252; /* Slate-50 */
+            --c-slate-700: 203 213 225; /* Slate-300 */
+            /* Text (Inverted) */
+            --c-slate-400: 100 116 139; /* Slate-500 */
+            --c-slate-300: 51 65 85; /* Slate-700 */
+            --c-white: 15 23 42; /* Slate-900 (Black) */
+            /* Neutral Brand for Light Mode unless overridden */
+            --brand-500: 71 85 105; /* Slate-600 */
+            --brand-600: 51 65 85;
+        }
+    </style>
+
+    <!-- 4. MASTER DESIGN CONFIGURATION -->
     <script>
         tailwind.config = {
             theme: {
@@ -23,35 +161,45 @@
                         mono: ['JetBrains Mono', 'monospace'],
                     },
                     colors: {
-                        // Custom Brand Palette
+                        // 1. DYNAMIC BRAND COLORS
                         brand: {
-                            50: '#fffbeb',
-                            100: '#fef3c7',
-                            200: '#fde68a',
-                            300: '#fcd34d',
-                            400: '#fbbf24',
-                            500: '#f59e0b', // Base Amber
-                            600: '#d97706',
-                            700: '#b45309',
-                            800: '#92400e',
-                            900: '#78350f',
-                            950: '#451a03',
+                            50: 'rgb(var(--brand-50) / <alpha-value>)',
+                            100: 'rgb(var(--brand-100) / <alpha-value>)',
+                            200: 'rgb(var(--brand-200) / <alpha-value>)',
+                            300: 'rgb(var(--brand-300) / <alpha-value>)',
+                            400: 'rgb(var(--brand-400) / <alpha-value>)',
+                            500: 'rgb(var(--brand-500) / <alpha-value>)',
+                            600: 'rgb(var(--brand-600) / <alpha-value>)',
+                            700: 'rgb(var(--brand-700) / <alpha-value>)',
+                            800: 'rgb(var(--brand-800) / <alpha-value>)',
+                            900: 'rgb(var(--brand-900) / <alpha-value>)',
+                            950: 'rgb(var(--brand-950) / <alpha-value>)',
                         },
+                        // 2. OVERRIDE STANDARD COLORS WITH VARIABLES
+                        // This propagates the theme to all existing templates automatically.
                         dark: {
-                            800: '#1e293b',
-                            900: '#0f172a',
-                            950: '#020617', // Deepest background
-                        }
+                            950: 'rgb(var(--c-dark-950) / <alpha-value>)', // Main BG
+                            900: 'rgb(var(--c-dark-900) / <alpha-value>)', // Panel BG
+                            800: 'rgb(var(--c-dark-800) / <alpha-value>)',
+                        },
+                        slate: {
+                            900: 'rgb(var(--c-slate-900) / <alpha-value>)',
+                            800: 'rgb(var(--c-slate-800) / <alpha-value>)',
+                            700: 'rgb(var(--c-slate-700) / <alpha-value>)',
+                            400: 'rgb(var(--c-slate-400) / <alpha-value>)', // Muted Text
+                            300: 'rgb(var(--c-slate-300) / <alpha-value>)', // Body Text
+                        },
+                        // Inverting white ensures headings are visible on light backgrounds
+                        white: 'rgb(var(--c-white) / <alpha-value>)',
                     }
                 }
             }
         }
     </script>
 
-    <!-- 4. REUSABLE COMPONENT CLASSES (THE "MASTER" STYLES) -->
+    <!-- 5. REUSABLE COMPONENT CLASSES -->
     <style type="text/tailwindcss">
         @layer utilities {
-            /* Hides scrollbar but allows scrolling */
             .no-scrollbar::-webkit-scrollbar {
                 display: none;
             }
@@ -61,7 +209,6 @@
                 scrollbar-width: none;
             }
 
-            /* Custom Scrollbar for modern look */
             .custom-scrollbar::-webkit-scrollbar {
                 width: 6px;
                 height: 6px;
@@ -72,14 +219,14 @@
             }
 
             .custom-scrollbar::-webkit-scrollbar-thumb {
-                @apply bg-slate-700 rounded-full hover:bg-slate-600 transition;
+                @apply bg-slate-700 rounded-full hover:bg-slate-400 transition;
             }
         }
 
         @layer components {
             /* --- LAYOUTS --- */
             .glass-panel {
-                @apply bg-slate-900/60 backdrop-blur-md border border-white/10 rounded-xl shadow-xl;
+                @apply bg-dark-900/60 backdrop-blur-md border border-white/10 rounded-xl shadow-xl;
             }
 
             .glass-header {
@@ -91,12 +238,14 @@
                 @apply px-4 py-2 rounded-lg font-bold transition-all duration-200 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
             }
 
+            /* For primary buttons, we FORCE text-white specifically so it doesn't invert to black in light mode */
             .btn-primary {
-                @apply btn bg-gradient-to-r from-brand-500 to-brand-600 text-white shadow-lg shadow-brand-500/20 hover:shadow-brand-500/40 hover:brightness-110 border border-white/10;
+                @apply btn bg-gradient-to-r from-brand-500 to-brand-600 shadow-lg shadow-brand-500/20 hover:shadow-brand-500/40 hover:brightness-110 border border-white/10;
+                color: #ffffff; /* Hardcoded white for contrast on brand buttons */
             }
 
             .btn-secondary {
-                @apply btn bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 hover:text-white hover:border-slate-600;
+                @apply btn bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 hover:text-white hover:border-slate-400;
             }
 
             .btn-danger {
@@ -104,7 +253,8 @@
             }
 
             .btn-success {
-                @apply btn bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-900/20;
+                @apply btn bg-green-600 hover:bg-green-500 shadow-lg shadow-green-900/20;
+                color: #ffffff;
             }
 
             .btn-ghost {
@@ -122,7 +272,7 @@
 
             /* --- FORMS --- */
             .input-field {
-                @apply w-full bg-dark-950/50 border border-slate-700 rounded-lg p-3 text-white focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none transition placeholder-slate-600 font-mono text-sm;
+                @apply w-full bg-dark-950/50 border border-slate-700 rounded-lg p-3 text-white focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none transition placeholder-slate-400 font-mono text-sm;
             }
 
             .select-field {
@@ -150,19 +300,19 @@
                 @apply bg-slate-800 text-slate-400 border-slate-700;
             }
 
-            /* --- ANIMATION UTILITY --- */
-            /* UPDATED: Added will-change for performance */
             .animate-fade-in {
                 animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
                 will-change: transform, opacity;
             }
         }
 
-        /* Base styles */
+        /* Base styles with Dynamic Gradient */
         body {
             font-family: 'Inter', sans-serif;
-            background-image: radial-gradient(circle at 50% 0%, #1e293b 0%, #020617 60%);
+            /* Use CSS variables for the gradient so it shifts with the theme */
+            background-image: radial-gradient( circle at 50% 0%, rgb(var(--c-dark-800)) 0%, rgb(var(--c-dark-950)) 60% );
             background-attachment: fixed;
+            background-color: rgb(var(--c-dark-950));
         }
 
         @keyframes fadeIn {
@@ -179,7 +329,7 @@
     </style>
     {% block extra_head %}{% endblock %}
 </head>
-<body class="h-full flex flex-col overflow-hidden text-slate-300">
+<body class="h-full flex flex-col overflow-hidden text-slate-300 theme-{{ current_theme }}">
     <!-- Persistent Navbar -->
     <nav class="glass-header z-50 flex-shrink-0 relative">
         <div class="container mx-auto px-4 h-16 flex justify-between items-center">
@@ -187,7 +337,7 @@
             <!-- Left: Brand -->
             <div class="flex items-center gap-8">
                 <a href="{% url 'landing_page' %}" class="spa-link flex items-center gap-3 group">
-                    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center text-dark-950 font-bold text-xl shadow-lg shadow-brand-500/20 group-hover:scale-105 transition">W</div>
+                    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center text-slate-900 font-bold text-xl shadow-lg shadow-brand-500/20 group-hover:scale-105 transition">W</div>
                     <span class="text-xl font-bold text-white tracking-tight group-hover:text-brand-400 transition">WarpToMe</span>
                 </a>
 
@@ -205,6 +355,39 @@
 
             <!-- Right: User Controls -->
             <div class="flex items-center gap-3">
+                <!-- THEME SWITCHER -->
+                <div class="relative group">
+                    <!-- Invisible Bridge Area (pb-4) -->
+                    <button class="p-2 text-slate-400 hover:text-brand-400 transition rounded-full hover:bg-white/5 relative z-10 pb-4 mb-[-1rem]">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" /></svg>
+                    </button>
+                    <!-- Dropdown Content (pt-2 to bridge gap) -->
+                    <div class="absolute right-0 pt-2 w-48 hidden group-hover:block z-50">
+                        <div class="bg-slate-900 border border-white/10 rounded-xl shadow-2xl overflow-hidden">
+                            <div class="p-2 space-y-1">
+                                <div class="px-3 py-1 text-[10px] uppercase font-bold text-slate-400 tracking-wider">Mode</div>
+                                <button onclick="setTheme('light')" class="flex items-center gap-3 w-full text-left px-3 py-2 rounded hover:bg-white/5 text-xs text-slate-300 hover:text-white transition">
+                                    <span class="w-3 h-3 rounded-full bg-slate-200 border border-slate-400"></span> Light Mode
+                                </button>
+
+                                <div class="px-3 py-1 mt-2 text-[10px] uppercase font-bold text-slate-400 tracking-wider">Faction</div>
+                                <button onclick="setTheme('default')" class="flex items-center gap-3 w-full text-left px-3 py-2 rounded hover:bg-white/5 text-xs text-slate-300 hover:text-white transition">
+                                    <span class="w-3 h-3 rounded-full bg-orange-700"></span> Minmatar (Rust)
+                                </button>
+                                <button onclick="setTheme('caldari')" class="flex items-center gap-3 w-full text-left px-3 py-2 rounded hover:bg-white/5 text-xs text-slate-300 hover:text-white transition">
+                                    <span class="w-3 h-3 rounded-full bg-blue-600"></span> Caldari (Steel)
+                                </button>
+                                <button onclick="setTheme('gallente')" class="flex items-center gap-3 w-full text-left px-3 py-2 rounded hover:bg-white/5 text-xs text-slate-300 hover:text-white transition">
+                                    <span class="w-3 h-3 rounded-full bg-emerald-600"></span> Gallente (Teal)
+                                </button>
+                                <button onclick="setTheme('amarr')" class="flex items-center gap-3 w-full text-left px-3 py-2 rounded hover:bg-white/5 text-xs text-slate-300 hover:text-white transition">
+                                    <span class="w-3 h-3 rounded-full bg-yellow-600"></span> Amarr (Gold)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 {% if user.is_authenticated %}
                 {% if navbar_char %}
                 <a href="{% url 'profile' %}" class="spa-link flex items-center gap-3 pl-1 pr-3 py-1 rounded-full border border-slate-700/50 bg-slate-800/50 hover:bg-slate-700 hover:border-brand-500/50 transition group">
@@ -299,6 +482,23 @@
                 .catch(err => console.error('SPA Navigation Error:', err));
         }
 
+        // --- THEME SWITCHER ---
+        function setTheme(themeName) {
+            // 1. Remove existing theme classes
+            document.body.classList.remove('theme-default', 'theme-caldari', 'theme-gallente', 'theme-amarr', 'theme-light');
+
+            // 2. Add new theme class
+            if (themeName !== 'default') {
+                document.body.classList.add(`theme-${themeName}`);
+            }
+
+            // 3. Set Cookie (Expires in 1 year)
+            const d = new Date();
+            d.setTime(d.getTime() + (365 * 24 * 60 * 60 * 1000));
+            let expires = "expires=" + d.toUTCString();
+            document.cookie = "site_theme=" + themeName + ";" + expires + ";path=/";
+        }
+
         // --- ESI MONITOR LOGIC ---
         function initESIMonitor() {
             // Only connect if user is authenticated
@@ -335,14 +535,14 @@
             if (percent < 20) colorClass = 'bg-red-500';
 
             const html = `
-                    <div class="flex justify-between items-end mb-1">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">${data.bucket.toUpperCase()}</span>
-                        <span class="text-[10px] font-mono text-white font-bold ml-4">${data.remaining}</span>
-                    </div>
-                    <div class="w-full h-1.5 bg-dark-900 rounded-full overflow-hidden border border-white/10">
-                        <div class="h-full ${colorClass} transition-all duration-500 ease-out shadow-[0_0_8px_rgba(255,255,255,0.2)]" style="width: ${percent}%"></div>
-                    </div>
-                `;
+                        <div class="flex justify-between items-end mb-1">
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">${data.bucket.toUpperCase()}</span>
+                            <span class="text-[10px] font-mono text-white font-bold ml-4">${data.remaining}</span>
+                        </div>
+                        <div class="w-full h-1.5 bg-dark-900 rounded-full overflow-hidden border border-white/10">
+                            <div class="h-full ${colorClass} transition-all duration-500 ease-out shadow-[0_0_8px_rgba(255,255,255,0.2)]" style="width: ${percent}%"></div>
+                        </div>
+                    `;
 
             if (!el) {
                 el = document.createElement('div');

@@ -1,6 +1,14 @@
 import os
 from celery import Celery
 
+# --- FIX START: GEVENT MONKEY PATCH ---
+# This checks if we are running with the gevent pool and patches early.
+# This prevents database connection closing issues in async contexts.
+if os.environ.get('The_pool_impl_name') == 'gevent':
+    from gevent import monkey
+    monkey.patch_all()
+# --- FIX END ---
+
 # Set the default Django settings module for the 'celery' program.
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'waitlist_project.settings')
 
