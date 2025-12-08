@@ -10,6 +10,7 @@ from waitlist_data.models import Fleet
 from pilot_data.models import EveCharacter, EsiHeaderCache
 from core.utils import ROLE_HIERARCHY
 from esi_calls.fleet_service import get_fleet_composition, process_fleet_data, ESI_BASE
+from esi_calls.token_manager import check_token
 import requests
 
 logger = logging.getLogger(__name__)
@@ -53,14 +54,14 @@ class FleetConsumer(AsyncWebsocketConsumer):
     @sync_to_async
     def check_overview_permission(self, user):
         if user.is_superuser: return True
-        allowed = ROLE_HIERARCHY[:10] # Resident and above
-        return user.groups.filter(name__in=allowed).exists()
+        # Using capability check to match views
+        return user.groups.filter(capabilities__slug='view_fleet_overview').exists()
 
     # --- BACKGROUND LOOP ---
     async def poll_fleet_overview(self):
         """
         Periodically checks ESI for fleet updates.
-        Relies on `call_esi` (via get_fleet_composition) to handle caching headers.
+        Cached in fleet_service to prevent spam.
         """
         while True:
             try:
@@ -69,7 +70,7 @@ class FleetConsumer(AsyncWebsocketConsumer):
                 fleet_data = await self.get_fleet_context()
                 
                 if fleet_data and fleet_data['esi_fleet_id']:
-                    # 2. Call Service (Now returns composite data)
+                    # 2. Call Service (Cached internally)
                     composite_data, _ = await sync_to_async(get_fleet_composition)(
                         fleet_data['esi_fleet_id'], 
                         fleet_data['fc_char']
@@ -86,14 +87,14 @@ class FleetConsumer(AsyncWebsocketConsumer):
                             'hierarchy': hierarchy
                         }))
                     elif composite_data == 'unchanged':
-                        # Optional: Send heartbeat if needed, but silence is fine if frontend has data
                         pass
                 else:
                     # 4. ERROR HANDLING: No Fleet ID Found
-                    # Send an error state to the frontend so it updates the UI
                     error_msg = "Fleet not linked to ESI"
                     if not fleet_data:
                         error_msg = "FC has no linked character"
+                    elif fleet_data.get('error'):
+                        error_msg = fleet_data['error']
                         
                     await self.send(text_data=json.dumps({
                         'type': 'fleet_error',
@@ -101,8 +102,8 @@ class FleetConsumer(AsyncWebsocketConsumer):
                     }))
 
                 # 5. Wait
-                # ESI Fleet cache is 5 seconds. We poll slightly slower to be safe.
-                await asyncio.sleep(6)
+                # Service caches for 10s, so we poll at 10s to match
+                await asyncio.sleep(10)
 
             except asyncio.CancelledError:
                 break
@@ -119,14 +120,19 @@ class FleetConsumer(AsyncWebsocketConsumer):
     def get_fleet_context(self):
         try:
             fleet = Fleet.objects.get(id=self.fleet_id)
-            if not fleet.commander: return None
+            if not fleet.commander: return {'error': 'No Commander'}
             
             # Find FC's character for ESI calls
             fc_char = fleet.commander.characters.filter(is_main=True).first()
             if not fc_char:
                 fc_char = fleet.commander.characters.first()
             
-            if not fc_char: return None
+            if not fc_char: return {'error': 'FC has no characters'}
+
+            # --- CRITICAL FIX: Ensure Token is Valid ---
+            # This refreshes the FC's token if needed, preventing "FC must refresh page" issue
+            if not check_token(fc_char):
+                return {'error': 'FC Token Invalid'}
 
             # Ensure ESI Fleet ID exists
             if not fleet.esi_fleet_id:

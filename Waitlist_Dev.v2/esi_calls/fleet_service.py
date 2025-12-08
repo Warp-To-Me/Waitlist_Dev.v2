@@ -1,4 +1,5 @@
 import email.utils
+from django.core.cache import cache
 from pilot_data.models import EveCharacter, ItemType, ItemGroup
 from esi_calls.esi_network import call_esi
 
@@ -7,25 +8,35 @@ ESI_BASE = "https://esi.evetech.net/latest"
 
 def get_fleet_composition(fleet_id, fc_character):
     """
-    Fetches raw fleet members AND wing structure (names).
-    Forces refresh to ensure we always have data to build the tree.
+    Fetches raw fleet members AND wing structure.
+    Uses Django Cache to prevent ESI spam when multiple users are dashboarding.
+    Cache TTL: 10 seconds.
     """
-    # 1. Fetch Members (FORCE REFRESH)
+    cache_key = f"fleet_comp_{fleet_id}"
+    cached_data = cache.get(cache_key)
+    
+    if cached_data:
+        return cached_data, None
+
+    # 1. Fetch Members (Force Refresh to get body)
     members_url = f"{ESI_BASE}/fleets/{fleet_id}/members/"
     members_resp = call_esi(fc_character, f'fleet_members_{fleet_id}', members_url, force_refresh=True)
     
-    # 2. Fetch Wing Names (FORCE REFRESH)
+    # 2. Fetch Wing Names (Force Refresh to get body)
     wings_url = f"{ESI_BASE}/fleets/{fleet_id}/wings/"
     wings_resp = call_esi(fc_character, f'fleet_wings_{fleet_id}', wings_url, force_refresh=True)
 
     # 3. Check for Errors
     if members_resp['status'] >= 400 or wings_resp['status'] >= 400:
-        return None, None
+        return None, f"ESI Error: {members_resp.get('status')} / {wings_resp.get('status')}"
 
     data = {
         'members': members_resp.get('data', []),
         'wings': wings_resp.get('data', [])
     }
+    
+    # Cache the successful result for 10 seconds
+    cache.set(cache_key, data, timeout=10)
     
     return data, None
 

@@ -11,6 +11,7 @@ import requests
 # Core Imports
 from core.utils import get_role_priority, ROLE_HIERARCHY
 from core.eft_parser import EFTParser
+from core.models import Capability # Added for permission lookups
 
 # Model Imports
 from pilot_data.models import EveCharacter, TypeEffect, ItemGroup
@@ -29,23 +30,34 @@ def get_template_base(request):
 
 def is_fleet_command(user):
     if user.is_superuser: return True
-    allowed = ROLE_HIERARCHY[:8] 
-    return user.groups.filter(name__in=allowed).exists()
+    return user.groups.filter(capabilities__slug='access_fleet_command').exists()
 
 def is_resident(user):
     if user.is_superuser: return True
-    allowed = ROLE_HIERARCHY[:10]
-    return user.groups.filter(name__in=allowed).exists()
+    return user.groups.filter(capabilities__slug='view_fleet_overview').exists()
 
 def is_admin(user):
     if user.is_superuser: return True
-    return user.groups.filter(name='Admin').exists()
+    return user.groups.filter(capabilities__slug='access_admin').exists()
+
+def can_manage_doctrines(user):
+    if user.is_superuser: return True
+    return user.groups.filter(capabilities__slug='manage_doctrines').exists()
 
 def get_mgmt_context(user):
+    """
+    Constructs the permission context required by the sidebar.
+    """
+    if user.is_superuser:
+        perms = set(Capability.objects.values_list('slug', flat=True))
+    else:
+        perms = set(Capability.objects.filter(groups__user=user).values_list('slug', flat=True).distinct())
+
     return {
-        'can_view_fleets': is_fleet_command(user),
-        'can_view_admin': is_admin(user),
-        'is_fc': is_fleet_command(user)
+        'user_perms': perms, # CRITICAL: This was missing, causing empty sidebar
+        'can_view_fleets': 'access_fleet_command' in perms,
+        'can_view_admin': 'access_admin' in perms,
+        'is_fc': 'access_fleet_command' in perms
     }
 
 def _process_category_icons(category):
@@ -451,7 +463,7 @@ def take_fleet_command(request, token):
 
 # Management view uses Integer ID internally from POST forms
 @login_required
-@user_passes_test(is_admin)
+@user_passes_test(can_manage_doctrines)
 def manage_doctrines(request):
     if request.method == 'POST':
         action = request.POST.get('action')

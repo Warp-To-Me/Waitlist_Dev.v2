@@ -13,6 +13,21 @@ class Command(BaseCommand):
         created_count = 0
         updated_count = 0
 
+        # --- FIX: Correct legacy slug if it exists to preserve permissions ---
+        try:
+            bad_cap = Capability.objects.filter(slug="promotedemote_users").first()
+            if bad_cap:
+                # Check if the target already exists to avoid UniqueViolation
+                if not Capability.objects.filter(slug="promote_demote_users").exists():
+                    self.stdout.write(self.style.WARNING("Fixing legacy slug: 'promotedemote_users' -> 'promote_demote_users'"))
+                    bad_cap.slug = "promote_demote_users"
+                    bad_cap.save()
+                else:
+                    self.stdout.write(self.style.WARNING("Found legacy slug 'promotedemote_users' but target 'promote_demote_users' already exists. Skipping rename."))
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f"Error checking legacy slugs: {e}"))
+        # ---------------------------------------------------------------------
+
         for cap_data in SYSTEM_CAPABILITIES:
             # Generate a slug from the name if one doesn't exist logically
             # In a real app, you might want to manually define these slugs to match your check functions
@@ -28,6 +43,7 @@ class Command(BaseCommand):
             if "View Fleet Overview" in cap_data['name']: slug = "view_fleet_overview"
             if "Inspect Pilots" in cap_data['name']: slug = "inspect_pilots"
             if "Manage Doctrines" in cap_data['name']: slug = "manage_doctrines"
+            if "Promote/Demote Users" in cap_data['name']: slug = "promote_demote_users"
 
             capability, created = Capability.objects.get_or_create(
                 slug=slug,
