@@ -46,3 +46,31 @@ class SystemMonitorConsumer(AsyncWebsocketConsumer):
                 print(f"Monitor Error: {e}")
                 # On error, back off slightly to prevent log spam
                 await asyncio.sleep(5)
+
+class UserConsumer(AsyncWebsocketConsumer):
+    """
+    Handles personal notifications for a specific logged-in user.
+    Used for: ESI Rate Limit monitoring, Personal Alerts, etc.
+    """
+    async def connect(self):
+        self.user = self.scope["user"]
+        
+        if self.user.is_anonymous:
+            await self.close()
+            return
+
+        # Join unique user group
+        self.group_name = f"user_{self.user.id}"
+        await self.channel_layer.group_add(self.group_name, self.channel_name)
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        if hasattr(self, 'group_name'):
+            await self.channel_layer.group_discard(self.group_name, self.channel_name)
+
+    async def user_notification(self, event):
+        """
+        Standard handler to push data down the socket.
+        Expects event['data'] to be a dictionary.
+        """
+        await self.send(text_data=json.dumps(event['data']))

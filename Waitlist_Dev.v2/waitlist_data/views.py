@@ -17,7 +17,8 @@ from pilot_data.models import EveCharacter, TypeEffect, ItemGroup
 from .models import DoctrineCategory, DoctrineFit, FitModule, DoctrineTag, Fleet, WaitlistEntry
 
 # ESI Services
-from esi_calls.fleet_service import get_fleet_members, invite_to_fleet, get_auth_header, ESI_BASE
+from esi_calls.fleet_service import get_fleet_composition, process_fleet_data, invite_to_fleet, ESI_BASE
+from esi_calls.token_manager import check_token
 
 # --- HELPERS ---
 
@@ -180,7 +181,7 @@ def doctrine_detail_api(request, fit_id):
     data = {
         'id': fit.id, 'name': fit.name, 'hull': hull.type_name,
         'hull_id': hull.type_id, 'description': fit.description,
-        'eft_block': fit.eft_format, 'slots': slot_groups
+        'eft_format': fit.eft_format, 'slots': slot_groups
     }
     return JsonResponse(data)
 
@@ -221,6 +222,9 @@ def fleet_dashboard(request, token):
     user_chars = request.user.characters.all()
     categories = DoctrineCategory.objects.filter(parent__isnull=True).prefetch_related('subcategories__fits')
 
+    # Check for Overview Permission (Resident+)
+    can_view_overview = is_resident(request.user)
+
     context = {
         'fleet': fleet,
         'fc_name': fc_name,
@@ -229,6 +233,7 @@ def fleet_dashboard(request, token):
         'categories': categories,
         'is_fc': is_fleet_command(request.user),
         'is_commander': request.user == fleet.commander,
+        'can_view_overview': can_view_overview,
         'base_template': get_template_base(request)
     }
     return render(request, 'waitlist/dashboard.html', context)
@@ -300,9 +305,9 @@ def api_entry_details(request, entry_id):
     if hull.group_id == 963:
         for item in parser.items:
             attrs = {a.attribute_id: a.value for a in item['obj'].attributes.all()}
-            if 14 in attrs: high_total += int(attrs[14]) * item['quantity']
-            if 13 in attrs: mid_total += int(attrs[13]) * item['quantity']
-            if 12 in attrs: low_total += int(attrs[12]) * item['quantity']
+            if 14 in attrs: high_total += int(attrs[14])
+            if 13 in attrs: mid_total += int(attrs[13])
+            if 12 in attrs: low_total += int(attrs[12])
 
     slot_config = [
         ('High Slots', 'high', high_total), ('Mid Slots', 'mid', mid_total),
@@ -334,46 +339,56 @@ def api_entry_details(request, entry_id):
     return JsonResponse(data)
 
 @login_required
-@user_passes_test(is_fleet_command)
+@user_passes_test(is_resident)
 def fleet_overview_api(request, token):
-    # Look up by token for the dashboard sidebar
+    """
+    Provides fleet hierarchy and summary stats for the dashboard sidebar (fallback/polling).
+    Visible to Residents and above.
+    """
     fleet = get_object_or_404(Fleet, join_token=token)
     
+    if not fleet.commander:
+        return JsonResponse({'error': 'No commander active'}, status=404)
+
     fc_char = fleet.commander.characters.filter(is_main=True).first() or fleet.commander.characters.first()
     if not fc_char:
         return JsonResponse({'error': 'FC has no linked characters'}, status=400)
         
     actual_fleet_id = fleet.esi_fleet_id
+    
+    # Check ESI Fleet link (Updated Logic)
     if not actual_fleet_id:
-        headers = get_auth_header(fc_char)
-        if headers:
-            resp = requests.get(f"{ESI_BASE}/characters/{fc_char.character_id}/fleet/", headers=headers)
-            if resp.status_code == 200:
-                data = resp.json()
-                actual_fleet_id = data['fleet_id']
-                fleet.esi_fleet_id = actual_fleet_id
-                fleet.save()
+        if check_token(fc_char):
+            headers = {'Authorization': f'Bearer {fc_char.access_token}'}
+            try:
+                resp = requests.get(f"{ESI_BASE}/characters/{fc_char.character_id}/fleet/", headers=headers)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    actual_fleet_id = data['fleet_id']
+                    fleet.esi_fleet_id = actual_fleet_id
+                    fleet.save()
+            except Exception:
+                pass
     
     if not actual_fleet_id:
         return JsonResponse({'error': 'Could not detect active ESI Fleet'}, status=404)
 
-    members = get_fleet_members(actual_fleet_id, fc_char)
-    if members is None:
+    # Fetch Members using updated service
+    composite_data, _ = get_fleet_composition(actual_fleet_id, fc_char)
+    
+    if composite_data is None:
         return JsonResponse({'error': 'Failed to fetch members from ESI'}, status=500)
-        
-    summary = {}
-    for m in members:
-        ship = m['ship_name']
-        summary[ship] = summary.get(ship, 0) + 1
-        try:
-            local_char = EveCharacter.objects.get(character_id=m['character_id'])
-            m['name'] = local_char.character_name
-        except EveCharacter.DoesNotExist:
-            m['name'] = f"Guest ({m['character_id']})" 
+    elif composite_data == 'unchanged':
+        return JsonResponse({'status': 'unchanged'}, status=200)
+
+    # Process Data
+    summary, hierarchy = process_fleet_data(composite_data)
 
     return JsonResponse({
-        'fleet_id': actual_fleet_id, 'member_count': len(members),
-        'summary': summary, 'members': members
+        'fleet_id': actual_fleet_id, 
+        'member_count': len(composite_data.get('members', [])),
+        'summary': summary, 
+        'hierarchy': hierarchy
     })
 
 

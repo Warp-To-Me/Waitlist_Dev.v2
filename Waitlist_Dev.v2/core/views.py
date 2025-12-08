@@ -12,7 +12,10 @@ from django.views.decorators.http import require_POST
 import json
 
 # Import Utils
-from core.utils import get_system_status, get_user_highest_role, can_manage_role, ROLE_HIERARCHY
+from core.utils import (
+    get_system_status, get_user_highest_role, can_manage_role, 
+    ROLE_HIERARCHY, ROLES_ADMIN, ROLES_FC, ROLES_MANAGEMENT, SYSTEM_CAPABILITIES
+)
 
 # Import Celery App
 from waitlist_project.celery import app as celery_app
@@ -31,20 +34,18 @@ def get_template_base(request):
         return 'base_content.html'
     return 'base.html'
 
-# --- Permission Helpers ---
+# --- Permission Helpers (Updated to use Dynamic Groups) ---
 def is_management(user):
     if user.is_superuser: return True
-    allowed = ROLE_HIERARCHY[:-2] 
-    return user.groups.filter(name__in=allowed).exists()
+    return user.groups.filter(name__in=ROLES_MANAGEMENT).exists()
 
 def is_fleet_command(user):
     if user.is_superuser: return True
-    allowed = ROLE_HIERARCHY[:8]
-    return user.groups.filter(name__in=allowed).exists()
+    return user.groups.filter(name__in=ROLES_FC).exists()
 
 def is_admin(user):
     if user.is_superuser: return True
-    return user.groups.filter(name='Admin').exists()
+    return user.groups.filter(name__in=ROLES_ADMIN).exists()
 
 def get_mgmt_context(user):
     return {
@@ -235,6 +236,7 @@ def profile_view(request):
         'total_wallet': totals['wallet_sum'] or 0,
         'total_lp': totals['lp_sum'] or 0,
         'account_total_sp': totals['sp_sum'] or 0,
+        'is_admin_user': is_admin(request.user), # NEW: Pass admin status to template
         'base_template': get_template_base(request) 
     }
 
@@ -257,6 +259,7 @@ def switch_character(request, char_id):
     request.session['active_char_id'] = character.character_id
     return redirect('profile')
 
+# Deprecated in favor of api_promote_alt but kept for fallback
 @login_required
 def make_main(request, char_id):
     new_main = get_object_or_404(EveCharacter, character_id=char_id, user=request.user)
@@ -265,6 +268,16 @@ def make_main(request, char_id):
     new_main.save()
     request.session['active_char_id'] = new_main.character_id
     return redirect('profile')
+
+# --- Access Denied View ---
+def access_denied(request):
+    """
+    Custom Login/Access Denied page.
+    """
+    context = {
+        'base_template': get_template_base(request)
+    }
+    return render(request, 'access_denied.html', context)
 
 # --- MANAGEMENT VIEWS ---
 
@@ -418,6 +431,85 @@ def management_user_inspect(request, user_id, char_id=None):
     return render(request, 'profile.html', context)
 
 @login_required
+@user_passes_test(is_admin) # RESTRICTED: Admins Only
+@require_POST
+def api_unlink_alt(request):
+    """
+    Unlinks an alt character from a user account.
+    RESTRICTED TO ADMINS ONLY.
+    """
+    try:
+        data = json.loads(request.body)
+        char_id = data.get('character_id')
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'})
+
+    if not char_id:
+        return JsonResponse({'success': False, 'error': 'Character ID required'})
+
+    # Find the character
+    char = get_object_or_404(EveCharacter, character_id=char_id)
+    
+    # 1. Check Permissions: STRICTLY ADMIN
+    # We removed the 'is_owner' check. Regular users cannot unlink anymore.
+    if not is_admin(request.user):
+        return JsonResponse({'success': False, 'error': 'Permission denied. Only Admins can unlink characters.'}, status=403)
+
+    # 2. Safety Check: Do not unlink MAIN characters
+    if char.is_main:
+        return JsonResponse({'success': False, 'error': 'Cannot unlink a Main Character. Please promote another character first.'})
+
+    # Delete (Unlink)
+    char.delete()
+    
+    return JsonResponse({'success': True})
+
+@login_required
+@require_POST
+def api_promote_alt(request):
+    """
+    Promotes an alt to Main character status.
+    Available to:
+    1. The Owner (for their own chars)
+    2. Admins (for any char)
+    """
+    try:
+        data = json.loads(request.body)
+        char_id = data.get('character_id')
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'})
+
+    if not char_id:
+        return JsonResponse({'success': False, 'error': 'Character ID required'})
+
+    target_char = get_object_or_404(EveCharacter, character_id=char_id)
+    target_user = target_char.user
+    
+    # Permissions
+    is_owner = (target_user == request.user)
+    is_admin_user = is_admin(request.user)
+    
+    if not is_owner and not is_admin_user:
+        return JsonResponse({'success': False, 'error': 'Permission denied.'}, status=403)
+        
+    # Logic
+    if target_char.is_main:
+        return JsonResponse({'success': False, 'error': 'Character is already main.'})
+        
+    # Reset old main
+    target_user.characters.update(is_main=False)
+    
+    # Set new main
+    target_char.is_main = True
+    target_char.save()
+    
+    # Update Session if it's the current user
+    if is_owner:
+        request.session['active_char_id'] = target_char.character_id
+        
+    return JsonResponse({'success': True})
+
+@login_required
 @user_passes_test(is_fleet_command)
 def management_fleets(request):
     """
@@ -556,6 +648,21 @@ def management_celery(request):
     return render(request, 'management/celery_status.html', context)
 
 @login_required
+@user_passes_test(is_admin)
+def management_permissions(request):
+    """
+    Overview of system permissions and role access.
+    Now dynamic based on core/utils.py registry.
+    """
+    context = {
+        'roles': ROLE_HIERARCHY,
+        'capabilities': SYSTEM_CAPABILITIES,
+        'base_template': get_template_base(request)
+    }
+    context.update(get_mgmt_context(request.user))
+    return render(request, 'management/permissions.html', context)
+
+@login_required
 @user_passes_test(is_management)
 def management_roles(request):
     # Pre-populate with Main Characters, paginated 10 per page
@@ -622,7 +729,7 @@ def api_get_user_roles(request, user_id):
     _, req_highest_index = get_user_highest_role(request.user)
     available = []
     for role in ROLE_HIERARCHY:
-        if ROLE_HIERARCHY.index(role) > req_highest_index:
+        if ROLE_HIERARCHY.index(role) > req_highest_index or is_admin(request.user):
              available.append(role)
     return JsonResponse({
         'user_id': target_user.id,
@@ -641,8 +748,13 @@ def api_update_user_role(request):
         action = data['action']
     except (KeyError, json.JSONDecodeError):
         return HttpResponseBadRequest("Invalid JSON")
-    if not can_manage_role(request.user, role_name):
-        return JsonResponse({'success': False, 'error': 'Permission denied.'}, status=403)
+    
+    # Allow explicit override if the actor is an admin and assigning the admin role
+    is_admin_actor = is_admin(request.user)
+    if not (is_admin_actor and role_name == 'Admin'):
+        if not can_manage_role(request.user, role_name):
+            return JsonResponse({'success': False, 'error': 'Permission denied.'}, status=403)
+            
     group = get_object_or_404(Group, name=role_name)
     if action == 'add':
         target_user.groups.add(group)

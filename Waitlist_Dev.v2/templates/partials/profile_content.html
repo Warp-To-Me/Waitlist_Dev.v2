@@ -32,7 +32,7 @@
                 {% for char in characters %}
                 <!-- ID for auto-scroll targeting -->
                 <div class="relative group flex-shrink-0" id="char-card-{{ char.character_id }}">
-                    <!-- Update Link URL based on Mode -->
+                    <!-- Card Body Link -->
                     {% if is_inspection_mode %}
                     <a href="{% url 'management_user_inspect_char' inspect_user_id char.character_id %}" class="flex items-center gap-3 p-2 pr-4 rounded-xl border transition w-48 {% if char == active_char %}bg-white/10 border-brand-500/50 shadow-[0_0_15px_rgba(245,158,11,0.15)]{% else %}bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/10{% endif %}">
                         {% else %}
@@ -46,8 +46,26 @@
                             </div>
                         </a>
 
-                        {% if not char.is_main and not is_inspection_mode %}
-                        <a href="{% url 'make_main' char.character_id %}" data-no-spa class="absolute -top-2 -right-2 bg-slate-700 hover:bg-green-600 text-slate-400 hover:text-white rounded-full p-1 border border-slate-600 opacity-0 group-hover:opacity-100 transition text-[10px] w-6 h-6 flex items-center justify-center shadow-md z-20" title="Set as Main">★</a>
+                        <!-- UNLINK BUTTON (Top Left - Red Cross) -->
+                        <!-- ADMINS ONLY: Either inspecting OR managing own account -->
+                        {% if not char.is_main and is_admin_user or not char.is_main and is_inspection_mode %}
+                        <button onclick="unlinkAlt({{ char.character_id }}, '{{ char.character_name|escapejs }}')"
+                                class="absolute -top-2 -left-2 bg-slate-800 hover:bg-red-600 text-slate-400 hover:text-white rounded-full p-1 border border-slate-600 opacity-0 group-hover:opacity-100 transition text-[10px] w-6 h-6 flex items-center justify-center shadow-md z-20"
+                                title="Unlink Character">
+                            ✖
+                        </button>
+                        {% endif %}
+
+                        <!-- PROMOTE BUTTON (Top Right - Star) -->
+                        <!-- OWNER OR ADMIN: Anyone can set their own Main, Admins can set others -->
+                        {% if not char.is_main %}
+                        {% if not is_inspection_mode or is_admin_user %}
+                        <button onclick="promoteAlt({{ char.character_id }}, '{{ char.character_name|escapejs }}')"
+                                class="absolute -top-2 -right-2 bg-slate-800 hover:bg-brand-500 text-slate-400 hover:text-white rounded-full p-1 border border-slate-600 opacity-0 group-hover:opacity-100 transition text-[10px] w-6 h-6 flex items-center justify-center shadow-md z-20"
+                                title="Set as Main">
+                            ★
+                        </button>
+                        {% endif %}
                         {% endif %}
                 </div>
                 {% endfor %}
@@ -368,3 +386,81 @@
     </div>
 </div>
 {% endif %}
+
+<!-- SCRIPTs -->
+<script>
+    function unlinkAlt(charId, charName) {
+        if (!confirm(`Are you sure you want to unlink ${charName}? This cannot be undone.`)) {
+            return;
+        }
+
+        const btn = document.activeElement;
+        if (btn) btn.disabled = true;
+
+        fetch("{% url 'api_unlink_alt' %}", {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ character_id: charId })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Remove the element from DOM
+                const card = document.getElementById(`char-card-${charId}`);
+                if (card) {
+                    card.style.opacity = '0';
+                    setTimeout(() => card.remove(), 300);
+                }
+            } else {
+                alert("Error: " + data.error);
+                if (btn) btn.disabled = false;
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert("Network error.");
+            if (btn) btn.disabled = false;
+        });
+    }
+
+    function promoteAlt(charId, charName) {
+        if (!confirm(`Set ${charName} as the MAIN character for this account?`)) {
+            return;
+        }
+
+        const btn = document.activeElement;
+        if (btn) btn.disabled = true;
+
+        fetch("{% url 'api_promote_alt' %}", {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ character_id: charId })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Reload partial to reflect changes (swap Main tag, reorder)
+                if (window.triggerRefresh) {
+                    // Force reload if on profile page
+                    location.reload();
+                } else {
+                    location.reload();
+                }
+            } else {
+                alert("Error: " + data.error);
+                if (btn) btn.disabled = false;
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert("Network error.");
+            if (btn) btn.disabled = false;
+        });
+    }
+</script>

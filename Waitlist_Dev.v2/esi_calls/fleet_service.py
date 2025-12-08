@@ -1,86 +1,179 @@
-import requests
-from django.conf import settings
-from pilot_data.models import EveCharacter, ItemType
+import email.utils
+from pilot_data.models import EveCharacter, ItemType, ItemGroup
+from esi_calls.esi_network import call_esi
 
 # Base ESI URL
 ESI_BASE = "https://esi.evetech.net/latest"
 
-def get_auth_header(character):
+def get_fleet_composition(fleet_id, fc_character):
     """
-    Ensures the character has a valid token and returns the auth header.
+    Fetches raw fleet members AND wing structure (names).
+    Forces refresh to ensure we always have data to build the tree.
     """
-    # Import locally to avoid circular imports if any
-    from esi_calls.token_manager import check_token
+    # 1. Fetch Members (FORCE REFRESH)
+    members_url = f"{ESI_BASE}/fleets/{fleet_id}/members/"
+    members_resp = call_esi(fc_character, f'fleet_members_{fleet_id}', members_url, force_refresh=True)
     
-    if not check_token(character):
-        return None
-    return {'Authorization': f'Bearer {character.access_token}'}
+    # 2. Fetch Wing Names (FORCE REFRESH)
+    wings_url = f"{ESI_BASE}/fleets/{fleet_id}/wings/"
+    wings_resp = call_esi(fc_character, f'fleet_wings_{fleet_id}', wings_url, force_refresh=True)
 
-def get_fleet_members(fleet_id, fc_character):
-    """
-    Fetches the hierarchical structure of the fleet.
-    Returns a dict active members grouped by role/ship.
-    """
-    headers = get_auth_header(fc_character)
-    if not headers: return None
+    # 3. Check for Errors
+    if members_resp['status'] >= 400 or wings_resp['status'] >= 400:
+        return None, None
 
-    url = f"{ESI_BASE}/fleets/{fleet_id}/members/"
-    resp = requests.get(url, headers=headers)
+    data = {
+        'members': members_resp.get('data', []),
+        'wings': wings_resp.get('data', [])
+    }
     
-    if resp.status_code != 200:
-        print(f"ESI Error fetching fleet: {resp.status_code} - {resp.text}")
-        return None
+    return data, None
+
+def process_fleet_data(composite_data):
+    """
+    Transforms raw ESI data into Summary and Hierarchy.
+    Sorts Wings and Squads by ID to match In-Game order.
+    """
+    members = composite_data.get('members') or []
+    wings_structure = composite_data.get('wings') or []
+
+    # Sort structure by ID to ensure consistent order
+    wings_structure.sort(key=lambda x: x['id'])
+
+    summary = {}
+    
+    # --- 1. Initialize Tree from Structure (Preserves Order) ---
+    hierarchy_wings = []
+    
+    # Lookups for O(1) access when placing members
+    wing_lookup = {}
+    squad_lookup = {}
+
+    for w in wings_structure:
+        w_obj = {
+            'id': w['id'],
+            'name': w['name'],
+            'commander': None,
+            'squads': [] 
+        }
+        hierarchy_wings.append(w_obj)
+        wing_lookup[w['id']] = w_obj
         
-    members = resp.json()
-    
-    # Enrich data with Ship Names
-    # We collect all ship_type_ids to fetch names efficiently if needed, 
-    # though usually we rely on our local SDE.
-    
-    enriched_members = []
-    
-    # Pre-fetch Ship Types to avoid N+1 queries
-    ship_ids = set(m['ship_type_id'] for m in members)
-    ship_map = {item.type_id: item.type_name for item in ItemType.objects.filter(type_id__in=ship_ids)}
-    
+        # Sort squads within wing
+        squads_list = w.get('squads', [])
+        squads_list.sort(key=lambda x: x['id'])
+        
+        for s in squads_list:
+            s_obj = {
+                'id': s['id'],
+                'name': s['name'],
+                'commander': None,
+                'members': [] 
+            }
+            w_obj['squads'].append(s_obj)
+            squad_lookup[s['id']] = s_obj
+
+    hierarchy = {
+        'commander': None,
+        'wings': hierarchy_wings
+    }
+
+    # --- 2. Bulk Fetch Metadata ---
+    if members:
+        ship_ids = set(m['ship_type_id'] for m in members)
+        char_ids = [m['character_id'] for m in members]
+        
+        items = ItemType.objects.filter(type_id__in=ship_ids)
+        item_map = {i.type_id: i for i in items}
+        
+        group_ids = set(i.group_id for i in items if i.group_id)
+        groups = ItemGroup.objects.filter(group_id__in=group_ids)
+        group_map = {g.group_id: g.group_name for g in groups}
+        
+        known_chars = EveCharacter.objects.filter(character_id__in=char_ids).values('character_id', 'character_name')
+        name_map = {c['character_id']: c['character_name'] for c in known_chars}
+    else:
+        item_map = {}
+        group_map = {}
+        name_map = {}
+
+    # --- 3. Populate Members ---
     for m in members:
-        ship_name = ship_map.get(m['ship_type_id'], 'Unknown Ship')
+        ship_item = item_map.get(m['ship_type_id'])
+        ship_name = ship_item.type_name if ship_item else "Unknown Ship"
+        group_name = "Unknown Group"
+        if ship_item:
+            group_name = group_map.get(ship_item.group_id, "Unknown Group")
+            
+        char_name = name_map.get(m['character_id'], f"Guest ({m['character_id']})")
         
-        enriched_members.append({
+        obj = {
             'character_id': m['character_id'],
-            'solar_system_id': m['solar_system_id'],
+            'name': char_name,
             'ship_type_id': m['ship_type_id'],
             'ship_name': ship_name,
+            'group_name': group_name,
             'role': m['role'],
             'wing_id': m['wing_id'],
             'squad_id': m['squad_id'],
-            'takes_fleet_warp': m['takes_fleet_warp']
-        })
+            'takes_fleet_warp': m['takes_fleet_warp'],
+            'join_time': m['join_time']
+        }
         
-    return enriched_members
+        # Summary Stats
+        if group_name not in summary: summary[group_name] = {}
+        if ship_name not in summary[group_name]: summary[group_name][ship_name] = 0
+        summary[group_name][ship_name] += 1
+        
+        # Tree Placement
+        if m['role'] == 'fleet_commander':
+            hierarchy['commander'] = obj
+            
+        elif m['wing_id'] > 0:
+            # Dynamic Wing Creation (Safety Net for ghost wings)
+            if m['wing_id'] not in wing_lookup:
+                w_obj = {
+                    'id': m['wing_id'],
+                    'name': f"Wing {m['wing_id']}",
+                    'commander': None,
+                    'squads': []
+                }
+                # If creating dynamically, just append to end
+                hierarchy['wings'].append(w_obj)
+                wing_lookup[m['wing_id']] = w_obj
+
+            if m['role'] == 'wing_commander':
+                wing_lookup[m['wing_id']]['commander'] = obj
+                
+            elif m['squad_id'] > 0:
+                # Dynamic Squad Creation (Safety Net)
+                if m['squad_id'] not in squad_lookup:
+                    s_obj = {
+                        'id': m['squad_id'],
+                        'name': f"Squad {m['squad_id']}",
+                        'commander': None,
+                        'members': []
+                    }
+                    wing_lookup[m['wing_id']]['squads'].append(s_obj)
+                    squad_lookup[m['squad_id']] = s_obj
+
+                if m['role'] == 'squad_commander':
+                    squad_lookup[m['squad_id']]['commander'] = obj
+                else:
+                    squad_lookup[m['squad_id']]['members'].append(obj)
+
+    return summary, hierarchy
 
 def invite_to_fleet(fleet_id, fc_character, target_character_id, role='squad_member', squad_id=None, wing_id=None):
-    """
-    Invites a character to the fleet.
-    """
-    headers = get_auth_header(fc_character)
-    if not headers: return False
+    from esi_calls.token_manager import check_token
+    if not check_token(fc_character): return False
     
+    headers = {'Authorization': f'Bearer {fc_character.access_token}'}
     url = f"{ESI_BASE}/fleets/{fleet_id}/members/"
     
-    payload = {
-        "character_id": target_character_id,
-        "role": role
-    }
-    
-    # Optional specific positioning
+    payload = {"character_id": target_character_id, "role": role}
     if squad_id: payload['squad_id'] = squad_id
     elif wing_id: payload['wing_id'] = wing_id
     
     resp = requests.post(url, headers=headers, json=payload)
-    
-    if resp.status_code == 204:
-        return True
-    
-    print(f"Invite Failed: {resp.status_code} - {resp.text}")
-    return False
+    return resp.status_code == 204

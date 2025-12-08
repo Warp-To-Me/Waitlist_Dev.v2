@@ -83,6 +83,7 @@
     <Content Include=".gitignore" />
     <Content Include="core\management\commands\__pycache__\setup_groups.cpython-312.pyc" />
     <Content Include="core\management\__pycache__\__init__.cpython-312.pyc" />
+    <Content Include="templates\access_denied.html" />
     <Content Include="templates\base.html" />
     <Content Include="templates\base_content.html" />
     <Content Include="templates\doctrines\fit_card.html" />
@@ -96,6 +97,7 @@
     <Content Include="templates\management\celery_status.html" />
     <Content Include="templates\management\dashboard.html" />
     <Content Include="templates\management\fleets.html" />
+    <Content Include="templates\management\permissions.html" />
     <Content Include="templates\management\roles.html" />
     <Content Include="templates\management\sde.html" />
     <Content Include="templates\management\users.html" />

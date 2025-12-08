@@ -14,6 +14,75 @@ ROLE_HIERARCHY = [
     'Resident', 'Pilot', 'Public'
 ]
 
+# --- DYNAMIC PERMISSION GROUPS ---
+# Centralized definition of role groups. 
+# Changing these lists here updates access control across the app AND the permissions documentation.
+
+ROLES_ADMIN = ['Admin']
+
+# Fleet Command: Admin down to Assault FC (Index 0-7)
+ROLES_FC = ROLE_HIERARCHY[:8]
+
+# Management: Admin down to Resident (Index 0-9)
+ROLES_MANAGEMENT = ROLE_HIERARCHY[:10]
+
+# All Roles
+ROLES_ALL = ROLE_HIERARCHY
+
+# --- CAPABILITY REGISTRY ---
+# Maps abstract system capabilities to specific role groups.
+# Used by management_permissions view to generate the access matrix dynamically.
+SYSTEM_CAPABILITIES = [
+    {
+        "category": "System Administration",
+        "name": "Full System Access",
+        "desc": "Manage SDE, Roles, System Health, Unlink Alts.",
+        "roles": ROLES_ADMIN
+    },
+    {
+        "category": "System Administration",
+        "name": "Manage Doctrines",
+        "desc": "Create, Edit, and Delete Doctrine Fits.",
+        "roles": ROLES_ADMIN
+    },
+    {
+        "category": "System Administration",
+        "name": "Promote/Demote Users",
+        "desc": "Assign roles to users (up to own rank) and Unlink Alts.",
+        "roles": ROLES_ADMIN
+    },
+    {
+        "category": "Fleet Operations",
+        "name": "Fleet Command",
+        "desc": "Create/Close Fleets, Take Command, FC Actions (Approve/Invite).",
+        "roles": ROLES_FC
+    },
+    {
+        "category": "Fleet Operations",
+        "name": "Inspect Pilots",
+        "desc": "View full pilot details (Skills, Assets) in User Search.",
+        "roles": ROLES_FC
+    },
+    {
+        "category": "Fleet Operations",
+        "name": "View Fleet Overview",
+        "desc": "See the live fleet composition sidebar on the dashboard.",
+        "roles": ROLES_MANAGEMENT
+    },
+    {
+        "category": "General",
+        "name": "Management Access",
+        "desc": "Access the Management Dashboard (limited view).",
+        "roles": ROLES_MANAGEMENT
+    },
+    {
+        "category": "General",
+        "name": "Join Waitlists",
+        "desc": "X-Up for fleets.",
+        "roles": ROLES_ALL
+    }
+]
+
 def get_role_priority(group_name):
     try:
         return ROLE_HIERARCHY.index(group_name)

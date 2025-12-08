@@ -43,7 +43,7 @@
                 <div class="flex items-center gap-3">
                     {% if fleet.is_active %}
                     <!-- Updated URL to use fleet.join_token -->
-                    <a href="{% url 'fleet_dashboard' fleet.join_token %}" target="_blank"
+                    <a href="{% url 'fleet_dashboard' fleet.join_token %}"
                        class="btn-success py-1.5 px-3 text-xs inline-flex items-center gap-2">
                         <span>↗</span> Open Board
                     </a>

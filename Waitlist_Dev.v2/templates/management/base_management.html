@@ -55,6 +55,10 @@
                    class="flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm font-medium {% if request.resolver_match.url_name == 'management_celery' %}bg-brand-500/10 text-brand-400 border border-brand-500/20{% else %}text-slate-400 hover:text-white hover:bg-white/5{% endif %}">
                     <span>🐝</span> System Health
                 </a>
+                <a href="{% url 'management_permissions' %}"
+                   class="flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm font-medium {% if request.resolver_match.url_name == 'management_permissions' %}bg-brand-500/10 text-brand-400 border border-brand-500/20{% else %}text-slate-400 hover:text-white hover:bg-white/5{% endif %}">
+                    <span>🔑</span> Permissions
+                </a>
             </div>
             {% endif %}
         </nav>

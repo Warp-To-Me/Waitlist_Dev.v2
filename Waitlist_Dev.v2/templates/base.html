@@ -240,9 +240,16 @@
         {% block content %}{% endblock %}
     </main>
 
-    <!-- SPA Router -->
+    <!-- ESI RATE LIMIT MONITOR (FIXED BOTTOM RIGHT) -->
+    <div id="esi-monitor" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 items-end pointer-events-none">
+        <!-- Bars will be injected here via JS -->
+    </div>
+
+    <!-- SPA Router & Monitor Script -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            initESIMonitor(); // Init Websocket
+
             Array.from(document.body.childNodes).forEach(node => {
                 if (node.nodeType === Node.TEXT_NODE && !node.textContent.trim()) { node.remove(); }
             });
@@ -267,32 +274,21 @@
                     const tempDiv = document.createElement('div');
                     tempDiv.innerHTML = html;
 
-                    // --- FIX FOR FLASHING ANIMATION ---
-                    // 1. Identify the new root element
                     const newContent = tempDiv.firstElementChild;
-
-                    // 2. Pre-apply opacity-0 so it is invisible the moment it hits the DOM
                     if (newContent) {
-                        // Remove potential conflict classes if the server sent them
                         newContent.classList.remove('animate-fade-in');
                         newContent.classList.add('opacity-0');
                     }
 
-                    // 3. Clear and Append
                     while (mainContent.firstChild) mainContent.removeChild(mainContent.firstChild);
                     while (tempDiv.firstChild) mainContent.appendChild(tempDiv.firstChild);
 
-                    // 4. Trigger Animation
                     if (newContent) {
-                        // Force Browser Reflow (Critical step to register the opacity-0 state)
                         void newContent.offsetWidth;
-
-                        // Swap classes to start animation
                         newContent.classList.remove('opacity-0');
                         newContent.classList.add('animate-fade-in');
                     }
 
-                    // Re-execute scripts
                     mainContent.querySelectorAll('script').forEach(oldScript => {
                         const newScript = document.createElement('script');
                         Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
@@ -301,6 +297,75 @@
                     });
                 })
                 .catch(err => console.error('SPA Navigation Error:', err));
+        }
+
+        // --- ESI MONITOR LOGIC ---
+        function initESIMonitor() {
+            // Only connect if user is authenticated
+            {% if user.is_authenticated %}
+            const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+            const socket = new WebSocket(protocol + window.location.host + '/ws/user/notify/');
+            const container = document.getElementById('esi-monitor');
+
+            socket.onmessage = function (e) {
+                const msg = JSON.parse(e.data);
+                if (msg.type === 'ratelimit') {
+                    updateRateLimitBar(container, msg);
+                }
+            };
+
+            socket.onclose = function () {
+                console.log("Notification socket closed. Retrying in 5s...");
+                setTimeout(initESIMonitor, 5000);
+            };
+            {% endif %}
+        }
+
+        function updateRateLimitBar(container, data) {
+            // Data: { bucket: "fleet", remaining: 1799, limit: 1800, window: "15m" }
+            const id = `bucket-${data.bucket.replace(/\s+/g, '-')}`;
+            let el = document.getElementById(id);
+
+            // Calculate Percentage
+            const percent = (data.remaining / data.limit) * 100;
+
+            // Color Logic
+            let colorClass = 'bg-green-500';
+            if (percent < 50) colorClass = 'bg-yellow-500';
+            if (percent < 20) colorClass = 'bg-red-500';
+
+            const html = `
+                    <div class="flex justify-between items-end mb-1">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">${data.bucket.toUpperCase()}</span>
+                        <span class="text-[10px] font-mono text-white font-bold ml-4">${data.remaining}</span>
+                    </div>
+                    <div class="w-full h-1.5 bg-dark-900 rounded-full overflow-hidden border border-white/10">
+                        <div class="h-full ${colorClass} transition-all duration-500 ease-out shadow-[0_0_8px_rgba(255,255,255,0.2)]" style="width: ${percent}%"></div>
+                    </div>
+                `;
+
+            if (!el) {
+                el = document.createElement('div');
+                el.id = id;
+                el.className = "bg-slate-900/90 backdrop-blur border border-white/10 p-2 rounded-lg shadow-xl w-48 transition-all duration-300 transform translate-x-full opacity-0 pointer-events-auto";
+                container.appendChild(el);
+
+                // Animate In
+                requestAnimationFrame(() => {
+                    el.classList.remove('translate-x-full', 'opacity-0');
+                });
+            }
+
+            el.innerHTML = html;
+
+            // Reset removal timer
+            if (el.dataset.timer) clearTimeout(el.dataset.timer);
+
+            // Auto-hide after 30 seconds of inactivity
+            el.dataset.timer = setTimeout(() => {
+                el.classList.add('translate-x-full', 'opacity-0');
+                setTimeout(() => { if (el.parentNode) el.remove(); }, 500);
+            }, 30000);
         }
     </script>
 </body>

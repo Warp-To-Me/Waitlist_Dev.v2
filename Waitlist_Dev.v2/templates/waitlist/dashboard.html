@@ -4,7 +4,7 @@
 {% block title %}Waitlist: {{ fleet.name }}{% endblock %}
 
 {% block content %}
-<!-- ADDED: opacity-0 to prevent flash of unstyled content -->
+<!-- OPACITY-0 prevents flash of unstyled content -->
 <div class="absolute inset-0 flex flex-col overflow-hidden bg-dark-950 opacity-0 animate-fade-in">
 
     <!-- HEADER BAR -->
@@ -39,7 +39,6 @@
 
     <!-- MAIN BOARD -->
     <div class="flex-grow overflow-x-auto overflow-y-hidden p-4 custom-scrollbar relative">
-        <!-- CHANGED: gap-4 to gap-2 -->
         <div class="flex gap-2 h-full min-w-max mx-auto w-fit">
             {% include 'waitlist/column.html' with title="X-UP" color="amber" entries=columns.pending id="pending" is_pending=True %}
             {% include 'waitlist/column.html' with title="LOGI" color="green" entries=columns.logi id="logi" %}
@@ -47,15 +46,22 @@
             {% include 'waitlist/column.html' with title="SNIPER" color="green" entries=columns.sniper id="sniper" %}
             {% include 'waitlist/column.html' with title="OTHER" color="green" entries=columns.other id="other" %}
 
-            {% if is_fc %}
-            <div class="w-80 flex flex-col glass-panel overflow-hidden h-full ml-2 border-white/10">
-                <div class="bg-blue-500/10 border-b border-blue-500/20 p-3">
-                    <h3 class="label-text text-blue-400 mb-0 text-center">Fleet Overview</h3>
+            <!-- FLEET OVERVIEW COLUMN -->
+            {% if can_view_overview %}
+            <div class="w-80 flex flex-col glass-panel overflow-hidden h-full ml-2 border-white/10 shadow-xl bg-slate-900/90">
+                <div class="bg-blue-600/10 border-b border-blue-500/20 p-3 flex justify-between items-center">
+                    <h3 class="label-text text-blue-400 mb-0">Fleet Overview</h3>
+                    <div class="flex items-center gap-2">
+                        <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+                        <span class="text-[10px] text-slate-500 font-mono">Live</span>
+                    </div>
                 </div>
-                <div class="flex-grow p-4 overflow-y-auto text-slate-400 text-sm italic custom-scrollbar">
-                    <p>Fleet composition loading...</p>
-                    <div class="mt-4 text-xs text-slate-500 border-t border-white/5 pt-2">
-                        (Requires ESI write_fleet scope)
+
+                <!-- Inner Scroll Area -->
+                <div class="flex-grow overflow-y-auto p-2 custom-scrollbar space-y-6" id="fleet-overview-content" data-has-error="false">
+                    <div class="flex flex-col items-center justify-center h-full text-slate-500 opacity-50 space-y-2">
+                        <div class="w-6 h-6 border-2 border-slate-500 border-t-transparent rounded-full animate-spin"></div>
+                        <p class="text-xs">Waiting for stream...</p>
                     </div>
                 </div>
             </div>
@@ -65,84 +71,63 @@
 </div>
 
 <!-- MODALS -->
-<!-- X-UP MODAL -->
-<div id="xup-modal" class="fixed inset-0 z-50 hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-    <div class="fixed inset-0 bg-dark-950/80 backdrop-blur-sm transition-opacity"></div>
-    <div class="fixed inset-0 z-10 overflow-y-auto" onclick="closeXUpModal()">
-        <div class="flex min-h-full items-center justify-center p-4 text-center">
-            <div class="relative transform overflow-hidden rounded-xl bg-slate-900 border border-white/10 text-left shadow-2xl transition-all w-full max-w-lg" onclick="event.stopPropagation()">
-                <div class="glass-header px-6 py-4 flex justify-between items-center">
-                    <h3 class="font-bold text-white text-lg">Join Waitlist</h3>
-                    <button onclick="closeXUpModal()" class="text-slate-400 hover:text-white transition p-1 hover:bg-white/10 rounded-full">✕</button>
-                </div>
-                <form id="xup-form" action="{% url 'x_up_submit' fleet.join_token %}" method="POST" class="p-6 space-y-6">
-                    {% csrf_token %}
-                    <div>
-                        <label class="label-text">Pilot</label>
-                        <select name="character_id" class="select-field">
-                            {% for char in user_chars %}
-                            <option value="{{ char.character_id }}">{{ char.character_name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div>
-                        <label class="label-text">Paste Fit (EFT / Pyfa / In-Game)</label>
-                        <textarea name="eft_paste" rows="8" required class="input-field font-mono text-xs" placeholder="[Megathron, Baltec]&#10;Damage Control II&#10;..."></textarea>
-                    </div>
-                    <div id="xup-error" class="hidden bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-3 rounded-lg"></div>
-                    <button type="submit" class="btn-primary w-full py-3 shadow-lg shadow-brand-500/20">Submit Request</button>
-                </form>
+<div id="xup-modal" class="fixed inset-0 z-50 hidden" onclick="closeXUpModal()">
+    <div class="fixed inset-0 bg-dark-950/80 backdrop-blur-sm"></div>
+    <div class="fixed inset-0 z-10 overflow-y-auto flex items-center justify-center p-4">
+        <div class="relative rounded-xl bg-slate-900 border border-white/10 shadow-2xl w-full max-w-lg" onclick="event.stopPropagation()">
+            <div class="glass-header px-6 py-4 flex justify-between items-center">
+                <h3 class="font-bold text-white text-lg">Join Waitlist</h3>
+                <button onclick="closeXUpModal()" class="text-slate-400 hover:text-white">✕</button>
             </div>
+            <form id="xup-form" action="{% url 'x_up_submit' fleet.join_token %}" method="POST" class="p-6 space-y-6">
+                {% csrf_token %}
+                <div>
+                    <label class="label-text">Pilot</label>
+                    <select name="character_id" class="select-field">
+                        {% for char in user_chars %}
+                        <option value="{{ char.character_id }}">{{ char.character_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="label-text">Paste Fit</label>
+                    <textarea name="eft_paste" rows="8" class="input-field font-mono text-xs"></textarea>
+                </div>
+                <div id="xup-error" class="hidden bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-3 rounded"></div>
+                <button type="submit" class="btn-primary w-full">Submit</button>
+            </form>
         </div>
     </div>
 </div>
 
-<!-- ENTRY INSPECTION MODAL -->
-<div id="entry-modal" class="fixed inset-0 z-50 hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-    <div class="fixed inset-0 bg-dark-950/80 backdrop-blur-sm transition-opacity" onclick="closeEntryModal()"></div>
-    <div class="fixed inset-0 z-10 overflow-y-auto" onclick="closeEntryModal()">
-        <div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
-            <div class="relative transform overflow-hidden rounded-xl bg-slate-900 border border-white/10 text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-4xl flex flex-col max-h-[90vh]" onclick="event.stopPropagation()">
-                <div class="glass-header px-6 py-4 flex justify-between items-center shrink-0 gap-4">
-                    <div class="flex items-center gap-4">
-                        <div class="relative w-12 h-12 flex-shrink-0">
-                            <img id="entry-icon" src="" class="w-full h-full rounded-lg border border-white/10 bg-dark-900" alt="Ship Icon">
-                        </div>
-                        <div>
-                            <h3 class="text-lg font-bold leading-tight text-white" id="entry-ship">Ship Name</h3>
-                            <p class="text-sm text-slate-400 font-mono mt-1">Pilot: <span id="entry-pilot" class="text-brand-500 font-bold">Name</span></p>
-                        </div>
-                    </div>
-                    <button type="button" onclick="closeEntryModal()" class="text-slate-400 hover:text-white transition p-1 hover:bg-white/10 rounded-full">✕</button>
-                </div>
-
-                <div class="px-6 py-6 grid grid-cols-1 md:grid-cols-3 gap-8 overflow-hidden h-full bg-dark-900/50">
-                    <div class="md:col-span-1 flex flex-col h-full overflow-hidden">
-                        <div class="glass-panel p-4 mb-4 flex-grow overflow-y-auto custom-scrollbar relative group border-white/5 bg-black/20">
-                            <button onclick="copyEntryEft()" class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition text-slate-500 hover:text-white p-1.5 bg-white/10 rounded-lg backdrop-blur">📋</button>
-                            <h4 class="label-text border-b border-white/5 pb-2 mb-2 sticky top-0 bg-transparent backdrop-blur-sm">Submitted Fit</h4>
-                            <pre id="entry-eft" class="text-[10px] text-slate-400 font-mono whitespace-pre-wrap break-all"></pre>
-                        </div>
-                        <div class="mt-auto space-y-3 shrink-0">
-                            <button onclick="copyEntryEft()" id="btn-copy-eft" class="btn-secondary w-full text-xs py-2">
-                                <span>📋</span> Copy to Clipboard
-                            </button>
-                            <div id="entry-actions" class="grid grid-cols-2 gap-3 hidden pt-4 border-t border-white/5">
-                                <button onclick="modalAction('approve')" class="btn-success py-3 text-sm flex flex-col items-center leading-none">
-                                    <span>✔ Approve</span>
-                                    <span class="text-[9px] font-normal opacity-75 mt-1">Move to Role</span>
-                                </button>
-                                <button onclick="modalAction('deny')" class="btn-danger py-3 text-sm flex flex-col items-center leading-none bg-red-500/10 hover:bg-red-500/20 border-red-500/30">
-                                    <span>✖ Reject</span>
-                                    <span class="text-[9px] font-normal opacity-75 mt-1">Remove Entry</span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="md:col-span-2 glass-panel p-4 overflow-y-auto custom-scrollbar shadow-inner bg-black/20 border-white/5" id="entry-slots">
-                        <div class="flex items-center justify-center h-full text-slate-500 animate-pulse">Loading fitting data...</div>
+<div id="entry-modal" class="fixed inset-0 z-50 hidden" onclick="closeEntryModal()">
+    <div class="fixed inset-0 bg-dark-950/80 backdrop-blur-sm"></div>
+    <div class="fixed inset-0 z-10 overflow-y-auto flex items-center justify-center p-4">
+        <div class="relative rounded-xl bg-slate-900 border border-white/10 shadow-2xl sm:w-full sm:max-w-4xl max-h-[90vh] flex flex-col" onclick="event.stopPropagation()">
+            <div class="glass-header px-6 py-4 flex justify-between items-center shrink-0">
+                <div class="flex items-center gap-4">
+                    <img id="entry-icon" src="" class="w-12 h-12 rounded border border-white/10 bg-dark-900">
+                    <div>
+                        <h3 class="text-lg font-bold text-white" id="entry-ship"></h3>
+                        <p class="text-sm text-slate-400 font-mono">Pilot: <span id="entry-pilot" class="text-brand-500 font-bold"></span></p>
                     </div>
                 </div>
+                <button onclick="closeEntryModal()" class="text-slate-400 hover:text-white">✕</button>
+            </div>
+            <div class="px-6 py-6 grid grid-cols-1 md:grid-cols-3 gap-8 overflow-hidden h-full bg-dark-900/50">
+                <div class="md:col-span-1 flex flex-col h-full overflow-hidden">
+                    <div class="glass-panel p-4 mb-4 flex-grow overflow-y-auto custom-scrollbar bg-black/20">
+                        <pre id="entry-eft" class="text-[10px] text-slate-400 font-mono whitespace-pre-wrap break-all"></pre>
+                    </div>
+                    <div class="space-y-3 shrink-0">
+                        <button onclick="copyEntryEft()" id="btn-copy-eft" class="btn-secondary w-full text-xs">Copy Fit</button>
+                        <div id="entry-actions" class="grid grid-cols-2 gap-3 hidden pt-4 border-t border-white/5">
+                            <button onclick="modalAction('approve')" class="btn-success text-xs">Approve</button>
+                            <button onclick="modalAction('deny')" class="btn-danger text-xs">Reject</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="md:col-span-2 glass-panel p-4 overflow-y-auto custom-scrollbar bg-black/20" id="entry-slots"></div>
             </div>
         </div>
     </div>
@@ -150,9 +135,56 @@
 
 <script>
     const USER_IS_FC = {{ is_fc|yesno:"true,false" }};
+    const FLEET_TOKEN = "{{ fleet.join_token }}";
     const FLEET_ID = "{{ fleet.id }}";
     const CSRF_TOKEN = '{{ csrf_token }}';
     let socket = null;
+
+    // --- STATE MANAGEMENT ---
+    const collapseState = {
+        wings: new Set(),
+        squads: new Set()
+    };
+    let lastFleetData = null;
+
+    // Toggle Single Group
+    window.toggleGroup = function(type, id) {
+        const numericId = parseInt(id, 10);
+        const set = type === 'wing' ? collapseState.wings : collapseState.squads;
+
+        if (set.has(numericId)) {
+            set.delete(numericId);
+        } else {
+            set.add(numericId);
+        }
+
+        if (lastFleetData) renderFleetOverview(lastFleetData);
+    };
+
+    // Toggle All Groups
+    window.toggleAllGroups = function() {
+        if (!lastFleetData || !lastFleetData.hierarchy.wings) return;
+
+        // If sets are empty, it means everything is OPEN -> Close everything
+        // If sets have items, something is CLOSED -> Open everything
+        const isEverythingOpen = (collapseState.wings.size === 0 && collapseState.squads.size === 0);
+
+        if (isEverythingOpen) {
+            // Collapse All: Add all IDs to the sets
+            lastFleetData.hierarchy.wings.forEach(wing => {
+                collapseState.wings.add(wing.id);
+                if (wing.squads) {
+                    wing.squads.forEach(squad => collapseState.squads.add(squad.id));
+                }
+            });
+        } else {
+            // Expand All: Clear the sets
+            collapseState.wings.clear();
+            collapseState.squads.clear();
+        }
+
+        renderFleetOverview(lastFleetData);
+    };
 
     function initWebSocket() {
         const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
@@ -164,22 +196,43 @@
         socket.onopen = () => {
             console.log("Fleet Socket: Connected");
             if(statusDot) {
-                statusDot.classList.remove('bg-red-500', 'shadow-red-500/50');
-                statusDot.classList.add('bg-green-500', 'shadow-[0_0_8px_rgba(34,197,94,0.6)]');
+                statusDot.classList.replace('bg-red-500', 'bg-green-500');
+                statusDot.classList.add('shadow-[0_0_8px_rgba(34,197,94,0.6)]');
                 statusDot.title = "Connected";
             }
         };
 
         socket.onmessage = (e) => {
             const data = JSON.parse(e.data);
-            handleFleetUpdate(data);
+
+            if (data.type === 'fleet_overview') {
+                lastFleetData = data;
+                renderFleetOverview(data);
+                const container = document.getElementById('fleet-overview-content');
+                if (container) container.dataset.hasError = "false";
+            }
+            else if (data.type === 'fleet_error') {
+                const container = document.getElementById('fleet-overview-content');
+                if (container) {
+                    container.innerHTML = `
+                        <div class="flex flex-col items-center justify-center h-full text-slate-500 opacity-70 space-y-2">
+                            <span class="text-2xl">⚠️</span>
+                            <p class="text-xs font-bold text-slate-400">${data.error}</p>
+                            <p class="text-[10px]">Retrying...</p>
+                        </div>`;
+                    container.dataset.hasError = "true";
+                }
+            }
+            else {
+                handleFleetUpdate(data);
+            }
         };
 
         socket.onclose = () => {
             console.log("Fleet Socket: Disconnected");
             if(statusDot) {
-                statusDot.classList.remove('bg-green-500', 'shadow-[0_0_8px_rgba(34,197,94,0.6)]');
-                statusDot.classList.add('bg-red-500');
+                statusDot.classList.replace('bg-green-500', 'bg-red-500');
+                statusDot.classList.remove('shadow-[0_0_8px_rgba(34,197,94,0.6)]');
                 statusDot.title = "Disconnected";
             }
             setTimeout(initWebSocket, 2000);
@@ -198,7 +251,6 @@
 
         if (data.action === 'add' || data.action === 'move') {
             if (existingCard) existingCard.remove();
-
             const template = document.createElement('div');
             template.innerHTML = data.html.trim();
             const newCard = template.firstChild;
@@ -210,10 +262,8 @@
 
             const colId = `col-${data.target_col}`;
             const column = document.getElementById(colId);
-
             if (column) {
                 column.appendChild(newCard);
-                // Modern highlight effect
                 newCard.classList.add('ring-2', 'ring-brand-500', 'shadow-[0_0_15px_rgba(245,158,11,0.3)]');
                 setTimeout(() => newCard.classList.remove('ring-2', 'ring-brand-500', 'shadow-[0_0_15px_rgba(245,158,11,0.3)]'), 1000);
             }
@@ -221,132 +271,191 @@
         }
     }
 
+    function renderFleetOverview(data) {
+        const container = document.getElementById('fleet-overview-content');
+        if (!container) return;
+
+        let html = '';
+
+        // 1. SUMMARY STATS
+        html += `<div class="grid grid-cols-2 gap-x-2 gap-y-4 mb-4 border-b border-white/5 pb-4 px-2">`;
+        const groups = Object.keys(data.summary).sort();
+        groups.forEach(grpName => {
+            const ships = data.summary[grpName];
+            const total = Object.values(ships).reduce((a, b) => a + b, 0);
+            html += `
+            <div class="flex flex-col">
+                <div class="flex justify-between items-center mb-1">
+                    <span class="text-[10px] font-bold text-slate-300 uppercase tracking-wide truncate pr-2">${grpName}</span>
+                    <span class="text-[9px] font-mono text-white bg-slate-700 px-1.5 rounded">${total}</span>
+                </div>
+                <div class="space-y-0.5">`;
+            for (const [shipName, count] of Object.entries(ships)) {
+                html += `
+                <div class="flex justify-between items-center text-[9px] text-slate-500 pl-1 border-l border-slate-700/50">
+                    <span class="truncate pr-2">${shipName}</span>
+                    <span class="font-mono text-slate-400">${count}</span>
+                </div>`;
+            }
+            html += `</div></div>`;
+        });
+        html += `</div>`;
+
+        // 2. HIERARCHY TREE
+        const h = data.hierarchy;
+
+        // Calculate Toggle State for Button
+        const isEverythingOpen = (collapseState.wings.size === 0 && collapseState.squads.size === 0);
+        const toggleIcon = isEverythingOpen ? '−' : '+';
+        const toggleTitle = isEverythingOpen ? 'Collapse All' : 'Expand All';
+
+        // Fleet Header (Always Open)
+        html += `
+        <div class="space-y-1">
+            <div class="flex justify-between items-center bg-slate-800 p-1.5 rounded border border-slate-700 mx-1">
+                <div class="flex items-center gap-2">
+                    <span class="text-brand-500 text-xs">★</span>
+                    <span class="text-xs font-bold text-white">Fleet (${data.member_count})</span>
+                </div>
+                <button onclick="window.toggleAllGroups()" class="text-slate-400 hover:text-white hover:bg-white/10 transition px-1 py-0.5 rounded w-5 text-center" title="${toggleTitle}">
+                    <span class="text-[10px] font-mono font-bold">${toggleIcon}</span>
+                </button>
+            </div>
+        `;
+
+        if (h.commander) html += renderMember(h.commander, 'pl-2', 'fleet_cmd');
+
+        // WINGS
+        if (h.wings && Array.isArray(h.wings)) {
+            h.wings.sort((a, b) => a.id - b.id);
+
+            h.wings.forEach(wing => {
+                const isCollapsed = collapseState.wings.has(wing.id);
+                const chevronRot = isCollapsed ? '-rotate-90' : 'rotate-0';
+
+                html += `
+                <div class="mt-1 ml-2 pl-1 border-l border-slate-700/50">
+                    <!-- WING HEADER -->
+                    <div class="flex items-center gap-2 text-xs font-bold text-slate-400 mb-1 cursor-pointer hover:text-white transition group select-none py-1"
+                         onclick="window.toggleGroup('wing', ${wing.id})">
+                        <svg class="w-3 h-3 transition-transform duration-200 ${chevronRot} text-slate-600 group-hover:text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                        <span>${wing.name}</span>
+                    </div>`;
+
+                if (!isCollapsed) {
+                    if (wing.commander) html += renderMember(wing.commander, 'pl-6', 'wing_cmd');
+
+                    // SQUADS
+                    if (wing.squads && Array.isArray(wing.squads)) {
+                        wing.squads.sort((a, b) => a.id - b.id);
+
+                        wing.squads.forEach(squad => {
+                            const isSqCollapsed = collapseState.squads.has(squad.id);
+                            const sqChevronRot = isSqCollapsed ? '-rotate-90' : 'rotate-0';
+
+                            html += `
+                            <div class="ml-4 pl-2 border-l border-slate-700/30 mt-1">
+                                <!-- SQUAD HEADER -->
+                                <div class="flex items-center gap-2 text-[10px] font-bold text-slate-500 mb-0.5 cursor-pointer hover:text-slate-300 transition group select-none py-0.5"
+                                     onclick="window.toggleGroup('squad', ${squad.id})">
+                                    <svg class="w-2.5 h-2.5 transition-transform duration-200 ${sqChevronRot} text-slate-700 group-hover:text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                    <span>${squad.name}</span>
+                                </div>`;
+
+                            if (!isSqCollapsed) {
+                                if (squad.commander) html += renderMember(squad.commander, 'pl-6', 'squad_cmd');
+                                if (squad.members) {
+                                    squad.members.forEach(m => {
+                                        html += renderMember(m, 'pl-10', 'member');
+                                    });
+                                }
+                            }
+                            html += `</div>`;
+                        });
+                    }
+                }
+                html += `</div>`;
+            });
+        }
+
+        html += `</div>`;
+        container.innerHTML = html;
+    }
+
+    function renderMember(m, paddingClass, roleType) {
+        let nameColor = 'text-slate-300';
+        let icon = '';
+
+        if (roleType === 'fleet_cmd') {
+            nameColor = 'text-white font-bold';
+            icon = '<span class="text-brand-500 mr-1 text-[10px]">★</span>';
+        } else if (roleType === 'wing_cmd') {
+            nameColor = 'text-cyan-400 font-bold';
+        } else if (roleType === 'squad_cmd') {
+            nameColor = 'text-amber-400 font-bold';
+        } else {
+            nameColor = 'text-slate-400';
+        }
+
+        return `
+        <div class="${paddingClass} flex justify-between items-center group py-0.5 hover:bg-white/5 rounded transition cursor-default">
+            <div class="flex items-center gap-1 overflow-hidden min-w-0">
+                <span class="text-[10px] ${nameColor} truncate leading-tight" title="${m.name}">
+                    ${icon}${m.name}
+                </span>
+            </div>
+            <span class="text-[9px] text-slate-600 font-mono whitespace-nowrap pl-2 group-hover:text-slate-300 transition shrink-0">${m.ship_name}</span>
+        </div>`;
+    }
+
     function updateCounts() {
         const cols = ['pending', 'logi', 'dps', 'sniper', 'other'];
         cols.forEach(c => {
-            const container = document.getElementById(`col-${c}`);
-            const counter = document.getElementById(`count-${c}`);
-            if(container && counter) {
-                counter.innerText = container.children.length;
-            }
+            const el = document.getElementById(`count-${c}`);
+            const list = document.getElementById(`col-${c}`);
+            if(el && list) el.innerText = list.children.length;
         });
     }
 
-    // --- FC ACTIONS ---
     function sendAction(entryId, action) {
-        fetch(`/fleet/action/${entryId}/${action}/`, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': CSRF_TOKEN,
-                'X-Requested-With': 'XMLHttpRequest'
-            }
-        })
-        .then(response => {
-            if (!response.ok) {
-                console.error("Action Failed:", response.statusText);
-                alert("Action failed. Check console for details.");
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (!data.success) {
-                alert("Error: " + (data.error || "Unknown error"));
-            }
-        })
-        .catch(err => console.error("Network Error:", err));
+        fetch(`/fleet/action/${entryId}/${action}/`, { method: 'POST', headers: { 'X-CSRFToken': CSRF_TOKEN, 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(r => r.json()).then(d => { if(!d.success) alert("Error: " + d.error); });
     }
 
-    // --- INIT ---
-    initWebSocket();
-
-    // --- MODAL HELPERS ---
     function closeXUpModal() { document.getElementById('xup-modal').classList.add('hidden'); }
     function closeEntryModal() { document.getElementById('entry-modal').classList.add('hidden'); }
 
-    // --- X-UP FORM ---
+    // Init
+    initWebSocket();
+
+    // Form handlers
     document.getElementById('xup-form').addEventListener('submit', function(e) {
         e.preventDefault();
         const form = this;
-        const errorBox = document.getElementById('xup-error');
-        const submitBtn = form.querySelector('button[type="submit"]');
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="animate-spin mr-2">⟳</span> Processing...';
-        errorBox.classList.add('hidden');
-
         fetch(form.action, { method: 'POST', body: new FormData(form), headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) { closeXUpModal(); form.reset(); }
-            else { errorBox.textContent = "Error: " + data.error; errorBox.classList.remove('hidden'); }
-        })
-        .catch(err => { console.error(err); errorBox.textContent = "Network error occurred."; errorBox.classList.remove('hidden'); })
-        .finally(() => { submitBtn.disabled = false; submitBtn.textContent = "Submit Request"; });
+        .then(r => r.json()).then(d => {
+            if(d.success) { closeXUpModal(); form.reset(); }
+            else { document.getElementById('xup-error').textContent=d.error; document.getElementById('xup-error').classList.remove('hidden'); }
+        });
     });
 
-    // --- ENTRY DETAILS ---
-    let currentEntryId = null;
-    function openEntry(entryId) {
-        currentEntryId = entryId;
-        const modal = document.getElementById('entry-modal');
-        modal.classList.remove('hidden');
-        document.getElementById('entry-slots').innerHTML = '<div class="flex items-center justify-center h-full text-slate-500 animate-pulse">Loading fit details...</div>';
-        document.getElementById('entry-eft').textContent = "Loading...";
-        document.getElementById('entry-actions').classList.add('hidden');
-        document.getElementById('entry-icon').src = "";
-        document.getElementById('entry-pilot').textContent = "";
-        document.getElementById('entry-ship').textContent = "";
-
-        fetch(`/fleet/entry/api/${entryId}/`)
-            .then(res => { if(res.status === 403) throw new Error("Unauthorized."); return res.json(); })
-            .then(data => {
-                document.getElementById('entry-pilot').textContent = data.character_name;
-                document.getElementById('entry-ship').textContent = data.ship_name;
-                document.getElementById('entry-icon').src = `https://images.evetech.net/types/${data.hull_id}/icon?size=64`;
-                document.getElementById('entry-eft').textContent = data.raw_eft;
-                if(data.is_fc && data.status === 'pending') { document.getElementById('entry-actions').classList.remove('hidden'); }
-
-                let html = '';
-                if(data.slots && data.slots.length > 0) {
-                    data.slots.forEach(group => {
-                        html += `
-                        <div class="mb-4">
-                            <div class="flex items-baseline gap-2 mb-1 border-b border-white/5 pb-1">
-                                <h5 class="label-text mb-0 text-[10px]">${group.name}</h5>
-                                ${group.is_hardpoint ? `<span class="text-[9px] text-slate-500 font-mono">(${group.used} / ${group.total})</span>` : ''}
-                            </div>
-                            <div class="space-y-1">`;
-
-                        group.modules.forEach((mod, index) => {
-                            const bgClass = index % 2 === 0 ? 'bg-white/5' : 'bg-transparent';
-                            html += `
-                            <div class="flex items-center gap-2 ${bgClass} hover:bg-white/10 px-2 py-1 rounded transition group h-8 border border-transparent hover:border-white/5">
-                                <img src="https://images.evetech.net/types/${mod.id}/icon?size=32" class="w-6 h-6 rounded flex-shrink-0" loading="lazy">
-                                <div class="flex-grow min-w-0">
-                                    <div class="text-xs text-slate-300 font-medium truncate group-hover:text-white transition">${mod.name}</div>
-                                </div>
-                                ${!group.is_hardpoint && mod.quantity > 1 ? `<span class="text-[10px] text-brand-400 font-mono px-1.5 bg-brand-900/20 rounded border border-brand-500/30">x${mod.quantity}</span>` : ''}
-                            </div>`;
-                        });
-
-                        if (group.is_hardpoint && group.empties_count > 0) {
-                            for (let i = 0; i < group.empties_count; i++) {
-                                html += `
-                                <div class="flex items-center gap-2 px-2 py-1 rounded opacity-30 select-none h-8">
-                                    <div class="w-5 h-5 rounded bg-white/10 ml-0.5"></div>
-                                    <span class="text-[10px] text-slate-500 italic font-mono tracking-wide">[Empty Slot]</span>
-                                </div>`;
-                            }
-                        }
-                        html += `</div></div>`;
-                    });
-                } else { html = '<div class="text-center text-slate-500 italic mt-10">Fit could not be parsed visually. <br> Check raw text on left.</div>'; }
-                document.getElementById('entry-slots').innerHTML = html;
-            })
-            .catch(err => { document.getElementById('entry-slots').innerHTML = `<div class="text-red-500 text-center mt-10">${err.message}</div>`; });
+    function openEntry(id) {
+        document.getElementById('entry-modal').classList.remove('hidden');
+        document.getElementById('entry-slots').innerHTML = 'Loading...';
+        fetch(`/fleet/entry/api/${id}/`).then(r=>r.json()).then(d => {
+            document.getElementById('entry-pilot').textContent = d.character_name;
+            document.getElementById('entry-ship').textContent = d.ship_name;
+            document.getElementById('entry-icon').src = `https://images.evetech.net/types/${d.hull_id}/icon?size=64`;
+            document.getElementById('entry-eft').textContent = d.raw_eft;
+        });
     }
 
-    function modalAction(action) { if(!currentEntryId) return; closeEntryModal(); sendAction(currentEntryId, action); }
-    function copyEntryEft() { const text = document.getElementById("entry-eft").textContent; navigator.clipboard.writeText(text).then(() => { const btn = document.getElementById('btn-copy-eft'); const original = btn.innerHTML; btn.innerHTML = '<span class="text-green-300 font-bold">✔ Copied!</span>'; setTimeout(() => { btn.innerHTML = original; }, 1500); }); }
+    function copyEntryEft() { navigator.clipboard.writeText(document.getElementById("entry-eft").textContent); }
+    function modalAction(a) { if(currentEntryId) { closeEntryModal(); sendAction(currentEntryId, a); } }
 </script>
 
 <style>

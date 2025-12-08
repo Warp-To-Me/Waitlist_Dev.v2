@@ -1,0 +1,83 @@
+﻿{% extends 'management/base_management.html' %}
+
+{% block management_content %}
+<div class="flex flex-col gap-6 animate-fade-in">
+    <!-- Header -->
+    <div class="flex justify-between items-end border-b border-white/5 pb-6">
+        <div>
+            <h1 class="heading-1">Access Control Matrix</h1>
+            <p class="text-slate-400 text-sm mt-1">Overview of system capabilities and role assignments.</p>
+        </div>
+    </div>
+
+    <!-- Matrix Table -->
+    <div class="glass-panel overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left border-collapse">
+                <thead>
+                    <tr class="bg-white/5 border-b border-white/10 text-xs uppercase tracking-wider text-slate-300">
+                        <th class="p-4 sticky left-0 bg-[#121a2b] z-10 border-r border-white/10 w-64 shadow-xl">Capability</th>
+                        {% for role in roles %}
+                        <!-- Added border-r and border-white/5 for vertical lines -->
+                        <th class="p-2 text-center min-w-[80px] vertical-text border-r border-white/5 last:border-r-0">
+                            <div class="writing-mode-vertical transform rotate-180 h-32 flex items-center justify-center">
+                                {{ role }}
+                            </div>
+                        </th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-white/5">
+                    {% for cap in capabilities %}
+                    <tr class="hover:bg-white/5 transition group">
+                        <!-- Capability Name & Desc -->
+                        <td class="p-4 sticky left-0 bg-slate-900/95 z-10 border-r border-white/10 group-hover:bg-[#162032] transition">
+                            <div class="font-bold text-white">{{ cap.name }}</div>
+                            <div class="text-[10px] text-slate-500 font-mono mt-1">{{ cap.desc }}</div>
+                            <div class="text-[9px] text-brand-500 uppercase tracking-widest mt-2">{{ cap.category }}</div>
+                        </td>
+
+                        <!-- Role Checks -->
+                        {% for role in roles %}
+                        <!-- Added border-r and border-white/5 for vertical lines in body as well -->
+                        <td class="p-2 text-center relative border-r border-white/5 last:border-r-0">
+                            {% if role in cap.roles %}
+                            <div class="absolute inset-0 bg-green-500/5 m-px"></div>
+                            <span class="text-green-400 text-lg relative z-10">●</span>
+                            {% else %}
+                            <span class="text-slate-800 text-xs">·</span>
+                            {% endif %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Legend -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="glass-panel p-4 border-l-4 border-brand-500">
+            <h3 class="font-bold text-white text-sm mb-1">Role Hierarchy</h3>
+            <p class="text-xs text-slate-400">Roles operate on a waterfall inheritance model. Higher roles typically inherit permissions from lower tiers.</p>
+        </div>
+        <div class="glass-panel p-4 border-l-4 border-blue-500">
+            <h3 class="font-bold text-white text-sm mb-1">Fleet Command</h3>
+            <p class="text-xs text-slate-400">Restricted to operational staff. Includes FCs, Leadership, and Officers.</p>
+        </div>
+        <div class="glass-panel p-4 border-l-4 border-green-500">
+            <h3 class="font-bold text-white text-sm mb-1">Management</h3>
+            <p class="text-xs text-slate-400">Includes Residents and above. Grants visibility into fleet compositions but not command actions.</p>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Utility for vertical text headers */
+    .writing-mode-vertical {
+        writing-mode: vertical-rl;
+        text-orientation: mixed;
+    }
+</style>
+{% endblock %}

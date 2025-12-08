@@ -3,7 +3,12 @@ from . import consumers as core_consumers
 from waitlist_data import consumers as waitlist_consumers
 
 websocket_urlpatterns = [
+    # System Admin Monitor
     re_path(r'ws/system/monitor/$', core_consumers.SystemMonitorConsumer.as_asgi()),
-    # New Fleet Route
+    
+    # Personal User Notifications (Rate Limits, Alerts)
+    re_path(r'ws/user/notify/$', core_consumers.UserConsumer.as_asgi()),
+    
+    # Fleet Dashboard
     re_path(r'ws/fleet/(?P<fleet_id>\d+)/$', waitlist_consumers.FleetConsumer.as_asgi()),
 ]

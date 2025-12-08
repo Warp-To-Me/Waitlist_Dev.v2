@@ -160,3 +160,8 @@ CELERY_BEAT_SCHEDULE = {
 # 5. SAFETY & RATE LIMITS
 # This limits the worker to only grabbing 1 task at a time, preventing it from hoarding tasks if ESI is slow.
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+
+# --- AUTHENTICATION SETTINGS ---
+LOGIN_URL = 'access_denied'      # Redirect here instead of 'sso_login'
+LOGIN_REDIRECT_URL = 'profile'   
+LOGOUT_REDIRECT_URL = 'landing_page'
