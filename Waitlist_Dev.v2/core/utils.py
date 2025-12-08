@@ -28,6 +28,9 @@ SYSTEM_CAPABILITIES = [
     {"category": "System Administration", "name": "Full System Access", "desc": "Manage SDE, Roles, System Health, Unlink Alts.", "roles": ROLES_ADMIN},
     {"category": "System Administration", "name": "Manage Doctrines", "desc": "Create, Edit, and Delete Doctrine Fits.", "roles": ROLES_ADMIN},
     {"category": "System Administration", "name": "Promote/Demote Users", "desc": "Assign roles to users (up to own rank) and Unlink Alts.", "roles": ROLES_ADMIN},
+    # NEW CAPABILITY HERE:
+    {"category": "System Administration", "name": "Manage Analysis Rules", "desc": "Configure item comparison logic (Higher/Lower is Better).", "roles": ROLES_ADMIN},
+    
     {"category": "Fleet Operations", "name": "Fleet Command", "desc": "Create/Close Fleets, Take Command, FC Actions (Approve/Invite).", "roles": ROLES_FC},
     {"category": "Fleet Operations", "name": "Inspect Pilots", "desc": "View full pilot details (Skills, Assets) in User Search.", "roles": ROLES_FC},
     {"category": "Fleet Operations", "name": "View Fleet Overview", "desc": "See the live fleet composition sidebar on the dashboard.", "roles": ROLES_MANAGEMENT},
@@ -71,7 +74,7 @@ def get_role_priority(group_name):
         return 999
 
 def get_user_highest_role(user):
-    if user.is_superuser: return 'Admin', 0
+    if user.is_superuser: return True, 0
     
     user_groups = list(user.groups.values_list('name', flat=True))
     if not user_groups: return 'Public', 999

@@ -21,10 +21,13 @@ from core.utils import (
 from waitlist_project.celery import app as celery_app
 
 # Import Models
-from pilot_data.models import EveCharacter, ItemType, ItemGroup, SkillHistory, TypeAttribute
+from pilot_data.models import (
+    EveCharacter, ItemType, ItemGroup, SkillHistory, TypeAttribute, 
+    AttributeDefinition, FitAnalysisRule
+)
 from waitlist_data.models import Fleet
 from esi_calls.token_manager import update_character_data
-from waitlist_data.models import DoctrineCategory, DoctrineFit, FitModule
+from waitlist_data.models import DoctrineCategory, DoctrineFit, FitModule, DoctrineTag
 from core.eft_parser import EFTParser
 from core.models import Capability, RolePriority
 
@@ -507,6 +510,144 @@ def api_manage_group(request):
         if group.name == 'Admin': return JsonResponse({'success': False, 'error': 'Cannot delete Admin group'})
         group.delete()
     return JsonResponse({'success': True})
+
+# --- RULE MANAGER VIEWS ---
+
+@login_required
+@user_passes_test(is_admin)
+def management_rules(request):
+    """
+    Renders the Rule Helper Dashboard.
+    """
+    context = {
+        'base_template': get_template_base(request)
+    }
+    context.update(get_mgmt_context(request.user))
+    return render(request, 'management/rules_helper.html', context)
+
+@login_required
+@user_passes_test(is_admin)
+def api_group_search(request):
+    """
+    Searches for ItemGroups (e.g. "Shield Hardener")
+    """
+    query = request.GET.get('q', '').strip()
+    if len(query) < 3: return JsonResponse({'results': []})
+    
+    groups = ItemGroup.objects.filter(group_name__icontains=query, published=True)[:20]
+    results = [{'id': g.group_id, 'name': g.group_name} for g in groups]
+    return JsonResponse({'results': results})
+
+@login_required
+@user_passes_test(is_admin)
+def api_rule_discovery(request, group_id):
+    """
+    The Brains:
+    1. Fetches existing saved rules for this group.
+    2. Scans items in this group to find 'Candidate' attributes (attributes common to these items).
+    """
+    group = get_object_or_404(ItemGroup, group_id=group_id)
+    
+    # 1. Get Existing Rules
+    existing_rules = FitAnalysisRule.objects.filter(group=group).select_related('attribute')
+    existing_attr_ids = set()
+    rule_data = []
+    
+    for r in existing_rules:
+        existing_attr_ids.add(r.attribute.attribute_id)
+        rule_data.append({
+            'attr_id': r.attribute.attribute_id,
+            'name': r.attribute.display_name or r.attribute.name,
+            'description': r.attribute.description,
+            'is_active': True,
+            'logic': r.comparison_logic,
+            'tolerance': r.tolerance_percent,
+            'source': 'saved'
+        })
+
+    # 2. Discover Candidates
+    # Fetch up to 10 items in this group to sample their attributes
+    sample_items = ItemType.objects.filter(group=group, published=True)[:10]
+    
+    if sample_items.exists():
+        # Get all attributes for these items
+        # Group by Attribute ID and count frequency
+        common_attrs = TypeAttribute.objects.filter(item__in=sample_items)\
+            .values('attribute_id')\
+            .annotate(count=Count('item_id'))\
+            .order_by('-count')
+            
+        # Filter for attributes that appear in at least 50% of the sample
+        threshold = sample_items.count() / 2
+        candidate_ids = [c['attribute_id'] for c in common_attrs if c['count'] >= threshold]
+        
+        # Remove ones we already have rules for
+        new_ids = [aid for aid in candidate_ids if aid not in existing_attr_ids]
+        
+        # Fetch definitions
+        definitions = AttributeDefinition.objects.filter(attribute_id__in=new_ids)
+        
+        # Exclude boring attributes (icons, graphic IDs, etc) usually hidden
+        # This is a heuristic; might need tuning.
+        for d in definitions:
+            # Skip likely junk (names starting with graphic, icon, sfx)
+            if any(x in d.name.lower() for x in ['graphic', 'icon', 'sound', 'radius', 'volume', 'mass', 'capacity']):
+                continue
+                
+            rule_data.append({
+                'attr_id': d.attribute_id,
+                'name': d.display_name or d.name,
+                'description': d.description,
+                'is_active': False,
+                'logic': 'higher', # Default
+                'tolerance': 0.0,
+                'source': 'discovery'
+            })
+
+    # Sort: Saved first, then by name
+    rule_data.sort(key=lambda x: (not x['is_active'], x['name']))
+    
+    return JsonResponse({
+        'group_id': group.group_id,
+        'group_name': group.group_name,
+        'rules': rule_data
+    })
+
+@login_required
+@user_passes_test(is_admin)
+@require_POST
+def api_save_rules(request):
+    try:
+        data = json.loads(request.body)
+        group_id = data.get('group_id')
+        rules_payload = data.get('rules', []) # List of { attr_id, logic, tolerance }
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'})
+
+    group = get_object_or_404(ItemGroup, group_id=group_id)
+    
+    # Transaction logic: Wipe existing for this group, recreate active ones
+    # This is simpler than differencing updates
+    from django.db import transaction
+    
+    with transaction.atomic():
+        # 1. Delete all rules for this group
+        FitAnalysisRule.objects.filter(group=group).delete()
+        
+        # 2. Bulk Create new ones
+        new_objects = []
+        for r in rules_payload:
+            attr = AttributeDefinition.objects.get(attribute_id=r['attr_id'])
+            new_objects.append(FitAnalysisRule(
+                group=group,
+                attribute=attr,
+                comparison_logic=r['logic'],
+                tolerance_percent=float(r.get('tolerance', 0.0))
+            ))
+        
+        FitAnalysisRule.objects.bulk_create(new_objects)
+        
+    return JsonResponse({'success': True, 'count': len(new_objects)})
 
 # --- ROLES MANAGEMENT ---
 

@@ -166,3 +166,50 @@ class TypeEffect(models.Model):
 
     def __str__(self):
         return f"Item {self.item_id} - Effect {self.effect_id}"
+
+# --- FIT ANALYSIS MODELS (New) ---
+
+class AttributeDefinition(models.Model):
+    """
+    Stores human-readable names for SDE attributes (e.g. 50 -> 'CPU Usage').
+    We import these from dgmAttributeTypes.csv just like we do for TypeAttribute.
+    """
+    attribute_id = models.IntegerField(primary_key=True)
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True, null=True)
+    display_name = models.CharField(max_length=255, blank=True, null=True) # Customizable name
+    unit_id = models.IntegerField(null=True, blank=True)
+    published = models.BooleanField(default=True)
+
+    def __str__(self):
+        return self.display_name or self.name
+
+class FitAnalysisRule(models.Model):
+    """
+    Defines which attributes matter for a specific Item Group.
+    Example: Group 'Shield Boosters' should compare 'Shield Bonus'.
+    """
+    group = models.ForeignKey(ItemGroup, on_delete=models.CASCADE, related_name='analysis_rules')
+    attribute = models.ForeignKey(AttributeDefinition, on_delete=models.CASCADE)
+    
+    # Logic Configuration
+    priority = models.IntegerField(default=0, help_text="Order of importance (higher first)")
+    comparison_logic = models.CharField(
+        max_length=20, 
+        choices=[
+            ('higher', 'Higher is Better'),
+            ('lower', 'Lower is Better'),
+            ('match', 'Must Match Exactly')
+        ],
+        default='higher'
+    )
+    
+    # Threshold for flagging warnings (e.g. 10% difference is acceptable)
+    tolerance_percent = models.FloatField(default=0.0, help_text="Percentage difference allowed before flagging as downgrade")
+
+    class Meta:
+        unique_together = ('group', 'attribute')
+        ordering = ['group', '-priority']
+
+    def __str__(self):
+        return f"{self.group.group_name}: {self.attribute.name} ({self.comparison_logic})"

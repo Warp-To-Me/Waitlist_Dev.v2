@@ -2,7 +2,7 @@ from django.core.management.base import BaseCommand
 import pandas as pd
 import requests
 import io
-from pilot_data.models import ItemType, ItemGroup, TypeAttribute, TypeEffect
+from pilot_data.models import ItemType, ItemGroup, TypeAttribute, TypeEffect, AttributeDefinition
 
 class Command(BaseCommand):
     help = 'Imports Eve Online Static Data Export (SDE) items, groups, attributes, and effects.'
@@ -16,10 +16,13 @@ class Command(BaseCommand):
         # 2. Types
         self.import_inv_types()
         
-        # 3. Attributes (Published Only)
+        # 3. Attribute Definitions (NEW)
+        self.import_dogma_attribute_definitions()
+        
+        # 4. Attributes (Published Only)
         self.import_dogma_attributes()
 
-        # 4. Effects (New: For Slot Detection)
+        # 5. Effects (For Slot Detection)
         self.import_dogma_effects()
         
         self.stdout.write(self.style.SUCCESS('Full SDE Import Complete.'))
@@ -111,47 +114,73 @@ class Command(BaseCommand):
         except Exception as e:
             self.stdout.write(self.style.ERROR(f"Error importing SDE: {e}"))
 
-    def import_dogma_attributes(self):
+    def import_dogma_attribute_definitions(self):
         """
-        1. Downloads dgmAttributeTypes.csv to find which Attributes are 'published'.
-        2. Downloads dgmTypeAttributes.csv and filters rows against that whitelist.
+        Imports dgmAttributeTypes.csv to populate AttributeDefinition model.
+        This gives us the names ('CPU Usage', 'Shield Bonus') for the IDs.
         """
-        # Step 1: Get the Definition Whitelist
-        def_url = "https://www.fuzzwork.co.uk/dump/latest/dgmAttributeTypes.csv"
-        self.stdout.write(f"Fetching Attribute Definitions from {def_url}...")
-        
-        published_attr_ids = set()
-        
+        url = "https://www.fuzzwork.co.uk/dump/latest/dgmAttributeTypes.csv"
+        self.stdout.write(f"Downloading Attribute Definitions from {url}...")
+
         try:
-            resp = requests.get(def_url)
-            resp.raise_for_status()
-            df_defs = pd.read_csv(io.StringIO(resp.content.decode('utf-8')))
+            response = requests.get(url)
+            response.raise_for_status()
             
-            # Filter for published=1
-            if 'published' in df_defs.columns:
-                published_attr_ids = set(df_defs[df_defs['published'] == 1]['attributeID'])
-                self.stdout.write(f" -> Found {len(published_attr_ids)} published attribute definitions.")
-            else:
-                self.stdout.write(self.style.WARNING(" -> 'published' column missing. Defaulting to ALL attributes."))
-                published_attr_ids = set(df_defs['attributeID'])
+            csv_content = io.StringIO(response.content.decode('utf-8'))
+            df = pd.read_csv(csv_content)
+            
+            self.stdout.write(f"Processing {len(df)} definitions...")
+            
+            defs_to_create = []
+            
+            for row in df.itertuples():
+                defs_to_create.append(
+                    AttributeDefinition(
+                        attribute_id=row.attributeID,
+                        name=row.attributeName,
+                        description=row.description if hasattr(row, 'description') and pd.notna(row.description) else "",
+                        display_name=row.displayName if hasattr(row, 'displayName') and pd.notna(row.displayName) else None,
+                        unit_id=row.unitID if hasattr(row, 'unitID') and pd.notna(row.unitID) else None,
+                        published=bool(row.published) if hasattr(row, 'published') else True
+                    )
+                )
+                
+                if len(defs_to_create) >= 1000:
+                    AttributeDefinition.objects.bulk_create(defs_to_create, ignore_conflicts=True)
+                    defs_to_create = []
+
+            if defs_to_create:
+                AttributeDefinition.objects.bulk_create(defs_to_create, ignore_conflicts=True)
+            
+            self.stdout.write(self.style.SUCCESS("Attribute Definitions Import complete."))
 
         except Exception as e:
-            self.stdout.write(self.style.ERROR(f"Failed to fetch definitions: {e}"))
-            return
+            self.stdout.write(self.style.ERROR(f"Error importing Attribute Definitions: {e}"))
 
-        # Step 2: Get Values and Filter
+    def import_dogma_attributes(self):
+        """
+        1. Downloads dgmTypeAttributes.csv.
+        2. Filters rows to only include attributes we know about (from AttributeDefinition).
+        """
         val_url = "https://www.fuzzwork.co.uk/dump/latest/dgmTypeAttributes.csv"
         self.stdout.write(f"Downloading Item Attributes from {val_url}...")
         
         try:
+            # 1. Get Set of Valid Attribute IDs to enforce integrity
+            valid_attr_ids = set(AttributeDefinition.objects.values_list('attribute_id', flat=True))
+            
+            if not valid_attr_ids:
+                self.stdout.write(self.style.WARNING("No Attribute Definitions found! Run Definitions import first."))
+                return
+
             response = requests.get(val_url)
             response.raise_for_status()
             
             csv_content = io.StringIO(response.content.decode('utf-8'))
             df = pd.read_csv(csv_content)
             
-            # THE FILTER: Keep only if attributeID is in our whitelist
-            df_filtered = df[df['attributeID'].isin(published_attr_ids)]
+            # THE FILTER: Keep only if attributeID is in our Definition table
+            df_filtered = df[df['attributeID'].isin(valid_attr_ids)]
             
             self.stdout.write(f"Processing {len(df_filtered)} attributes (Filtered from {len(df)})...")
             
@@ -175,7 +204,6 @@ class Command(BaseCommand):
                 if len(attrs_to_create) >= 5000:
                     TypeAttribute.objects.bulk_create(attrs_to_create, ignore_conflicts=True)
                     attrs_to_create = []
-                    # self.stdout.write(".", ending="")
 
             if attrs_to_create:
                 TypeAttribute.objects.bulk_create(attrs_to_create, ignore_conflicts=True)

@@ -1,0 +1,247 @@
+﻿{% extends 'management/base_management.html' %}
+
+{% block management_content %}
+<div class="flex flex-col h-full gap-6">
+
+    <!-- HEADER -->
+    <div class="flex justify-between items-center border-b border-white/5 pb-6 shrink-0">
+        <div>
+            <h1 class="heading-1">Doctrine Rule Helper</h1>
+            <p class="text-slate-400 text-sm mt-1">Configure logic for comparing non-doctrine modules.</p>
+        </div>
+        <button onclick="saveRules()" id="btn-save" class="hidden btn-success shadow-lg shadow-green-500/20">
+            <span>💾</span> Save Selected Rules
+        </button>
+    </div>
+
+    <!-- CONTROL BAR -->
+    <div class="glass-panel p-4 shrink-0 flex flex-col md:flex-row gap-4 items-center">
+        <!-- Scope Switcher (Visual only for now as requested) -->
+        <div class="flex bg-black/40 p-1 rounded-lg border border-white/10">
+            <button class="px-4 py-1.5 rounded-md text-xs font-bold bg-slate-700 text-white shadow-sm">Global Rules</button>
+            <button class="px-4 py-1.5 rounded-md text-xs font-bold text-slate-500 hover:text-slate-300 transition" title="Ship specific rules coming soon" disabled>Ship-Specific</button>
+        </div>
+
+        <!-- Search -->
+        <div class="relative flex-grow w-full group">
+            <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none group-focus-within:text-brand-500 transition">
+                <svg class="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            </div>
+            <input type="text" id="group-search"
+                   class="input-field pl-10"
+                   placeholder="Search by Item Group (e.g. 'Shield Hardener', 'Heat Sink')..."
+                   oninput="handleSearchInput(this)">
+
+            <!-- Autocomplete Dropdown -->
+            <div id="search-dropdown" class="absolute top-full left-0 w-full mt-2 bg-slate-900 border border-white/10 rounded-xl shadow-2xl z-50 hidden overflow-hidden">
+                <!-- Populated via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN EDITOR -->
+    <div id="editor-panel" class="hidden flex-col flex-grow min-h-0 animate-fade-in">
+
+        <!-- Selected Group Header -->
+        <div class="flex items-center gap-4 mb-4">
+            <h2 id="selected-group-name" class="text-2xl font-bold text-white tracking-tight">Group Name</h2>
+            <span class="badge badge-brand" id="selected-group-id">ID: 0</span>
+        </div>
+
+        <!-- Table Container -->
+        <div class="glass-panel overflow-hidden flex flex-col flex-grow">
+            <!-- Table Header -->
+            <div class="grid grid-cols-12 gap-4 p-4 bg-white/5 border-b border-white/5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                <div class="col-span-1 text-center">Use?</div>
+                <div class="col-span-3">Attribute Name</div>
+                <div class="col-span-3">Logic</div>
+                <div class="col-span-1 text-center">Tolerance %</div>
+                <div class="col-span-4">Description</div>
+            </div>
+
+            <!-- Table Body -->
+            <div id="rules-container" class="overflow-y-auto custom-scrollbar flex-grow p-2 space-y-1">
+                <div class="p-8 text-center text-slate-500 italic">Select a group to load attributes.</div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    const CSRF_TOKEN = '{{ csrf_token }}';
+    let currentGroupId = null;
+    let searchTimeout = null;
+
+    // --- SEARCH ---
+    function handleSearchInput(input) {
+        clearTimeout(searchTimeout);
+        const query = input.value.trim();
+        const dropdown = document.getElementById('search-dropdown');
+
+        if (query.length < 3) {
+            dropdown.classList.add('hidden');
+            return;
+        }
+
+        searchTimeout = setTimeout(() => {
+            fetch(`{% url 'api_group_search' %}?q=${encodeURIComponent(query)}`)
+                .then(r => r.json())
+                .then(data => {
+                    dropdown.innerHTML = '';
+                    if (data.results.length > 0) {
+                        data.results.forEach(grp => {
+                            const div = document.createElement('div');
+                            div.className = 'p-3 hover:bg-brand-900/20 hover:text-brand-400 cursor-pointer border-b border-white/5 last:border-0 transition flex justify-between';
+                            div.innerHTML = `<span>${grp.name}</span> <span class="text-slate-600 font-mono text-xs opacity-50">${grp.id}</span>`;
+                            div.onclick = () => loadGroup(grp.id, grp.name);
+                            dropdown.appendChild(div);
+                        });
+                        dropdown.classList.remove('hidden');
+                    } else {
+                        dropdown.innerHTML = '<div class="p-3 text-slate-500 italic text-sm">No groups found.</div>';
+                        dropdown.classList.remove('hidden');
+                    }
+                });
+        }, 300);
+    }
+
+    // --- LOAD GROUP ---
+    function loadGroup(groupId, groupName) {
+        currentGroupId = groupId;
+        document.getElementById('search-dropdown').classList.add('hidden');
+        document.getElementById('group-search').value = ''; // Clear search
+
+        document.getElementById('editor-panel').classList.remove('hidden');
+        document.getElementById('editor-panel').classList.add('flex');
+
+        document.getElementById('selected-group-name').textContent = groupName;
+        document.getElementById('selected-group-id').textContent = `ID: ${groupId}`;
+
+        const container = document.getElementById('rules-container');
+        container.innerHTML = '<div class="p-12 text-center text-slate-500 animate-pulse">Scanning database attributes...</div>';
+        document.getElementById('btn-save').classList.remove('hidden');
+
+        fetch(`/api/mgmt/rules/discovery/${groupId}/`)
+            .then(r => r.json())
+            .then(data => {
+                renderRules(data.rules);
+            });
+    }
+
+    // --- RENDER TABLE ---
+    function renderRules(rules) {
+        const container = document.getElementById('rules-container');
+        container.innerHTML = '';
+
+        if (rules.length === 0) {
+            container.innerHTML = '<div class="p-8 text-center text-slate-500">No relevant attributes found for this group.</div>';
+            return;
+        }
+
+        rules.forEach(rule => {
+            const row = document.createElement('div');
+            // Colors: Active = White/5, Inactive = Transparent
+            const activeClass = rule.is_active ? 'bg-white/5 border-l-2 border-brand-500' : 'opacity-60 hover:opacity-100 hover:bg-white/5 border-l-2 border-transparent';
+
+            row.className = `grid grid-cols-12 gap-4 p-3 rounded items-center transition group ${activeClass}`;
+            row.dataset.attrId = rule.attr_id;
+
+            // Checkbox State
+            const checked = rule.is_active ? 'checked' : '';
+
+            row.innerHTML = `
+                <!-- Checkbox -->
+                <div class="col-span-1 flex justify-center">
+                    <input type="checkbox" class="w-5 h-5 rounded border-slate-600 bg-slate-800 text-brand-500 focus:ring-offset-0 focus:ring-0 cursor-pointer rule-toggle"
+                           ${checked} onchange="toggleRow(this)">
+                </div>
+
+                <!-- Name -->
+                <div class="col-span-3 font-bold text-sm text-slate-200 truncate" title="${rule.name}">
+                    ${rule.name}
+                </div>
+
+                <!-- Logic Select -->
+                <div class="col-span-3">
+                    <select class="rule-logic w-full bg-black/40 border border-slate-700 rounded px-2 py-1 text-xs text-white outline-none focus:border-brand-500">
+                        <option value="higher" ${rule.logic === 'higher' ? 'selected' : ''}>Higher is Better</option>
+                        <option value="lower" ${rule.logic === 'lower' ? 'selected' : ''}>Lower is Better</option>
+                        <option value="match" ${rule.logic === 'match' ? 'selected' : ''}>Must Match</option>
+                    </select>
+                </div>
+
+                <!-- Tolerance -->
+                <div class="col-span-1">
+                    <input type="number" step="0.1" min="0" value="${rule.tolerance}"
+                           class="rule-tolerance w-full bg-black/40 border border-slate-700 rounded px-2 py-1 text-xs text-center text-white outline-none focus:border-brand-500"
+                           placeholder="0%">
+                </div>
+
+                <!-- Description -->
+                <div class="col-span-4 text-xs text-slate-500 truncate" title="${rule.description}">
+                    ${rule.description || 'No description available.'}
+                </div>
+            `;
+            container.appendChild(row);
+        });
+    }
+
+    function toggleRow(checkbox) {
+        const row = checkbox.closest('.grid');
+        if (checkbox.checked) {
+            row.classList.remove('opacity-60', 'border-transparent');
+            row.classList.add('bg-white/5', 'border-brand-500');
+        } else {
+            row.classList.add('opacity-60', 'border-transparent');
+            row.classList.remove('bg-white/5', 'border-brand-500');
+        }
+    }
+
+    // --- SAVE ---
+    function saveRules() {
+        if (!currentGroupId) return;
+
+        const btn = document.getElementById('btn-save');
+        const originalText = btn.innerHTML;
+        btn.textContent = 'Saving...';
+        btn.disabled = true;
+
+        const payload = [];
+        const rows = document.querySelectorAll('#rules-container .grid');
+
+        rows.forEach(row => {
+            const checkbox = row.querySelector('.rule-toggle');
+            if (checkbox.checked) {
+                payload.push({
+                    attr_id: parseInt(row.dataset.attrId),
+                    logic: row.querySelector('.rule-logic').value,
+                    tolerance: parseFloat(row.querySelector('.rule-tolerance').value) || 0
+                });
+            }
+        });
+
+        fetch("{% url 'api_save_rules' %}", {
+            method: 'POST',
+            headers: { 'X-CSRFToken': CSRF_TOKEN, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ group_id: currentGroupId, rules: payload })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                btn.innerHTML = '<span>✔</span> Saved!';
+                btn.classList.add('bg-green-600');
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                    btn.classList.remove('bg-green-600');
+                    btn.disabled = false;
+                }, 2000);
+            } else {
+                alert("Error saving: " + data.error);
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        });
+    }
+</script>
+{% endblock %}

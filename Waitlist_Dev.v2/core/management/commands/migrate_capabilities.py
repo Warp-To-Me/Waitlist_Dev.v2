@@ -30,10 +30,6 @@ class Command(BaseCommand):
 
         for cap_data in SYSTEM_CAPABILITIES:
             # Generate a slug from the name if one doesn't exist logically
-            # In a real app, you might want to manually define these slugs to match your check functions
-            # For this migration, I will create slugs based on the name.
-            # IMPORTANT: You will need to update your code checks (is_fleet_command) to match these slugs.
-            
             slug = slugify(cap_data['name']).replace('-', '_')
             
             # Manual Mapping to ensure slugs match what we likely want for code checks
@@ -44,6 +40,7 @@ class Command(BaseCommand):
             if "Inspect Pilots" in cap_data['name']: slug = "inspect_pilots"
             if "Manage Doctrines" in cap_data['name']: slug = "manage_doctrines"
             if "Promote/Demote Users" in cap_data['name']: slug = "promote_demote_users"
+            if "Manage Analysis Rules" in cap_data['name']: slug = "manage_analysis_rules" # NEW SLUG
 
             capability, created = Capability.objects.get_or_create(
                 slug=slug,

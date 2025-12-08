@@ -56,6 +56,7 @@
     <Compile Include="waitlist_data\admin.py" />
     <Compile Include="waitlist_data\apps.py" />
     <Compile Include="waitlist_data\consumers.py" />
+    <Compile Include="waitlist_data\fitting_service.py" />
     <Compile Include="waitlist_data\forms.py" />
     <Compile Include="waitlist_data\views.py" />
     <Compile Include="waitlist_project\apps.py" />
@@ -102,6 +103,7 @@
     <Content Include="templates\management\fleets.html" />
     <Content Include="templates\management\permissions.html" />
     <Content Include="templates\management\roles.html" />
+    <Content Include="templates\management\rules_helper.html" />
     <Content Include="templates\management\sde.html" />
     <Content Include="templates\management\users.html" />
     <Content Include="templates\partials\celery_content.html" />

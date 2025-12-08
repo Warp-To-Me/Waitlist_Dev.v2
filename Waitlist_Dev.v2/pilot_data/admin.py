@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import EveCharacter, ItemType, ItemGroup
+from .models import EveCharacter, ItemType, ItemGroup, AttributeDefinition, FitAnalysisRule
 
 @admin.register(EveCharacter)
 class EveCharacterAdmin(admin.ModelAdmin):
@@ -20,3 +20,17 @@ class ItemGroupAdmin(admin.ModelAdmin):
     list_display = ('group_name', 'group_id', 'category_id', 'published')
     search_fields = ('group_name',)
     list_filter = ('published',)
+
+@admin.register(AttributeDefinition)
+class AttributeDefinitionAdmin(admin.ModelAdmin):
+    list_display = ('name', 'attribute_id', 'display_name', 'published', 'unit_id')
+    search_fields = ('name', 'display_name', 'attribute_id')
+    list_filter = ('published',)
+    ordering = ('name',)
+
+@admin.register(FitAnalysisRule)
+class FitAnalysisRuleAdmin(admin.ModelAdmin):
+    list_display = ('group', 'attribute', 'comparison_logic', 'priority')
+    list_filter = ('comparison_logic', 'group')
+    autocomplete_fields = ['group', 'attribute'] # Uses search_fields from ItemGroup and AttributeDefinition
+    ordering = ('group', '-priority')

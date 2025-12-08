@@ -11,7 +11,7 @@ import requests
 # Core Imports
 from core.utils import get_role_priority, ROLE_HIERARCHY
 from core.eft_parser import EFTParser
-from core.models import Capability # Added for permission lookups
+from core.models import Capability 
 
 # Model Imports
 from pilot_data.models import EveCharacter, TypeEffect, ItemGroup
@@ -20,6 +20,9 @@ from .models import DoctrineCategory, DoctrineFit, FitModule, DoctrineTag, Fleet
 # ESI Services
 from esi_calls.fleet_service import get_fleet_composition, process_fleet_data, invite_to_fleet, ESI_BASE
 from esi_calls.token_manager import check_token
+
+# NEW IMPORT:
+from .fitting_service import SmartFitMatcher, FitComparator, ComparisonStatus
 
 # --- HELPERS ---
 
@@ -45,16 +48,13 @@ def can_manage_doctrines(user):
     return user.groups.filter(capabilities__slug='manage_doctrines').exists()
 
 def get_mgmt_context(user):
-    """
-    Constructs the permission context required by the sidebar.
-    """
     if user.is_superuser:
         perms = set(Capability.objects.values_list('slug', flat=True))
     else:
         perms = set(Capability.objects.filter(groups__user=user).values_list('slug', flat=True).distinct())
 
     return {
-        'user_perms': perms, # CRITICAL: This was missing, causing empty sidebar
+        'user_perms': perms,
         'can_view_fleets': 'access_fleet_command' in perms,
         'can_view_admin': 'access_admin' in perms,
         'is_fc': 'access_fleet_command' in perms
@@ -95,7 +95,6 @@ def _determine_slot(item_type):
 # --- WEBSOCKET BROADCASTER ---
 
 def broadcast_update(fleet_id, action, entry, target_col=None):
-    # NOTE: We still use the Integer ID for the channel group name internally
     channel_layer = get_channel_layer()
     group_name = f'fleet_{fleet_id}'
     
@@ -202,12 +201,8 @@ def doctrine_detail_api(request, fit_id):
 
 @login_required
 def fleet_dashboard(request, token):
-    """
-    Main Board. Looks up fleet by UUID Token.
-    """
     fleet = get_object_or_404(Fleet, join_token=token)
     
-    # Resolve FC Name
     fc_name = EveCharacter.objects.filter(user=fleet.commander, is_main=True).values_list('character_name', flat=True).first()
     if not fc_name:
         fc_name = EveCharacter.objects.filter(user=fleet.commander).values_list('character_name', flat=True).first()
@@ -233,8 +228,6 @@ def fleet_dashboard(request, token):
 
     user_chars = request.user.characters.all()
     categories = DoctrineCategory.objects.filter(parent__isnull=True).prefetch_related('subcategories__fits')
-
-    # Check for Overview Permission (Resident+)
     can_view_overview = is_resident(request.user)
 
     context = {
@@ -256,6 +249,7 @@ def fleet_dashboard(request, token):
 def x_up_submit(request, token):
     """
     Handles pilot submitting a fit. URL uses Token.
+    UPDATED: Uses SmartFitMatcher.
     """
     fleet = get_object_or_404(Fleet, join_token=token, is_active=True)
     char_id = request.POST.get('character_id')
@@ -270,9 +264,18 @@ def x_up_submit(request, token):
     if not parser.parse():
         return JsonResponse({'success': False, 'error': f"Invalid Fit Format: {parser.error}"})
     
-    matched_fit = DoctrineFit.objects.filter(ship_type=parser.hull_obj).first()
+    # --- NEW: Smart Matching Logic ---
+    matcher = SmartFitMatcher(parser)
+    matched_fit, _ = matcher.find_best_match()
+    
+    # Fallback to simple ship matching if no doctrine fits found, or reject?
+    # Original logic just looked for exact ship type. 
+    # If SmartFitMatcher returns None, it means no fits exist for this hull.
     if not matched_fit:
-        return JsonResponse({'success': False, 'error': f"The ship '{parser.hull_obj.type_name}' is not currently in our doctrine database."})
+        # Check if ship exists at all in doctrines, if not, reject.
+        # Ideally we might allow "Non-Doctrine" fits but label them as such.
+        # For now, strict:
+        return JsonResponse({'success': False, 'error': f"No doctrine found for ship '{parser.hull_obj.type_name}'."})
 
     if WaitlistEntry.objects.filter(fleet=fleet, character=character, status__in=['pending', 'approved', 'invited']).exists():
         return JsonResponse({'success': False, 'error': 'You are already in the waitlist.'})
@@ -286,7 +289,10 @@ def x_up_submit(request, token):
 
 @login_required
 def api_entry_details(request, entry_id):
-    # Uses entry_id (int) as entries are ephemeral and unique
+    """
+    Returns detailed fit analysis for the modal.
+    UPDATED: Now includes comparison status per slot.
+    """
     entry = get_object_or_404(WaitlistEntry, id=entry_id)
     is_owner = entry.character.user == request.user
     can_inspect = is_resident(request.user)
@@ -296,24 +302,40 @@ def api_entry_details(request, entry_id):
     parser = EFTParser(entry.raw_eft)
     parser.parse() 
     hull = entry.fit.ship_type
-    modules_by_slot = { 'high': [], 'mid': [], 'low': [], 'rig': [], 'subsystem': [], 'drone': [], 'cargo': [] }
     
-    for item in parser.items:
-        slot = _determine_slot(item['obj'])
-        item_data = {'name': item['name'], 'id': item['obj'].type_id, 'quantity': item['quantity']}
-        if slot in ['high', 'mid', 'low', 'rig', 'subsystem']:
-            for _ in range(item['quantity']):
-                single_entry = item_data.copy()
-                single_entry['quantity'] = 1
-                modules_by_slot[slot].append(single_entry)
-        else:
-            modules_by_slot[slot].append(item_data)
+    # --- NEW: Generate Live Comparison against the LINKED fit ---
+    # We use the internal _score_fit method of the matcher to get the analysis array
+    matcher = SmartFitMatcher(parser)
+    # We force the comparison against the specific fit assigned to the entry
+    _, analysis = matcher._score_fit(entry.fit)
+    
+    # Organize analysis by slot for the frontend
+    # slots structure: 'high', 'mid', 'low', 'rig', 'subsystem'
+    slots_map = { 'high': [], 'mid': [], 'low': [], 'rig': [], 'subsystem': [], 'drone': [], 'cargo': [] }
+    
+    for item in analysis:
+        # item structure from SmartFitMatcher: { slot, doctrine_item, pilot_item, status, diffs }
+        slot_key = item['slot']
+        if slot_key not in slots_map: slot_key = 'cargo'
+        
+        # Format for JSON
+        formatted_item = {
+            'name': item['pilot_item'].type_name if item['pilot_item'] else (item['doctrine_item'].type_name if item['doctrine_item'] else "Empty"),
+            'id': item['pilot_item'].type_id if item['pilot_item'] else (item['doctrine_item'].type_id if item['doctrine_item'] else 0),
+            'quantity': 1, # Comparisons are 1-to-1 in the analysis list
+            'status': item['status'],
+            'diffs': item['diffs'],
+            'doctrine_name': item['doctrine_item'].type_name if item['doctrine_item'] else None
+        }
+        slots_map[slot_key].append(formatted_item)
 
+    # Calculate Totals
     high_total = int(hull.high_slots)
     mid_total = int(hull.mid_slots)
     low_total = int(hull.low_slots)
     rig_total = int(hull.rig_slots)
     
+    # Handle T3Cs
     if hull.group_id == 963:
         for item in parser.items:
             attrs = {a.attribute_id: a.value for a in item['obj'].attributes.all()}
@@ -330,33 +352,39 @@ def api_entry_details(request, entry_id):
 
     slot_groups = []
     for label, key, total_attr in slot_config:
-        mods = modules_by_slot.get(key, [])
+        mods = slots_map.get(key, [])
         used_count = len(mods)
         if total_attr < used_count: total_attr = used_count
+        
         is_hardpoint = key in ['high', 'mid', 'low', 'rig', 'subsystem']
         empties_count = max(0, total_attr - used_count) if is_hardpoint else 0
-        if total_attr > 0 or used_count > 0:
-            slot_groups.append({
-                'name': label, 'key': key, 'total': total_attr if is_hardpoint else None,
-                'used': used_count if is_hardpoint else None, 'modules': mods,
-                'empties_count': empties_count, 'is_hardpoint': is_hardpoint
-            })
+        
+        slot_groups.append({
+            'name': label, 
+            'key': key, 
+            'total': total_attr if is_hardpoint else None,
+            'used': used_count if is_hardpoint else None, 
+            'modules': mods,
+            'empties_count': empties_count, 
+            'is_hardpoint': is_hardpoint
+        })
 
     data = {
-        'id': entry.id, 'character_name': entry.character.character_name,
-        'corp_name': entry.character.corporation_name, 'ship_name': hull.type_name,
-        'hull_id': hull.type_id, 'raw_eft': entry.raw_eft, 'slots': slot_groups,
-        'is_fc': can_inspect, 'status': entry.status
+        'id': entry.id, 
+        'character_name': entry.character.character_name,
+        'corp_name': entry.character.corporation_name, 
+        'ship_name': hull.type_name,
+        'hull_id': hull.type_id, 
+        'fit_name': entry.fit.name,
+        'raw_eft': entry.raw_eft, 
+        'slots': slot_groups,
+        'is_fc': can_inspect, 
+        'status': entry.status
     }
     return JsonResponse(data)
 
 @login_required
-@user_passes_test(is_resident)
 def fleet_overview_api(request, token):
-    """
-    Provides fleet hierarchy and summary stats for the dashboard sidebar (fallback/polling).
-    Visible to Residents and above.
-    """
     fleet = get_object_or_404(Fleet, join_token=token)
     
     if not fleet.commander:
@@ -368,7 +396,6 @@ def fleet_overview_api(request, token):
         
     actual_fleet_id = fleet.esi_fleet_id
     
-    # Check ESI Fleet link (Updated Logic)
     if not actual_fleet_id:
         if check_token(fc_char):
             headers = {'Authorization': f'Bearer {fc_char.access_token}'}
@@ -385,7 +412,6 @@ def fleet_overview_api(request, token):
     if not actual_fleet_id:
         return JsonResponse({'error': 'Could not detect active ESI Fleet'}, status=404)
 
-    # Fetch Members using updated service
     composite_data, _ = get_fleet_composition(actual_fleet_id, fc_char)
     
     if composite_data is None:
@@ -393,7 +419,6 @@ def fleet_overview_api(request, token):
     elif composite_data == 'unchanged':
         return JsonResponse({'status': 'unchanged'}, status=200)
 
-    # Process Data
     summary, hierarchy = process_fleet_data(composite_data)
 
     return JsonResponse({
@@ -406,7 +431,6 @@ def fleet_overview_api(request, token):
 
 @login_required
 def fc_action(request, entry_id, action):
-    # uses entry_id
     if not is_fleet_command(request.user):
         return HttpResponse("Unauthorized", status=403)
 
@@ -455,7 +479,6 @@ def fc_action(request, entry_id, action):
 @login_required
 @user_passes_test(is_fleet_command)
 def take_fleet_command(request, token):
-    # uses token
     fleet = get_object_or_404(Fleet, join_token=token)
     fleet.commander = request.user
     fleet.save()
