@@ -153,6 +153,11 @@ def call_esi(character, endpoint_name, url, method='GET', params=None, body=None
             print(f"  -> [{response.status_code}] Token Invalid/Scope Missing")
             return {'status': response.status_code, 'data': None}
 
+        # --- NEW: Handle Not Found (e.g. Closed Fleet) ---
+        if response.status_code == 404:
+            # Don't print an error here, simply return 404 so consumers can handle it logic-side
+            return {'status': 404, 'error': 'Not Found'}
+
         # Handle Server Errors
         if response.status_code >= 500:
             print(f"  -> [{response.status_code}] ESI Server Error")

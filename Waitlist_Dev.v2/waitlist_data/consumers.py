@@ -37,9 +37,10 @@ class FleetConsumer(AsyncWebsocketConsumer):
         # Permissions Check for Fleet Overview
         # We start the background task ONLY if the user is Resident+
         if await self.check_overview_permission(self.user):
-            # NEW: Only start polling if the user is the Fleet Commander
-            if await self.check_is_commander(self.user):
-                self.overview_task = asyncio.create_task(self.poll_fleet_overview())
+            # Removed the restriction that only the FC can poll.
+            # Any authorized user should trigger the polling loop locally to receive updates via self.send().
+            # ESI Caching prevents API spam.
+            self.overview_task = asyncio.create_task(self.poll_fleet_overview())
 
     async def disconnect(self, close_code):
         # Stop background task
