@@ -7,6 +7,7 @@ from django.template.loader import render_to_string
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 import requests 
+from collections import defaultdict # Added for aggregation
 
 # Core Imports
 from core.utils import get_role_priority, ROLE_HIERARCHY
@@ -77,19 +78,28 @@ def _process_category_icons(category):
     return unique_ships
 
 def _determine_slot(item_type):
+    """
+    Uses TypeEffect (Dogma Effects) to determine if an item is High/Mid/Low/Rig.
+    Falls back to Category ID for Subsystems/Drones.
+    """
     effects = set(TypeEffect.objects.filter(item=item_type).values_list('effect_id', flat=True))
+    
+    # 12 = hiPower, 13 = medPower, 11 = loPower, 2663 = rigSlot
     if 12 in effects: return 'high'
     if 13 in effects: return 'mid'
     if 11 in effects: return 'low'
     if 2663 in effects: return 'rig'
+    
     try:
-        group = ItemGroup.objects.get(group_id=item_type.group_id)
-        if group.category_id == 32: return 'subsystem'
-        if group.category_id == 18: return 'drone'
-        if group.category_id == 87: return 'drone'
-        if group.category_id == 8: return 'cargo'
-    except ItemGroup.DoesNotExist:
+        # If no effect found, check Category via Group
+        if item_type.group:
+            cat_id = item_type.group.category_id
+            if cat_id == 32: return 'subsystem'
+            if cat_id == 18 or cat_id == 87: return 'drone'
+            if cat_id == 8: return 'cargo' # Charges
+    except Exception:
         pass
+        
     return 'cargo'
 
 # --- WEBSOCKET BROADCASTER ---
@@ -135,29 +145,34 @@ def doctrine_detail_api(request, fit_id):
     fit = get_object_or_404(DoctrineFit, id=fit_id)
     hull = fit.ship_type
     raw_modules = fit.modules.select_related('item_type').prefetch_related('item_type__attributes').all()
-    modules_by_slot = { 'high': [], 'mid': [], 'low': [], 'rig': [], 'subsystem': [], 'drone': [], 'cargo': [] }
-
+    
+    # AGGREGATION LOGIC
+    # Map: (slot, type_id) -> {data}
+    aggregated = {}
+    
     for mod in raw_modules:
-        if mod.slot in modules_by_slot:
-            is_hardpoint = mod.slot in ['high', 'mid', 'low', 'rig', 'subsystem']
-            item_data = {
+        key = (mod.slot, mod.item_type.type_id)
+        if key not in aggregated:
+            aggregated[key] = {
                 'name': mod.item_type.type_name,
                 'id': mod.item_type.type_id,
-                'quantity': mod.quantity
+                'quantity': 0,
+                'slot': mod.slot
             }
-            if is_hardpoint:
-                for _ in range(mod.quantity):
-                    entry = item_data.copy()
-                    entry['quantity'] = 1
-                    modules_by_slot[mod.slot].append(entry)
-            else:
-                modules_by_slot[mod.slot].append(item_data)
+        aggregated[key]['quantity'] += mod.quantity
+
+    modules_by_slot = { 'high': [], 'mid': [], 'low': [], 'rig': [], 'subsystem': [], 'drone': [], 'cargo': [] }
+    
+    for data in aggregated.values():
+        if data['slot'] in modules_by_slot:
+            modules_by_slot[data['slot']].append(data)
 
     high_total = int(hull.high_slots)
     mid_total = int(hull.mid_slots)
     low_total = int(hull.low_slots)
     rig_total = int(hull.rig_slots)
     
+    # Handle T3C Subsystem Slots affecting Hardpoints
     if hull.group_id == 963:
         for mod in raw_modules:
             attrs = {a.attribute_id: a.value for a in mod.item_type.attributes.all()}
@@ -178,10 +193,13 @@ def doctrine_detail_api(request, fit_id):
     slot_groups = []
     for label, key, total_attr in slot_config:
         mods = modules_by_slot.get(key, [])
-        used_count = len(mods)
+        # Used count is sum of quantities, not just list length
+        used_count = sum(m['quantity'] for m in mods)
+        
         if total_attr < used_count: total_attr = used_count
         is_hardpoint = key in ['high', 'mid', 'low', 'rig', 'subsystem']
         empties_count = max(0, total_attr - used_count) if is_hardpoint else 0
+        
         if total_attr > 0 or used_count > 0:
             slot_groups.append({
                 'name': label, 'key': key, 'total': total_attr if is_hardpoint else None,
@@ -291,10 +309,69 @@ def x_up_submit(request, token):
     return JsonResponse({'success': True, 'message': msg})
 
 @login_required
+@require_POST
+def update_fit(request, entry_id):
+    """
+    Allows a user to update their existing fit.
+    """
+    entry = get_object_or_404(WaitlistEntry, id=entry_id)
+    if entry.character.user != request.user:
+        return JsonResponse({'success': False, 'error': 'Not your entry.'}, status=403)
+
+    raw_eft = request.POST.get('eft_paste', '')
+    if not raw_eft:
+        return JsonResponse({'success': False, 'error': 'Fit required.'})
+
+    parser = EFTParser(raw_eft)
+    if not parser.parse():
+        return JsonResponse({'success': False, 'error': f"Invalid Fit: {parser.error}"})
+
+    matcher = SmartFitMatcher(parser)
+    matched_fit, analysis = matcher.find_best_match()
+
+    if not matched_fit:
+        return JsonResponse({'success': False, 'error': f"No doctrine found for ship '{parser.hull_obj.type_name}'."})
+
+    # Update Entry
+    entry.fit = matched_fit
+    entry.raw_eft = raw_eft
+    # IMPORTANT: Do we reset status? 
+    # Usually updating a fit resets approval unless configured otherwise.
+    # For now, let's keep it 'pending' if it was pending, or reset to 'pending' if approved?
+    # To be safe and force re-check, we reset to 'pending'.
+    entry.status = 'pending' 
+    entry.save()
+
+    broadcast_update(entry.fleet.id, 'move', entry, target_col='pending')
+    
+    warnings = [i for i in analysis if i['status'] == ComparisonStatus.DOWNGRADE] if analysis else []
+    msg = f"Updated to: {matched_fit.name}"
+    if warnings:
+        msg += f" ({len(warnings)} downgrades)"
+
+    return JsonResponse({'success': True, 'message': msg})
+
+@login_required
+@require_POST
+def leave_fleet(request, entry_id):
+    """
+    Allows a user to remove themselves from the waitlist.
+    """
+    entry = get_object_or_404(WaitlistEntry, id=entry_id)
+    if entry.character.user != request.user:
+        return JsonResponse({'success': False, 'error': 'Not your entry.'}, status=403)
+    
+    fleet_id = entry.fleet.id
+    entry.delete()
+    
+    broadcast_update(fleet_id, 'remove', entry)
+    return JsonResponse({'success': True})
+
+@login_required
 def api_entry_details(request, entry_id):
     """
     Returns detailed fit analysis for the modal.
-    UPDATED: Now includes comparison status per slot.
+    UPDATED: Now includes comparison status per slot and AGGREGATES items.
     """
     entry = get_object_or_404(WaitlistEntry, id=entry_id)
     is_owner = entry.character.user == request.user
@@ -306,34 +383,49 @@ def api_entry_details(request, entry_id):
     parser.parse() 
     hull = entry.fit.ship_type
     
-    # --- NEW: Generate Live Comparison against the LINKED fit ---
-    # We use the internal _score_fit method of the matcher to get the analysis array
-    # The new version allows calling _score_fit directly without a pre-built cache
     matcher = SmartFitMatcher(parser)
-    
-    # We force the comparison against the specific fit assigned to the entry
-    # The updated service will build a local cache for this single comparison automatically
     _, analysis = matcher._score_fit(entry.fit)
     
-    # Organize analysis by slot for the frontend
-    # slots structure: 'high', 'mid', 'low', 'rig', 'subsystem'
-    slots_map = { 'high': [], 'mid': [], 'low': [], 'rig': [], 'subsystem': [], 'drone': [], 'cargo': [] }
+    # --- AGGREGATION LOGIC ---
+    # We group by (slot, pilot_item_id, doctrine_item_id, status)
+    aggregated = {}
     
     for item in analysis:
-        # item structure from SmartFitMatcher: { slot, doctrine_item, pilot_item, status, diffs }
+        # item: { slot, doctrine_item, pilot_item, status, diffs }
         slot_key = item['slot']
-        if slot_key not in slots_map: slot_key = 'cargo'
+        status = item['status']
         
-        # Format for JSON
-        formatted_item = {
-            'name': item['pilot_item'].type_name if item['pilot_item'] else (item['doctrine_item'].type_name if item['doctrine_item'] else "Empty"),
-            'id': item['pilot_item'].type_id if item['pilot_item'] else (item['doctrine_item'].type_id if item['doctrine_item'] else 0),
-            'quantity': 1, # Comparisons are 1-to-1 in the analysis list
-            'status': item['status'],
-            'diffs': item['diffs'],
-            'doctrine_name': item['doctrine_item'].type_name if item['doctrine_item'] else None
-        }
-        slots_map[slot_key].append(formatted_item)
+        # ID Handling (Handle None for missing/extra)
+        p_id = item['pilot_item'].type_id if item['pilot_item'] else 0
+        d_id = item['doctrine_item'].type_id if item['doctrine_item'] else 0
+        
+        # Names
+        p_name = item['pilot_item'].type_name if item['pilot_item'] else None
+        d_name = item['doctrine_item'].type_name if item['doctrine_item'] else None
+        
+        # Unique Key for Grouping
+        group_key = (slot_key, p_id, d_id, status)
+        
+        if group_key not in aggregated:
+            aggregated[group_key] = {
+                'name': p_name or d_name or "Empty",
+                'id': p_id or d_id,
+                'quantity': 0,
+                'status': status,
+                'diffs': item['diffs'], # Assuming diffs are identical for same items
+                'doctrine_name': d_name,
+                'slot': slot_key
+            }
+        
+        aggregated[group_key]['quantity'] += 1
+
+    # Convert to standard map structure
+    slots_map = { 'high': [], 'mid': [], 'low': [], 'rig': [], 'subsystem': [], 'drone': [], 'cargo': [] }
+    
+    for data in aggregated.values():
+        s = data['slot']
+        if s not in slots_map: s = 'cargo'
+        slots_map[s].append(data)
 
     # Calculate Totals
     high_total = int(hull.high_slots)
@@ -359,7 +451,9 @@ def api_entry_details(request, entry_id):
     slot_groups = []
     for label, key, total_attr in slot_config:
         mods = slots_map.get(key, [])
-        used_count = len(mods)
+        # Sum quantities for usage count
+        used_count = sum(m['quantity'] for m in mods)
+        
         if total_attr < used_count: total_attr = used_count
         
         is_hardpoint = key in ['high', 'mid', 'low', 'rig', 'subsystem']
@@ -518,8 +612,12 @@ def manage_doctrines(request):
                     fit = DoctrineFit.objects.create(name=parser.fit_name, category=category, ship_type=parser.hull_obj, eft_format=parser.raw_text, description=description)
                 if tag_ids: fit.tags.set(tag_ids)
                 else: fit.tags.clear()
+                
+                # FIXED: Apply slot determination logic
                 for item in parser.items:
-                    FitModule.objects.create(fit=fit, item_type=item['obj'], quantity=item['quantity'])
+                    slot_type = _determine_slot(item['obj'])
+                    FitModule.objects.create(fit=fit, item_type=item['obj'], quantity=item['quantity'], slot=slot_type)
+                    
             return redirect('manage_doctrines')
     categories = DoctrineCategory.objects.all()
     fits = DoctrineFit.objects.select_related('category', 'ship_type').prefetch_related('tags').order_by('category__name', 'order')

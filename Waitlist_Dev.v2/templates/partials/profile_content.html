@@ -123,9 +123,10 @@
 
 </div>
 
-<!-- TOKEN MISSING WARNING -->
+<!-- WARNING BANNERS -->
 {% if token_missing and not is_inspection_mode %}
-<div class="glass-panel p-12 text-center border-red-500/20 shadow-red-900/10">
+<!-- TOKEN MISSING WARNING -->
+<div class="glass-panel p-12 text-center border-red-500/20 shadow-red-900/10 mb-8">
     <div class="inline-block p-4 bg-red-900/20 rounded-full mb-4 border border-red-900/50">
         <span class="text-4xl">⚠️</span>
     </div>
@@ -136,6 +137,24 @@
 
     <a href="{% url 'add_alt' %}" data-no-spa class="btn-primary bg-red-600 hover:bg-red-500 border-red-500 shadow-red-900/20">
         <span>🔐</span> Re-Authorize Character
+    </a>
+</div>
+
+{% elif scopes_missing and not is_inspection_mode %}
+<!-- PERMISSIONS UPDATE REQUIRED (FC) -->
+<div class="glass-panel p-6 mb-8 border-l-4 border-amber-500 bg-amber-900/10 flex flex-col md:flex-row items-center justify-between gap-4">
+    <div class="flex items-start gap-4">
+        <div class="bg-amber-900/40 p-3 rounded-full text-2xl border border-amber-500/30">🛡️</div>
+        <div>
+            <h3 class="text-lg font-bold text-white mb-1">Additional Permissions Required</h3>
+            <p class="text-slate-300 text-sm leading-relaxed max-w-xl">
+                Your pilot rank has been updated to <strong>Fleet Command</strong>.
+                You must re-authorize your character to grant the required EVE Online fleet management scopes.
+            </p>
+        </div>
+    </div>
+    <a href="{% url 'add_alt' %}" data-no-spa class="btn-primary bg-amber-600 hover:bg-amber-500 border-amber-500 shadow-amber-900/20 whitespace-nowrap">
+        <span>🔐</span> Update Permissions
     </a>
 </div>
 

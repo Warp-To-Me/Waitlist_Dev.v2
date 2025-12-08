@@ -5,6 +5,7 @@ from datetime import datetime, timezone as dt_timezone
 from pilot_data.models import EsiHeaderCache
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+from django.core.cache import cache # Import Django Cache
 
 # Channels imports for broadcasting
 from asgiref.sync import async_to_sync
@@ -30,9 +31,19 @@ def get_esi_session():
 def _broadcast_ratelimit(user, headers):
     """
     Helper to parse Rate Limit headers and push to the user's websocket.
+    Now throttled to prevent channel overflow.
     """
     if not user or not user.is_authenticated:
         return
+
+    # --- THROTTLE CHECK ---
+    # Only broadcast once every 2 seconds per user
+    cache_key = f"broadcast_throttle_{user.id}"
+    if cache.get(cache_key):
+        return
+    
+    # Set throttle immediately (expires in 2s)
+    cache.set(cache_key, True, timeout=2)
 
     remaining = headers.get('X-Ratelimit-Remaining')
     limit_str = headers.get('X-Ratelimit-Limit')
@@ -82,7 +93,7 @@ def _broadcast_ratelimit(user, headers):
         except Exception as e:
             # Log specific warning for the loop issue but don't crash
             if "AsyncToSync" in str(e):
-                print(f"Warning: Skipping ratelimit broadcast due to async context conflict: {e}")
+                pass # Silent fail on async conflict is better than log spam
             else:
                 print(f"Error broadcasting ratelimit: {e}")
 

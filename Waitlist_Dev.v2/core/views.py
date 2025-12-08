@@ -10,6 +10,7 @@ from datetime import timedelta
 from django.conf import settings
 from django.views.decorators.http import require_POST
 import json
+import base64  # Added for JWT decoding
 
 # Import Utils
 from core.utils import (
@@ -190,10 +191,40 @@ def profile_view(request):
     esi_data, grouped_skills = _get_character_data(active_char)
     token_missing = False
     if active_char and not active_char.refresh_token: token_missing = True
+    
+    # --- NEW: Scope Validation Check ---
+    scopes_missing = False
+    if active_char and active_char.access_token and is_fleet_command(request.user):
+        try:
+            # Manually decode the JWT payload (Part 2 of the token)
+            parts = active_char.access_token.split('.')
+            if len(parts) == 3:
+                # Pad Base64 string
+                padded = parts[1] + '=' * (4 - len(parts[1]) % 4)
+                payload = json.loads(base64.urlsafe_b64decode(padded).decode('utf-8'))
+                
+                # Get scopes from token
+                current_scopes = payload.get('scp', [])
+                if isinstance(current_scopes, str): current_scopes = [current_scopes]
+                current_scopes_set = set(current_scopes)
+                
+                # Get Required FC Scopes
+                required_fc = set(settings.EVE_SCOPES_FC.split())
+                
+                # Check if current token HAS all required scopes
+                if not required_fc.issubset(current_scopes_set):
+                    scopes_missing = True
+        except Exception as e:
+            # If decoding fails, assume things are fine or token is bad (token_missing handles bad)
+            print(f"Error checking scopes: {e}")
+            pass
+
     totals = characters.aggregate(wallet_sum=Sum('wallet_balance'), lp_sum=Sum('concord_lp'), sp_sum=Sum('total_sp'))
     context = {
         'active_char': active_char, 'characters': characters,
-        'esi': esi_data, 'grouped_skills': grouped_skills, 'token_missing': token_missing,
+        'esi': esi_data, 'grouped_skills': grouped_skills, 
+        'token_missing': token_missing,
+        'scopes_missing': scopes_missing, # PASSED TO TEMPLATE
         'total_wallet': totals['wallet_sum'] or 0, 'total_lp': totals['lp_sum'] or 0,
         'account_total_sp': totals['sp_sum'] or 0, 'is_admin_user': is_admin(request.user),
         'base_template': get_template_base(request) 
@@ -681,6 +712,63 @@ def api_save_rules(request):
         FitAnalysisRule.objects.bulk_create(new_objects)
         
     return JsonResponse({'success': True, 'count': len(new_objects)})
+
+@login_required
+@user_passes_test(can_manage_analysis_rules)
+def api_list_configured_groups(request):
+    """
+    Returns a list of ItemGroups that have at least one FitAnalysisRule saved.
+    Supports pagination and search (via 'q').
+    """
+    # 1. Get raw list
+    groups_qs = FitAnalysisRule.objects.values('group__group_id', 'group__group_name')\
+        .annotate(rule_count=Count('id'))\
+        .order_by('group__group_name')
+    
+    # 2. Apply Search Filter
+    query = request.GET.get('q', '').strip()
+    if query:
+        groups_qs = groups_qs.filter(group__group_name__icontains=query)
+
+    # 3. Paginate
+    page_number = request.GET.get('page', 1)
+    paginator = Paginator(groups_qs, 20) # 20 per page
+    page_obj = paginator.get_page(page_number)
+    
+    results = [
+        {'id': g['group__group_id'], 'name': g['group__group_name'], 'count': g['rule_count']}
+        for g in page_obj
+    ]
+    
+    return JsonResponse({
+        'results': results,
+        'has_next': page_obj.has_next(),
+        'has_previous': page_obj.has_previous(),
+        'current_page': page_obj.number,
+        'total_pages': paginator.num_pages
+    })
+
+@login_required
+@user_passes_test(can_manage_analysis_rules)
+@require_POST
+def api_delete_rules(request):
+    """
+    Deletes all rules for a specific ItemGroup.
+    """
+    try:
+        data = json.loads(request.body)
+        group_id = data.get('group_id')
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'})
+
+    if not group_id:
+        return JsonResponse({'success': False, 'error': 'Group ID required'})
+
+    group = get_object_or_404(ItemGroup, group_id=group_id)
+    
+    deleted_count, _ = FitAnalysisRule.objects.filter(group=group).delete()
+    
+    return JsonResponse({'success': True, 'deleted': deleted_count})
 
 # --- ROLES MANAGEMENT ---
 

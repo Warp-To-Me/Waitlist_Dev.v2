@@ -1,7 +1,8 @@
 ﻿<div id="entry-{{ entry.id }}"
      class="bg-slate-800 border border-slate-600 rounded p-3 relative group hover:border-amber-500 transition shadow-sm mb-2 entry-card cursor-pointer"
      onclick="openEntry({{ entry.id }})"
-     data-entry-id="{{ entry.id }}">
+     data-entry-id="{{ entry.id }}"
+     data-owner-id="{{ entry.character.user.id }}">
 
     <!-- Time Indicator -->
     <div class="absolute top-2 right-2 text-[10px] font-mono {% if entry.time_waiting > 15 %}text-red-400{% else %}text-amber-400{% endif %}">
@@ -32,6 +33,17 @@
     <div class="flex justify-between text-[9px] text-slate-500 uppercase tracking-wide border-t border-slate-700/50 pt-2 mt-2">
         <span>Total: <span class="text-slate-300">12h</span></span>
         <span>Hull: <span class="text-slate-300">4h</span></span>
+    </div>
+
+    <!-- OWNER ACTIONS (Updated) -->
+    <!-- Revealed by JS if current user owns this entry -->
+    <div id="owner-controls-{{ entry.id }}" class="owner-controls hidden mt-2 pt-2 border-t border-slate-700 grid grid-cols-2 gap-2" onclick="event.stopPropagation()">
+        <button onclick="openUpdateModal({{ entry.id }})" class="bg-blue-600 hover:bg-blue-500 text-white text-[10px] py-1 rounded font-bold transition">
+            Update Fit
+        </button>
+        <button onclick="leaveFleet({{ entry.id }})" class="bg-red-900/50 hover:bg-red-600 text-red-200 hover:text-white text-[10px] py-1 rounded font-bold transition border border-red-900/50">
+            Leave Fleet
+        </button>
     </div>
 
     <!-- FC Actions -->

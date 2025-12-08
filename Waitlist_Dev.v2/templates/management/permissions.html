@@ -126,7 +126,8 @@
 </style>
 
 <script>
-    const CSRF_TOKEN = '{{ csrf_token }}';
+    // FIX: Use 'var' to prevent redeclaration errors in SPA context
+    var CSRF_TOKEN = '{{ csrf_token }}';
 
     // --- REORDER LOGIC ---
     function moveRow(btn, direction) {
@@ -175,9 +176,8 @@
         });
     }
 
-    // --- PERMISSION TOGGLE (Keep existing logic) ---
+    // --- PERMISSION TOGGLE ---
     function togglePermission(cell, groupId, capId) {
-        // ... (Keep existing implementation) ...
         const indicator = cell.querySelector('div[data-active]');
         const isActive = indicator.getAttribute('data-active') === 'true';
         indicator.className = "w-2 h-2 rounded-full bg-brand-500 animate-ping opacity-75";
@@ -204,7 +204,7 @@
         });
     }
 
-    // --- GROUP MANAGEMENT (Keep existing logic) ---
+    // --- GROUP MANAGEMENT ---
     function openGroupModal(action, id = '', name = '') {
         const modal = document.getElementById('group-modal');
         const panel = document.getElementById('group-modal-panel');

@@ -18,66 +18,78 @@
 </div>
 
 <!-- DYNAMIC CONTENT CONTAINER -->
-<!-- REMOVED: animate-fade-in from here -->
-<!-- Added opacity-0 to ensure it is invisible until the router handles it, or just let the router add the class which handles opacity -->
 <div id="celery-status-container" class="space-y-8">
     {% include 'partials/celery_content.html' %}
 </div>
 
 <!-- WEBSOCKET SCRIPT -->
 <script>
-    let socket = null;
-    const indicator = document.getElementById('socket-indicator');
+    // FIX: Use 'var' to allow redeclaration in SPA context without crashing
+    var statusSocket = null;
+    var indicator = document.getElementById('socket-indicator');
 
-    function connect() {
+    function connectStatusSocket() {
+        // Safety: Close existing if present
+        if (statusSocket && (statusSocket.readyState === WebSocket.OPEN || statusSocket.readyState === WebSocket.CONNECTING)) {
+            statusSocket.close();
+        }
+
         const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
         const path = protocol + window.location.host + '/ws/system/monitor/';
 
-        if (socket) {
-            socket.close();
-        }
+        statusSocket = new WebSocket(path);
 
-        socket = new WebSocket(path);
-
-        socket.onopen = function (e) {
+        statusSocket.onopen = function (e) {
             console.log("System Monitor: Connected");
-            indicator.innerHTML = '<span class="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_5px_rgba(34,197,94,0.5)]"></span> Live Stream';
-            indicator.className = 'badge badge-green flex items-center gap-2 normal-case font-normal transition-all duration-300';
-        };
-
-        socket.onmessage = function (e) {
-            const data = JSON.parse(e.data);
-            if (data.html) {
-                document.getElementById('celery-status-container').innerHTML = data.html;
+            if (indicator) {
+                indicator.innerHTML = '<span class="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_5px_rgba(34,197,94,0.5)]"></span> Live Stream';
+                indicator.className = 'badge badge-green flex items-center gap-2 normal-case font-normal transition-all duration-300';
             }
         };
 
-        socket.onclose = function (e) {
+        statusSocket.onmessage = function (e) {
+            const data = JSON.parse(e.data);
+            if (data.html) {
+                const container = document.getElementById('celery-status-container');
+                if (container) container.innerHTML = data.html;
+            }
+        };
+
+        statusSocket.onclose = function (e) {
             if (e.code === 4003) {
                 console.error("Session invalid. Reloading page...");
-                indicator.innerHTML = 'Session Expired';
-                indicator.className = 'badge badge-red';
+                if (indicator) {
+                    indicator.innerHTML = 'Session Expired';
+                    indicator.className = 'badge badge-red';
+                }
                 window.location.reload();
                 return;
             }
 
             console.warn('System Monitor: Socket closed. Reconnecting in 1s...');
-            indicator.innerHTML = '<span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span> Reconnecting...';
-            indicator.className = 'badge badge-red flex items-center gap-2 normal-case font-normal';
+            if (indicator) {
+                indicator.innerHTML = '<span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span> Reconnecting...';
+                indicator.className = 'badge badge-red flex items-center gap-2 normal-case font-normal';
+            }
 
-            setTimeout(connect, 1000);
+            // Retry
+            setTimeout(connectStatusSocket, 1000);
         };
 
-        socket.onerror = function (err) {
+        statusSocket.onerror = function (err) {
             console.error('System Monitor: Socket Error', err);
-            socket.close();
+            statusSocket.close();
         };
     }
 
-    connect();
+    // Initialize
+    connectStatusSocket();
 
-    window.addEventListener('popstate', () => { if (socket) socket.close(); });
-    window.addEventListener('beforeunload', () => { if (socket) socket.close(); });
+    // Cleanup on navigation
+    // Note: In an SPA, these listeners pile up on the 'window' object if not careful.
+    // However, since we are just closing the socket, it's generally safe (closing a closed socket is a no-op).
+    window.addEventListener('popstate', () => { if (statusSocket) statusSocket.close(); });
+    window.addEventListener('beforeunload', () => { if (statusSocket) statusSocket.close(); });
 
 </script>
 {% endblock %}

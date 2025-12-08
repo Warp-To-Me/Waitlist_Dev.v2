@@ -75,9 +75,18 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
         target_endpoints = list(ALL_ENDPOINTS)
 
     try:
-        def check_critical_error(response):
+        # --- NEW: Error Handler with Backoff ---
+        def check_critical_error(response, endpoint_name):
             if response['status'] >= 500:
-                print(f"  !!! CRITICAL ESI ERROR {response['status']}. Aborting update for {character.character_name}.")
+                print(f"  !!! CRITICAL ESI ERROR {response['status']} ({endpoint_name}). Backing off.")
+                
+                # UPDATE: Apply a 2-minute cooldown to this endpoint's cache
+                # This prevents the Dispatcher from picking it up again immediately
+                EsiHeaderCache.objects.update_or_create(
+                    character=character,
+                    endpoint_name=endpoint_name,
+                    defaults={'expires': timezone.now() + timedelta(minutes=2)}
+                )
                 return True
             return False
 
@@ -88,7 +97,7 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
             
             if resp['status'] == 403:
                 print(f"  !!! Missing Scope 'esi-location.read_online.v1' for {character.character_name}")
-            elif not check_critical_error(resp) and resp['status'] == 200:
+            elif not check_critical_error(resp, ENDPOINT_ONLINE) and resp['status'] == 200:
                 data = resp['data']
                 character.is_online = data.get('online', False)
                 character.last_login_at = data.get('last_login')
@@ -107,7 +116,7 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
         # --- PUBLIC INFO (Corp/Alliance) ---
         if ENDPOINT_PUBLIC_INFO in target_endpoints:
             resp = call_esi(character, ENDPOINT_PUBLIC_INFO, f"{base_url.format(char_id=char_id)}/", force_refresh=force_refresh)
-            if not check_critical_error(resp) and resp['status'] == 200:
+            if not check_critical_error(resp, ENDPOINT_PUBLIC_INFO) and resp['status'] == 200:
                 data = resp['data']
                 character.corporation_id = data.get('corporation_id')
                 character.alliance_id = data.get('alliance_id')
@@ -131,7 +140,7 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
         # --- SKILLS ---
         if ENDPOINT_SKILLS in target_endpoints:
             resp = call_esi(character, ENDPOINT_SKILLS, f"{base_url.format(char_id=char_id)}/skills/", force_refresh=force_refresh)
-            if not check_critical_error(resp) and resp['status'] == 200:
+            if not check_critical_error(resp, ENDPOINT_SKILLS) and resp['status'] == 200:
                 data = resp['data']
                 character.total_sp = data.get('total_sp', 0)
                 character.save(update_fields=['total_sp'])
@@ -171,7 +180,7 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
         # --- SKILL QUEUE ---
         if ENDPOINT_QUEUE in target_endpoints:
             resp = call_esi(character, ENDPOINT_QUEUE, f"{base_url.format(char_id=char_id)}/skillqueue/", force_refresh=force_refresh)
-            if not check_critical_error(resp) and resp['status'] == 200:
+            if not check_critical_error(resp, ENDPOINT_QUEUE) and resp['status'] == 200:
                 CharacterQueue.objects.filter(character=character).delete()
                 new_queue = [
                     CharacterQueue(
@@ -185,7 +194,7 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
         # --- SHIP ---
         if ENDPOINT_SHIP in target_endpoints:
             resp = call_esi(character, ENDPOINT_SHIP, f"{base_url.format(char_id=char_id)}/ship/", force_refresh=force_refresh)
-            if not check_critical_error(resp) and resp['status'] == 200:
+            if not check_critical_error(resp, ENDPOINT_SHIP) and resp['status'] == 200:
                 data = resp['data']
                 character.current_ship_name = data.get('ship_name', 'Unknown')
                 character.current_ship_type_id = data.get('ship_type_id')
@@ -194,7 +203,7 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
         # --- WALLET BALANCE ---
         if ENDPOINT_WALLET in target_endpoints:
             resp = call_esi(character, ENDPOINT_WALLET, f"{base_url.format(char_id=char_id)}/wallet/", force_refresh=force_refresh)
-            if not check_critical_error(resp):
+            if not check_critical_error(resp, ENDPOINT_WALLET):
                 if resp['status'] == 200:
                     character.wallet_balance = resp['data']
                     character.save(update_fields=['wallet_balance'])
@@ -204,7 +213,7 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
         # --- LOYALTY POINTS ---
         if ENDPOINT_LP in target_endpoints:
             resp = call_esi(character, ENDPOINT_LP, f"{base_url.format(char_id=char_id)}/loyalty/points/", force_refresh=force_refresh)
-            if not check_critical_error(resp):
+            if not check_critical_error(resp, ENDPOINT_LP):
                 if resp['status'] == 200:
                     concord_entry = next((item for item in resp['data'] if item['corporation_id'] == 1000125), None)
                     character.concord_lp = concord_entry['loyalty_points'] if concord_entry else 0
@@ -215,7 +224,7 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
         # --- IMPLANTS ---
         if ENDPOINT_IMPLANTS in target_endpoints:
             resp = call_esi(character, ENDPOINT_IMPLANTS, f"{base_url.format(char_id=char_id)}/implants/", force_refresh=force_refresh)
-            if not check_critical_error(resp) and resp['status'] == 200:
+            if not check_critical_error(resp, ENDPOINT_IMPLANTS) and resp['status'] == 200:
                 CharacterImplant.objects.filter(character=character).delete()
                 new_implants = [CharacterImplant(character=character, type_id=imp_id) for imp_id in resp['data']]
                 CharacterImplant.objects.bulk_create(new_implants)
@@ -223,7 +232,7 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
         # --- HISTORY ---
         if ENDPOINT_HISTORY in target_endpoints:
             resp = call_esi(character, ENDPOINT_HISTORY, f"{base_url.format(char_id=char_id)}/corporationhistory/", force_refresh=force_refresh)
-            if not check_critical_error(resp) and resp['status'] == 200:
+            if not check_critical_error(resp, ENDPOINT_HISTORY) and resp['status'] == 200:
                 CharacterHistory.objects.filter(character=character).delete()
                 history_data = resp['data']
                 corp_ids = set(h['corporation_id'] for h in history_data)

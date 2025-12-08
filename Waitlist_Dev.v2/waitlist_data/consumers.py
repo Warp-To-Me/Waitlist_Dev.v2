@@ -37,12 +37,18 @@ class FleetConsumer(AsyncWebsocketConsumer):
         # Permissions Check for Fleet Overview
         # We start the background task ONLY if the user is Resident+
         if await self.check_overview_permission(self.user):
-            self.overview_task = asyncio.create_task(self.poll_fleet_overview())
+            # NEW: Only start polling if the user is the Fleet Commander
+            if await self.check_is_commander(self.user):
+                self.overview_task = asyncio.create_task(self.poll_fleet_overview())
 
     async def disconnect(self, close_code):
         # Stop background task
         if hasattr(self, 'overview_task'):
             self.overview_task.cancel()
+            try:
+                await self.overview_task
+            except asyncio.CancelledError:
+                pass
 
         # Leave room group
         await self.channel_layer.group_discard(
@@ -56,6 +62,17 @@ class FleetConsumer(AsyncWebsocketConsumer):
         if user.is_superuser: return True
         # Using capability check to match views
         return user.groups.filter(capabilities__slug='view_fleet_overview').exists()
+
+    @sync_to_async
+    def check_is_commander(self, user):
+        """
+        Checks if the current user is the designated commander of this specific fleet.
+        """
+        try:
+            fleet = Fleet.objects.get(id=self.fleet_id)
+            return fleet.commander == user
+        except Fleet.DoesNotExist:
+            return False
 
     # --- BACKGROUND LOOP ---
     async def poll_fleet_overview(self):
@@ -72,10 +89,27 @@ class FleetConsumer(AsyncWebsocketConsumer):
                 # FIX: Use .get() to avoid KeyError if fleet_data contains an error message
                 if fleet_data and fleet_data.get('esi_fleet_id'):
                     # 2. Call Service (Cached internally)
-                    composite_data, _ = await sync_to_async(get_fleet_composition)(
+                    # Note: get_fleet_composition returns (data, error_string)
+                    # We need to handle the potential for error_string being returned
+                    # The fleet_service.py get_fleet_composition might return (None, error_msg) on failure
+                    
+                    # Assuming get_fleet_composition signature is (fleet_id, fc_character)
+                    # and returns (data, error) tuple based on typical patterns in this project
+                    
+                    result = await sync_to_async(get_fleet_composition)(
                         fleet_data['esi_fleet_id'], 
                         fleet_data['fc_char']
                     )
+                    
+                    # Unpack result safely
+                    composite_data = None
+                    error = None
+                    
+                    if isinstance(result, tuple):
+                        composite_data, error = result
+                    else:
+                        # Fallback if signature is different (e.g. just returns data)
+                        composite_data = result
 
                     # 3. Process & Send (Only if data is new/available)
                     if composite_data and composite_data != 'unchanged':
@@ -87,14 +121,27 @@ class FleetConsumer(AsyncWebsocketConsumer):
                             'summary': summary,
                             'hierarchy': hierarchy
                         }))
+                    elif error:
+                        # 404 handling logic: Invalidate ID if fleet not found
+                        if "404" in str(error):
+                            logger.warning(f"Fleet {self.fleet_id} returned 404. Invalidating ESI ID.")
+                            await self.invalidate_fleet_id(self.fleet_id)
+                            await self.send(text_data=json.dumps({
+                                'type': 'fleet_error',
+                                'error': "Fleet not found. Attempting to relink..."
+                            }))
+                        else:
+                            # Other errors (500, etc) - log but don't crash loop
+                            logger.warning(f"Fleet poll error: {error}")
+                            pass
                     elif composite_data == 'unchanged':
                         pass
                 else:
-                    # 4. ERROR HANDLING: No Fleet ID Found
+                    # 4. ERROR HANDLING: No Fleet ID Found or Context Error
                     error_msg = "Fleet not linked to ESI"
                     if not fleet_data:
                         error_msg = "FC has no linked character"
-                    elif fleet_data.get('error'):
+                    elif isinstance(fleet_data, dict) and fleet_data.get('error'):
                         error_msg = fleet_data['error']
                         
                     await self.send(text_data=json.dumps({
@@ -111,10 +158,13 @@ class FleetConsumer(AsyncWebsocketConsumer):
             except Exception as e:
                 logger.error(f"Fleet Poll Error: {e}")
                 # Send error to UI
-                await self.send(text_data=json.dumps({
-                    'type': 'fleet_error',
-                    'error': "Connection Error"
-                }))
+                try:
+                    await self.send(text_data=json.dumps({
+                        'type': 'fleet_error',
+                        'error': "Connection Error"
+                    }))
+                except Exception:
+                    pass # Connection might be already closed
                 await asyncio.sleep(10) # Back off on error
 
     @sync_to_async
@@ -152,6 +202,18 @@ class FleetConsumer(AsyncWebsocketConsumer):
             return {'esi_fleet_id': fleet.esi_fleet_id, 'fc_char': fc_char}
         except Fleet.DoesNotExist:
             return None
+
+    @sync_to_async
+    def invalidate_fleet_id(self, fleet_db_id):
+        """
+        Clears the stored ESI ID if it's dead (404), forcing a re-scan.
+        """
+        try:
+            fleet = Fleet.objects.get(id=fleet_db_id)
+            fleet.esi_fleet_id = None
+            fleet.save()
+        except Fleet.DoesNotExist:
+            pass
 
     # --- STANDARD HANDLERS ---
     async def fleet_update(self, event):

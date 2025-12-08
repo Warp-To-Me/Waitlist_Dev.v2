@@ -53,13 +53,14 @@
                 <div class="bg-blue-600/10 border-b border-blue-500/20 p-3 flex justify-between items-center">
                     <h3 class="label-text text-blue-400 mb-0">Fleet Overview</h3>
                     <div class="flex items-center gap-2">
-                        <span id="overview-pulse" class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+                        <!-- Updated ID for easier targeting -->
+                        <span id="overview-pulse" class="w-1.5 h-1.5 rounded-full bg-slate-500 transition-colors duration-300"></span>
                         <span class="text-[10px] text-slate-500 font-mono" id="overview-text">Connecting...</span>
                     </div>
                 </div>
 
                 <!-- Inner Scroll Area -->
-                <div class="flex-grow overflow-y-auto p-2 custom-scrollbar space-y-6" id="fleet-overview-content" data-has-error="false">
+                <div class="flex-grow overflow-y-auto p-2 custom-scrollbar space-y-2" id="fleet-overview-content" data-has-error="false">
                     <div class="flex flex-col items-center justify-center h-full text-slate-500 opacity-50 space-y-2">
                         <div class="w-6 h-6 border-2 border-slate-500 border-t-transparent rounded-full animate-spin"></div>
                         <p class="text-xs">Waiting for stream...</p>
@@ -72,6 +73,7 @@
 </div>
 
 <!-- MODALS -->
+<!-- X-UP MODAL -->
 <div id="xup-modal" class="fixed inset-0 z-50 hidden" onclick="closeXUpModal()">
     <div class="fixed inset-0 bg-dark-950/80 backdrop-blur-sm"></div>
     <div class="fixed inset-0 z-10 overflow-y-auto flex items-center justify-center p-4">
@@ -101,7 +103,35 @@
     </div>
 </div>
 
-<!-- FIT INSPECTION MODAL (UPDATED FOR SMART ANALYSIS) -->
+<!-- UPDATE FIT MODAL -->
+<div id="update-modal" class="fixed inset-0 z-50 hidden" onclick="closeUpdateModal()">
+    <div class="fixed inset-0 bg-dark-950/80 backdrop-blur-sm"></div>
+    <div class="fixed inset-0 z-10 overflow-y-auto flex items-center justify-center p-4">
+        <div class="relative rounded-xl bg-slate-900 border border-white/10 shadow-2xl w-full max-w-lg" onclick="event.stopPropagation()">
+            <div class="glass-header px-6 py-4 flex justify-between items-center">
+                <h3 class="font-bold text-white text-lg">Update Fit</h3>
+                <button onclick="closeUpdateModal()" class="text-slate-400 hover:text-white">✕</button>
+            </div>
+            <form id="update-form" method="POST" class="p-6 space-y-6">
+                {% csrf_token %}
+                <input type="hidden" id="update-entry-id" name="entry_id">
+
+                <div class="bg-blue-900/20 border border-blue-500/30 p-3 rounded text-xs text-blue-200">
+                    ℹ️ Updating your fit will reset your status to <span class="font-bold text-white">Pending</span> and may trigger a re-scan.
+                </div>
+
+                <div>
+                    <label class="label-text">New Fit Paste</label>
+                    <textarea id="update-eft-paste" name="eft_paste" rows="8" class="input-field font-mono text-xs" placeholder="[Hull, Name]..."></textarea>
+                </div>
+                <div id="update-error" class="hidden bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-3 rounded"></div>
+                <button type="submit" class="btn-primary w-full">Update Fit</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- FIT INSPECTION MODAL -->
 <div id="entry-modal" class="fixed inset-0 z-50 hidden" onclick="closeEntryModal()">
     <div class="fixed inset-0 bg-dark-950/80 backdrop-blur-sm transition-opacity"></div>
     <div class="fixed inset-0 z-10 overflow-y-auto flex items-center justify-center p-4">
@@ -162,7 +192,7 @@
                         </div>
                     </div>
 
-                    <div class="p-4 overflow-y-auto custom-scrollbar flex-grow space-y-6" id="entry-slots">
+                    <div class="p-4 overflow-y-auto custom-scrollbar flex-grow space-y-4" id="entry-slots">
                         <!-- Dynamic Content Loaded via JS -->
                         <div class="flex items-center justify-center h-full text-slate-500 animate-pulse">Running analysis...</div>
                     </div>
@@ -173,16 +203,167 @@
 </div>
 
 <script>
-    const USER_IS_FC = {{ is_fc|yesno:"true,false" }};
-    const FLEET_TOKEN = "{{ fleet.join_token }}";
-    const FLEET_ID = "{{ fleet.id }}";
-    const CSRF_TOKEN = '{{ csrf_token }}';
-    let socket = null;
-    let currentEntryId = null;
+    // --- GLOBAL PERMISSIONS & CONFIG (Changed to VAR to allow SPA re-execution) ---
+    var USER_IS_FC = {{ is_fc|yesno:"true,false" }};
+    var CURRENT_USER_ID = {{ request.user.id|default:"null" }};
+    var CAN_INSPECT_ALL = {{ can_view_overview|yesno:"true,false" }};
+
+    var FLEET_TOKEN = "{{ fleet.join_token }}";
+    var FLEET_ID = "{{ fleet.id }}";
+    var CSRF_TOKEN = '{{ csrf_token }}';
+
+    // Safety check: Close existing socket if script re-runs to prevent leaks/duplicates
+    if (typeof socket !== 'undefined' && socket) {
+        socket.close();
+    }
+
+    var socket = null;
+    var currentEntryId = null;
+
+    // --- VISUAL PERMISSION LOGIC ---
+    function updateCardVisuals() {
+        // Iterate all cards
+        document.querySelectorAll('.entry-card').forEach(card => {
+            const ownerId = parseInt(card.getAttribute('data-owner-id'));
+            const isOwner = (CURRENT_USER_ID && ownerId === CURRENT_USER_ID);
+
+            // 1. Reveal Owner Controls (Update/Leave) if they own it
+            if (isOwner) {
+                const controls = document.getElementById(`owner-controls-${card.dataset.entryId}`);
+                if (controls) controls.classList.remove('hidden');
+            }
+
+            // 2. Check if allowed to Inspect
+            const isAllowed = isOwner || CAN_INSPECT_ALL;
+
+            if (!isAllowed) {
+                // Remove pointer style
+                card.classList.remove('cursor-pointer', 'hover:border-amber-500');
+                card.classList.add('cursor-default', 'opacity-90');
+            }
+        });
+    }
+
+    // Call on load
+    document.addEventListener('DOMContentLoaded', updateCardVisuals);
+
+    // --- OWNER ACTIONS ---
+
+    function leaveFleet(entryId) {
+        if(!confirm("Are you sure you want to remove yourself from the waitlist?")) return;
+
+        fetch(`/fleet/entry/${entryId}/leave/`, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': CSRF_TOKEN, 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if(!data.success) alert("Error: " + data.error);
+            // WebSocket will handle the removal from UI
+        })
+        .catch(err => alert("Network Error"));
+    }
+
+    function openUpdateModal(entryId) {
+        document.getElementById('update-entry-id').value = entryId;
+        document.getElementById('update-modal').classList.remove('hidden');
+    }
+
+    function closeUpdateModal() {
+        document.getElementById('update-modal').classList.add('hidden');
+    }
+
+    // --- FORM LISTENERS (Moved before socket init to ensure binding) ---
+
+    // Handle Update Form Submit
+    var updateForm = document.getElementById('update-form');
+    if (updateForm) {
+        // Remove old listener if element was replaced (not strictly needed since DOM is fresh, but safe)
+        updateForm.onsubmit = function(e) {
+            e.preventDefault();
+            const form = this;
+            const entryId = document.getElementById('update-entry-id').value;
+            const errDiv = document.getElementById('update-error');
+            const btn = form.querySelector('button[type="submit"]');
+
+            btn.disabled = true;
+            btn.textContent = "Updating...";
+            errDiv.classList.add('hidden');
+
+            fetch(`/fleet/entry/${entryId}/update/`, {
+                method: 'POST',
+                body: new FormData(form),
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(r => r.json())
+            .then(d => {
+                if(d.success) {
+                    closeUpdateModal();
+                    form.reset();
+                } else {
+                    errDiv.textContent = d.error;
+                    errDiv.classList.remove('hidden');
+                }
+                btn.disabled = false;
+                btn.textContent = "Update Fit";
+            })
+            .catch(err => {
+                console.error("Update Error:", err);
+                errDiv.textContent = "Network Error";
+                errDiv.classList.remove('hidden');
+                btn.disabled = false;
+            });
+        };
+    }
+
+    // Handle X-Up Form Submit
+    var xupForm = document.getElementById('xup-form');
+    if (xupForm) {
+        xupForm.onsubmit = function(e) {
+            e.preventDefault();
+            const form = this;
+            const btn = form.querySelector('button[type="submit"]');
+            const errDiv = document.getElementById('xup-error');
+
+            btn.disabled = true;
+            btn.textContent = "Submitting...";
+            errDiv.classList.add('hidden');
+
+            fetch(form.action, {
+                method: 'POST',
+                body: new FormData(form),
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(r => r.json())
+            .then(d => {
+                if(d.success) {
+                    closeXUpModal();
+                    form.reset();
+                }
+                else {
+                    errDiv.textContent=d.error;
+                    errDiv.classList.remove('hidden');
+                }
+                btn.disabled = false;
+                btn.textContent = "Submit";
+            })
+            .catch(err => {
+                console.error("XUp Error:", err);
+                errDiv.textContent = "Network Error";
+                errDiv.classList.remove('hidden');
+                btn.disabled = false;
+            });
+        };
+    }
 
     // --- WEBSOCKET LOGIC ---
 
     function initWebSocket() {
+        // Double check socket state to prevent multiple connections
+        if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+            return;
+        }
+
         const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
         const path = `${protocol}${window.location.host}/ws/fleet/${FLEET_ID}/`;
         socket = new WebSocket(path);
@@ -208,11 +389,38 @@
 
     function updateStatusLight(state) {
         const light = document.getElementById('connection-status');
+
+        // Fleet Overview indicators (if present)
+        const overviewPulse = document.getElementById('overview-pulse');
+        const overviewText = document.getElementById('overview-text');
+
         if (!light) return;
+
         light.className = "w-2.5 h-2.5 rounded-full shadow-lg transition-all duration-500 ";
-        if (state === 'connected') light.classList.add('bg-amber-500', 'shadow-amber-500/50', 'animate-pulse');
-        else if (state === 'live') light.classList.add('bg-green-500', 'shadow-green-500/50');
-        else light.classList.add('bg-red-500', 'shadow-red-500/50');
+
+        if (state === 'connected') {
+            light.classList.add('bg-amber-500', 'shadow-amber-500/50', 'animate-pulse');
+            if(overviewPulse) {
+                overviewPulse.className = "w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse";
+                overviewText.textContent = "Connecting...";
+            }
+        }
+        else if (state === 'live') {
+            light.classList.add('bg-green-500', 'shadow-green-500/50');
+            if(overviewPulse) {
+                overviewPulse.className = "w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]";
+                overviewText.textContent = "Live";
+                overviewText.classList.add('text-green-500');
+            }
+        }
+        else {
+            light.classList.add('bg-red-500', 'shadow-red-500/50');
+            if(overviewPulse) {
+                overviewPulse.className = "w-1.5 h-1.5 rounded-full bg-red-500";
+                overviewText.textContent = "Disconnected";
+                overviewText.classList.remove('text-green-500');
+            }
+        }
     }
 
     function handleFleetUpdate(data) {
@@ -239,6 +447,9 @@
                 newCard.classList.add('animate-fade-in');
             }
             updateCounts();
+
+            // Re-apply visuals for the new card
+            updateCardVisuals();
         }
     }
 
@@ -251,27 +462,125 @@
         });
     }
 
-    // --- FLEET OVERVIEW RENDERER ---
+    // --- FLEET OVERVIEW RENDERER (Recursive Hierarchy) ---
+    var collapsedState = {};
+
     function renderFleetOverview(data) {
         const container = document.getElementById('fleet-overview-content');
         if (!container) return;
-        let html = `<div class="text-[10px] text-slate-500 font-bold uppercase mb-2">Fleet: ${data.member_count} Pilots</div>`;
 
-        const groups = Object.keys(data.summary).sort();
-        groups.forEach(grp => {
-            const ships = data.summary[grp];
-            html += `<div class="mb-2"><div class="text-brand-500 font-bold text-xs">${grp}</div>`;
-            for (const [ship, count] of Object.entries(ships)) {
-                html += `<div class="flex justify-between text-slate-400 text-[10px] pl-2"><span>${ship}</span><span>${count}</span></div>`;
-            }
-            html += `</div>`;
-        });
+        let html = '';
+
+        // 0. Total Header
+        html += `<div class="text-[10px] text-slate-500 font-bold uppercase mb-2 pl-2">Fleet: ${data.member_count} Pilots</div>`;
+
+        // 1. Fleet Commander (Optional)
+        if (data.hierarchy.commander) {
+            html += renderMember(data.hierarchy.commander, 'Fleet Commander', 'text-amber-500');
+        }
+
+        // 2. Wings
+        if (data.hierarchy.wings) {
+            data.hierarchy.wings.forEach(wing => {
+                html += renderWing(wing);
+            });
+        }
+
         container.innerHTML = html;
     }
 
-    // --- NEW SMART ANALYSIS MODAL LOGIC ---
+    function renderWing(wing) {
+        const wingId = `wing-${wing.id}`;
+        // Default to expanded unless explicitly collapsed
+        const isCollapsed = collapsedState[wingId] === true;
+        const arrowClass = isCollapsed ? '-rotate-90' : 'rotate-0';
+        const contentClass = isCollapsed ? 'hidden' : 'block';
+
+        let html = `
+        <div class="mb-1">
+            <div class="flex items-center gap-2 cursor-pointer hover:bg-white/5 p-1 rounded transition select-none group" onclick="toggleNode('${wingId}')">
+                <svg id="arrow-${wingId}" class="w-3 h-3 text-slate-500 transition-transform duration-200 ${arrowClass}" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                <span class="text-xs font-bold text-slate-300 group-hover:text-white">${wing.name}</span>
+            </div>
+
+            <div id="${wingId}" class="ml-2 pl-2 border-l border-white/5 ${contentClass}">
+                ${wing.commander ? renderMember(wing.commander, 'Wing Commander', 'text-slate-400') : ''}
+                ${wing.squads.map(squad => renderSquad(squad)).join('')}
+            </div>
+        </div>`;
+        return html;
+    }
+
+    function renderSquad(squad) {
+        const squadId = `squad-${squad.id}`;
+        // Default to expanded unless explicitly collapsed
+        const isCollapsed = collapsedState[squadId] === true;
+        const arrowClass = isCollapsed ? '-rotate-90' : 'rotate-0';
+        const contentClass = isCollapsed ? 'hidden' : 'block';
+
+        let html = `
+        <div class="mb-1">
+            <div class="flex items-center gap-2 cursor-pointer hover:bg-white/5 p-1 rounded transition select-none group" onclick="toggleNode('${squadId}')">
+                <svg id="arrow-${squadId}" class="w-3 h-3 text-slate-600 transition-transform duration-200 ${arrowClass}" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                <span class="text-xs font-bold text-slate-400 group-hover:text-white">${squad.name}</span>
+            </div>
+
+            <div id="${squadId}" class="ml-2 pl-2 border-l border-white/5 ${contentClass}">
+                ${squad.commander ? renderMember(squad.commander, 'Squad Commander', 'text-slate-500') : ''}
+                ${squad.members.map(m => renderMember(m, null, 'text-slate-500')).join('')}
+            </div>
+        </div>`;
+        return html;
+    }
+
+    function renderMember(member, roleLabel, colorClass) {
+        return `
+        <div class="flex items-center justify-between p-1 hover:bg-white/5 rounded group/member">
+            <div class="flex items-center gap-2 overflow-hidden">
+                <img src="https://images.evetech.net/characters/${member.character_id}/portrait?size=32" class="w-5 h-5 rounded-full border border-white/10" loading="lazy">
+                <div class="flex flex-col truncate">
+                    <span class="text-[10px] font-bold ${colorClass || 'text-slate-300'} leading-none">${member.name}</span>
+                    ${roleLabel ? `<span class="text-[9px] text-brand-500 leading-none mt-0.5">${roleLabel}</span>` : ''}
+                </div>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+                <span class="text-[9px] text-slate-500 group-hover/member:text-slate-300 transition">${member.ship_name}</span>
+                <img src="https://images.evetech.net/types/${member.ship_type_id}/icon?size=32" class="w-4 h-4 rounded-sm border border-white/10" loading="lazy">
+            </div>
+        </div>`;
+    }
+
+    // Must attach to window so HTML onclick strings can find it
+    window.toggleNode = function(id) {
+        const el = document.getElementById(id);
+        const arrow = document.getElementById(`arrow-${id}`);
+        if (!el) return;
+
+        if (el.classList.contains('hidden')) {
+            el.classList.remove('hidden');
+            if (arrow) arrow.classList.replace('-rotate-90', 'rotate-0');
+            collapsedState[id] = false;
+        } else {
+            el.classList.add('hidden');
+            if (arrow) arrow.classList.replace('rotate-0', '-rotate-90');
+            collapsedState[id] = true;
+        }
+    };
+
+    // --- SMART ANALYSIS MODAL LOGIC ---
 
     function openEntry(id) {
+        // --- PERMISSION CHECK ---
+        const card = document.getElementById(`entry-${id}`);
+        if (card) {
+            const ownerId = parseInt(card.getAttribute('data-owner-id'));
+            const isAllowed = (CURRENT_USER_ID && ownerId === CURRENT_USER_ID) || CAN_INSPECT_ALL;
+            if (!isAllowed) {
+                return; // Silently ignore click
+            }
+        }
+        // -----------------------
+
         currentEntryId = id;
         const modal = document.getElementById('entry-modal');
         const slotContainer = document.getElementById('entry-slots');
@@ -283,7 +592,14 @@
         document.getElementById('entry-actions').classList.add('hidden');
 
         fetch(`/fleet/entry/api/${id}/`)
-            .then(r => r.json())
+            .then(r => {
+                if (r.status === 403) {
+                    alert("Unauthorized access.");
+                    closeEntryModal();
+                    return Promise.reject("Forbidden");
+                }
+                return r.json();
+            })
             .then(d => {
                 // 1. Populate Header
                 document.getElementById('entry-pilot').textContent = d.character_name;
@@ -297,49 +613,60 @@
                     document.getElementById('entry-actions').classList.remove('hidden');
                 }
 
-                // 3. Render Slots (The "Screenshot 1" Logic)
+                // 3. Render Slots
                 let html = '';
 
                 if (d.slots && d.slots.length > 0) {
                     d.slots.forEach(group => {
                         // Header (e.g. High Slots 6/8)
                         html += `
-                        <div class="mb-6">
-                            <div class="flex items-center gap-3 mb-2 border-b border-white/5 pb-2">
-                                <h5 class="text-slate-400 text-xs uppercase font-bold tracking-wider">${group.name}</h5>
-                                ${group.is_hardpoint ? `<span class="text-[10px] text-slate-600 font-mono bg-white/5 px-1.5 rounded">(${group.used} / ${group.total})</span>` : ''}
+                        <div class="mb-2">
+                            <div class="flex items-center gap-3 mb-1 border-b border-white/5 pb-1">
+                                <h5 class="text-slate-400 text-[10px] uppercase font-bold tracking-wider">${group.name}</h5>
+                                ${group.is_hardpoint ? `<span class="text-[9px] text-slate-600 font-mono bg-white/5 px-1.5 rounded">(${group.used} / ${group.total})</span>` : ''}
                             </div>
                             <div class="space-y-1">
                         `;
 
                         // Modules
-                        group.modules.forEach(mod => {
+                        group.modules.forEach((mod, index) => {
                             const styles = getStatusStyles(mod.status);
+
+                            // Alternating Background: Even rows get subtle tint
+                            const bgClass = index % 2 === 0 ? 'bg-white/5' : 'bg-transparent';
+
+                            // Merge base styles with alternating BG
+                            // We only use alternating BG if status is MATCH (default/neutral)
+                            // If status is special (Downgrade, Upgrade), we keep its special tint.
+                            const finalBg = mod.status === 'MATCH' ? bgClass : styles.bg;
 
                             html += `
                             <div class="relative group/mod">
-                                <!-- Main Row -->
-                                <div class="flex items-center gap-3 p-2 rounded border ${styles.border} ${styles.bg} transition-all duration-300">
+                                <!-- Main Row (Compact) -->
+                                <div class="flex items-center gap-2 px-1.5 py-0.5 rounded border ${styles.border} ${finalBg} transition-all duration-300 min-h-[2rem]">
                                     <img src="https://images.evetech.net/types/${mod.id}/icon?size=32"
-                                         class="w-8 h-8 rounded border border-black/50 shadow-inner flex-shrink-0" onerror="this.style.opacity=0">
+                                         class="w-6 h-6 rounded border border-black/50 shadow-inner flex-shrink-0" onerror="this.style.opacity=0">
 
                                     <div class="flex-grow min-w-0">
                                         <div class="flex justify-between items-center">
-                                            <span class="text-sm font-bold text-white truncate">${mod.name}</span>
-                                            ${styles.icon ? `<span class="text-xs ${styles.textClass}">${styles.icon}</span>` : ''}
+                                            <span class="text-xs font-bold text-slate-200 truncate group-hover/mod:text-white">${mod.name}</span>
+                                            ${styles.icon ? `<span class="text-[10px] ${styles.textClass}">${styles.icon}</span>` : ''}
                                         </div>
 
                                         <!-- Comparison Subtext -->
                                         ${mod.status === 'MATCH' ? '' :
-                                          `<div class="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
+                                          `<div class="text-[9px] text-slate-400 flex items-center gap-1 mt-0.5">
                                              <span>Doctrine:</span>
                                              <span class="${styles.textClass} font-medium">${mod.doctrine_name || 'None'}</span>
                                            </div>`
                                         }
                                     </div>
+
+                                    <!-- QUANTITY STACK BADGE -->
+                                    ${mod.quantity > 1 ? `<span class="text-[10px] text-brand-400 font-mono px-1.5 bg-brand-900/20 rounded border border-brand-500/30">x${mod.quantity}</span>` : ''}
                                 </div>
 
-                                <!-- Detailed Diffs (Only for Downgrade/Sidegrade) -->
+                                <!-- Detailed Diffs -->
                                 ${mod.diffs && mod.diffs.length > 0 ? renderDiffs(mod.diffs, mod.status) : ''}
                             </div>
                             `;
@@ -349,9 +676,9 @@
                         if (group.is_hardpoint && group.empties_count > 0) {
                             for (let i = 0; i < group.empties_count; i++) {
                                 html += `
-                                <div class="flex items-center gap-3 p-2 rounded border border-white/5 bg-transparent opacity-40">
-                                    <div class="w-8 h-8 rounded bg-white/5 border border-white/10"></div>
-                                    <span class="text-xs text-slate-500 font-mono italic">[Empty Slot]</span>
+                                <div class="flex items-center gap-2 px-1.5 py-0.5 rounded border border-white/5 bg-transparent opacity-40 h-8">
+                                    <div class="w-6 h-6 rounded bg-white/5 border border-white/10"></div>
+                                    <span class="text-[10px] text-slate-500 font-mono italic">[Empty Slot]</span>
                                 </div>`;
                             }
                         }
@@ -363,14 +690,15 @@
                 }
 
                 slotContainer.innerHTML = html;
-            });
+            })
+            .catch(err => console.error(err));
     }
 
     // --- HELPER: Status Styles ---
     function getStatusStyles(status) {
         switch (status) {
             case 'MATCH':
-                return { border: 'border-transparent hover:border-white/10', bg: 'bg-white/5', icon: null, textClass: 'text-slate-400' };
+                return { border: 'border-transparent hover:border-white/10', bg: 'bg-transparent', icon: null, textClass: 'text-slate-400' };
             case 'UPGRADE':
                 return { border: 'border-green-500/50', bg: 'bg-green-500/10', icon: 'UPGRADE', textClass: 'text-green-400' };
             case 'SIDEGRADE':
@@ -388,7 +716,6 @@
 
     // --- HELPER: Render Differences Box ---
     function renderDiffs(diffs, status) {
-        // Only show if status is downgrade or sidegrade generally, but showing for upgrade is good too
         const boxColor = status === 'DOWNGRADE' ? 'bg-amber-900/20 border-amber-500/30 text-amber-200' :
                          status === 'UPGRADE' ? 'bg-green-900/20 border-green-500/30 text-green-200' :
                          'bg-slate-800 border-slate-700 text-slate-300';

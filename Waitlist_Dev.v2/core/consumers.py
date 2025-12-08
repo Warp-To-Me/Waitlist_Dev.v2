@@ -23,6 +23,10 @@ class SystemMonitorConsumer(AsyncWebsocketConsumer):
         self.keep_running = False
         if hasattr(self, 'task'):
             self.task.cancel()
+            try:
+                await self.task
+            except asyncio.CancelledError:
+                pass
 
     async def send_status_updates(self):
         while self.keep_running:
@@ -41,11 +45,17 @@ class SystemMonitorConsumer(AsyncWebsocketConsumer):
 
                 # Wait 1 second (High speed refresh)
                 await asyncio.sleep(1)
+            
+            except asyncio.CancelledError:
+                # Break the loop immediately if cancelled
+                break
                 
             except Exception as e:
                 print(f"Monitor Error: {e}")
                 # On error, back off slightly to prevent log spam
-                await asyncio.sleep(5)
+                # Check running state before sleeping to allow faster shutdown
+                if self.keep_running:
+                    await asyncio.sleep(5)
 
 class UserConsumer(AsyncWebsocketConsumer):
     """

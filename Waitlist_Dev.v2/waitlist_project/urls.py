@@ -20,8 +20,10 @@ urlpatterns = [
     # --- RULE MANAGER (NEW) ---
     path('management/rules/', core_views.management_rules, name='management_rules'),
     path('api/mgmt/rules/search/', core_views.api_group_search, name='api_group_search'),
+    path('api/mgmt/rules/list/', core_views.api_list_configured_groups, name='api_list_configured_groups'),
     path('api/mgmt/rules/discovery/<int:group_id>/', core_views.api_rule_discovery, name='api_rule_discovery'),
     path('api/mgmt/rules/save/', core_views.api_save_rules, name='api_save_rules'),
+    path('api/mgmt/rules/delete/', core_views.api_delete_rules, name='api_delete_rules'), # NEW
 
     # Roles Management
     path('management/roles/', core_views.management_roles, name='management_roles'),

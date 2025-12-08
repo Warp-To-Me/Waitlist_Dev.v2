@@ -157,7 +157,7 @@
                 document.getElementById('modal-hull').textContent = data.hull;
                 document.getElementById('modal-fitname').textContent = data.name;
                 document.getElementById('modal-desc').textContent = data.description || "No fitting notes available.";
-                document.getElementById('modal-eft').value = data.eft_block;
+                document.getElementById('modal-eft').value = data.eft_format; // Ensure key matches backend
                 document.getElementById('modal-header-icon').src = `https://images.evetech.net/types/${data.hull_id}/icon?size=64`;
 
                 let html = '';
@@ -186,7 +186,8 @@
                                 <div class="flex-grow min-w-0">
                                     <div class="text-xs text-slate-300 font-medium truncate group-hover:text-white transition">${mod.name}</div>
                                 </div>
-                                ${!group.is_hardpoint && mod.quantity > 1 ? `<span class="text-[10px] text-brand-400 font-mono px-1.5 bg-brand-900/20 rounded border border-brand-500/30">x${mod.quantity}</span>` : ''}
+                                <!-- MODIFIED: Always show quantity if > 1 -->
+                                ${mod.quantity > 1 ? `<span class="text-[10px] text-brand-400 font-mono px-1.5 bg-brand-900/20 rounded border border-brand-500/30">x${mod.quantity}</span>` : ''}
                             </div>
                             `;
                         });

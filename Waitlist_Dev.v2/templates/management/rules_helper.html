@@ -15,16 +15,22 @@
     </div>
 
     <!-- CONTROL BAR -->
-    <!-- ADDED: 'relative z-20' to ensure dropdowns stack ON TOP of the editor panel below -->
     <div class="glass-panel p-4 shrink-0 flex flex-col md:flex-row gap-4 items-center relative z-20">
-        <!-- Scope Switcher (Visual only for now as requested) -->
-        <div class="flex bg-black/40 p-1 rounded-lg border border-white/10">
-            <button class="px-4 py-1.5 rounded-md text-xs font-bold bg-slate-700 text-white shadow-sm">Global Rules</button>
-            <button class="px-4 py-1.5 rounded-md text-xs font-bold text-slate-500 hover:text-slate-300 transition" title="Ship specific rules coming soon" disabled>Ship-Specific</button>
+        <!-- View Switcher Tabs -->
+        <div class="flex bg-black/40 p-1 rounded-lg border border-white/10" id="view-tabs">
+            <button onclick="switchView('search')" id="tab-search" class="px-4 py-1.5 rounded-md text-xs font-bold bg-slate-700 text-white shadow-sm transition">
+                Search Groups
+            </button>
+            <button onclick="switchView('saved')" id="tab-saved" class="px-4 py-1.5 rounded-md text-xs font-bold text-slate-400 hover:text-white transition">
+                Saved Rules
+            </button>
+            <button class="px-4 py-1.5 rounded-md text-xs font-bold text-slate-600 cursor-not-allowed" disabled>
+                Ship-Specific
+            </button>
         </div>
 
-        <!-- Search -->
-        <div class="relative flex-grow w-full group">
+        <!-- VIEW A: Group Search Bar -->
+        <div id="view-search" class="relative flex-grow w-full group">
             <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none group-focus-within:text-brand-500 transition">
                 <svg class="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
             </div>
@@ -40,10 +46,35 @@
                 <!-- Populated via JS -->
             </div>
         </div>
+
+        <!-- VIEW B: Saved List Container (Hidden by default) -->
+        <div id="view-saved" class="hidden w-full overflow-hidden flex flex-col gap-2">
+            <!-- Saved Search Bar -->
+            <div class="relative w-full">
+                <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-500">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                </div>
+                <input type="text" id="saved-search"
+                       class="input-field pl-9 py-1.5 text-xs bg-black/20 border-white/10 focus:border-brand-500"
+                       placeholder="Filter saved rules..."
+                       oninput="handleSavedSearchInput(this)">
+            </div>
+
+            <!-- List Items -->
+            <div id="saved-list-container" class="flex flex-wrap gap-2 max-h-32 overflow-y-auto custom-scrollbar p-1">
+                <!-- Populated via JS -->
+            </div>
+
+            <!-- Pagination Controls -->
+            <div id="saved-pagination" class="hidden flex justify-between items-center bg-black/20 p-1.5 rounded border border-white/5 text-[10px]">
+                <button onclick="changePage(-1)" id="btn-prev" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-300 disabled:opacity-50">Previous</button>
+                <span id="page-info" class="text-slate-500 font-mono">Page 1</span>
+                <button onclick="changePage(1)" id="btn-next" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-300 disabled:opacity-50">Next</button>
+            </div>
+        </div>
     </div>
 
     <!-- MAIN EDITOR -->
-    <!-- ADDED: 'z-0' to keep it below the control bar -->
     <div id="editor-panel" class="hidden flex-col flex-grow min-h-0 animate-fade-in relative z-0">
 
         <!-- Selected Group Header -->
@@ -73,9 +104,165 @@
 </div>
 
 <script>
-    const CSRF_TOKEN = '{{ csrf_token }}';
-    let currentGroupId = null;
-    let searchTimeout = null;
+    // FIX: Use 'var' to prevent redeclaration errors in SPA context
+    var CSRF_TOKEN = '{{ csrf_token }}';
+    var currentGroupId = null;
+    var searchTimeout = null;
+    var savedSearchTimeout = null;
+    var currentPage = 1;
+    var currentQuery = "";
+
+    // --- VIEW SWITCHING ---
+    function switchView(view) {
+        const searchView = document.getElementById('view-search');
+        const savedView = document.getElementById('view-saved');
+        const tabSearch = document.getElementById('tab-search');
+        const tabSaved = document.getElementById('tab-saved');
+
+        if (view === 'search') {
+            searchView.classList.remove('hidden');
+            savedView.classList.add('hidden');
+
+            tabSearch.classList.remove('text-slate-400', 'hover:text-white', 'bg-transparent');
+            tabSearch.classList.add('bg-slate-700', 'text-white', 'shadow-sm');
+
+            tabSaved.classList.add('text-slate-400', 'hover:text-white', 'bg-transparent');
+            tabSaved.classList.remove('bg-slate-700', 'text-white', 'shadow-sm');
+        } else {
+            searchView.classList.add('hidden');
+            savedView.classList.remove('hidden');
+
+            tabSaved.classList.remove('text-slate-400', 'hover:text-white', 'bg-transparent');
+            tabSaved.classList.add('bg-slate-700', 'text-white', 'shadow-sm');
+
+            tabSearch.classList.add('text-slate-400', 'hover:text-white', 'bg-transparent');
+            tabSearch.classList.remove('bg-slate-700', 'text-white', 'shadow-sm');
+
+            // Reset filters when switching
+            document.getElementById('saved-search').value = "";
+            currentQuery = "";
+            loadSavedList(1);
+        }
+    }
+
+    // --- SAVED SEARCH ---
+    function handleSavedSearchInput(input) {
+        clearTimeout(savedSearchTimeout);
+        const q = input.value.trim();
+
+        savedSearchTimeout = setTimeout(() => {
+            currentQuery = q;
+            loadSavedList(1); // Reset to page 1 on new search
+        }, 300);
+    }
+
+    function loadSavedList(page = 1) {
+        currentPage = page;
+        const container = document.getElementById('saved-list-container');
+        const pagination = document.getElementById('saved-pagination');
+
+        container.innerHTML = '<div class="text-xs text-slate-500 animate-pulse w-full text-center py-4">Fetching saved configurations...</div>';
+
+        // Include query parameter
+        const url = `/api/mgmt/rules/list/?page=${page}&q=${encodeURIComponent(currentQuery)}`;
+
+        fetch(url)
+            .then(r => r.json())
+            .then(data => {
+                container.innerHTML = '';
+
+                if (data.results.length === 0) {
+                    if (currentQuery) {
+                        container.innerHTML = '<div class="text-xs text-slate-500 italic w-full text-center py-4">No saved rules match your filter.</div>';
+                    } else {
+                        container.innerHTML = '<div class="text-xs text-slate-500 italic w-full text-center py-4">No saved rules found. Use "Search" to configure a new group.</div>';
+                    }
+                    pagination.classList.add('hidden');
+                    return;
+                }
+
+                // Render Items
+                data.results.forEach(item => {
+                    const el = document.createElement('div');
+                    el.className = 'px-3 py-2 bg-slate-800 border border-slate-700 rounded hover:border-brand-500 hover:text-white text-slate-300 text-xs transition flex justify-between items-center gap-2 group min-w-[200px] flex-grow md:flex-grow-0';
+
+                    const textSpan = document.createElement('span');
+                    textSpan.className = 'flex-grow cursor-pointer flex justify-between items-center gap-2';
+                    textSpan.onclick = () => loadGroup(item.id, item.name);
+                    textSpan.innerHTML = `
+                        <span class="font-bold truncate">${item.name}</span>
+                        <span class="bg-slate-900 text-slate-500 px-1.5 py-0.5 rounded text-[9px] group-hover:text-brand-400 transition font-mono" title="Rules Count">${item.count}</span>
+                    `;
+                    el.appendChild(textSpan);
+
+                    const delBtn = document.createElement('button');
+                    delBtn.className = 'text-slate-600 hover:text-red-400 px-1 transition text-lg leading-none';
+                    delBtn.innerHTML = '×';
+                    delBtn.title = 'Delete Rules';
+                    delBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        deleteRules(item.id, item.name);
+                    };
+                    el.appendChild(delBtn);
+
+                    container.appendChild(el);
+                });
+
+                // Handle Pagination Controls
+                if (data.total_pages > 1) {
+                    pagination.classList.remove('hidden');
+                    document.getElementById('page-info').textContent = `Page ${data.current_page} / ${data.total_pages}`;
+
+                    const prevBtn = document.getElementById('btn-prev');
+                    const nextBtn = document.getElementById('btn-next');
+
+                    prevBtn.disabled = !data.has_previous;
+                    nextBtn.disabled = !data.has_next;
+                } else {
+                    pagination.classList.add('hidden');
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                container.innerHTML = '<div class="text-xs text-red-400 w-full text-center py-4">Error loading saved rules.</div>';
+            });
+    }
+
+    function changePage(delta) {
+        loadSavedList(currentPage + delta);
+    }
+
+    function deleteRules(groupId, groupName) {
+        if (!confirm(`Are you sure you want to delete all rules for "${groupName}"? This cannot be undone.`)) {
+            return;
+        }
+
+        fetch("{% url 'api_delete_rules' %}", {
+            method: 'POST',
+            headers: { 'X-CSRFToken': CSRF_TOKEN, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ group_id: groupId })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                // Refresh list if still on saved tab
+                loadSavedList(currentPage); // Stay on current page if possible
+                // Clear editor if the deleted group was open
+                if (currentGroupId === groupId) {
+                    document.getElementById('editor-panel').classList.add('hidden');
+                    document.getElementById('editor-panel').classList.remove('flex');
+                    document.getElementById('btn-save').classList.add('hidden');
+                    currentGroupId = null;
+                }
+            } else {
+                alert("Error deleting rules: " + data.error);
+            }
+        })
+        .catch(err => {
+            console.error("Delete Error:", err);
+            alert("Network error while deleting rules.");
+        });
+    }
 
     // --- SEARCH ---
     function handleSearchInput(input) {

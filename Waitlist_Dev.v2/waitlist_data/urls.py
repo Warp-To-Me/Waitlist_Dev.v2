@@ -15,9 +15,11 @@ urlpatterns = [
     # Internal Actions still use integer IDs for simplicity where not exposed in the main URL bar
     path('fleet/action/<int:entry_id>/<str:action>/', views.fc_action, name='fc_action'),
     
-    # Fleet Overview API (uses integer ID internally, but could be switched. 
-    # For now, we'll keep ID here as it's an AJAX endpoint, or switch if needed. 
-    # Let's switch it to token for consistency).
+    # User Actions (New)
+    path('fleet/entry/<int:entry_id>/leave/', views.leave_fleet, name='leave_fleet'),
+    path('fleet/entry/<int:entry_id>/update/', views.update_fit, name='update_fit'),
+    
+    # Fleet Overview API
     path('fleet/<uuid:token>/overview/', views.fleet_overview_api, name='fleet_overview_api'),
     
     path('fleet/entry/api/<int:entry_id>/', views.api_entry_details, name='api_entry_details'),
