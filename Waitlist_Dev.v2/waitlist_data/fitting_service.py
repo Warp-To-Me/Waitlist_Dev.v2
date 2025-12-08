@@ -11,18 +11,58 @@ class ComparisonStatus:
     EXTRA = "EXTRA"
     UNKNOWN = "UNKNOWN"
 
+class ComparisonCache:
+    """
+    Helper to bulk fetch data needed for comparisons to avoid N+1 queries.
+    """
+    def __init__(self, doctrine_items, pilot_items):
+        # Collect all Item IDs and Group IDs involved
+        all_items = list(doctrine_items) + list(pilot_items)
+        self.item_ids = [i.type_id for i in all_items if i]
+        self.group_ids = list(set([i.group_id for i in all_items if i]))
+
+        # 1. Bulk Fetch Rules
+        # Map: group_id -> list of FitAnalysisRule objects
+        self.rules_map = defaultdict(list)
+        rules = FitAnalysisRule.objects.filter(
+            group_id__in=self.group_ids
+        ).select_related('attribute')
+        
+        for r in rules:
+            self.rules_map[r.group_id].append(r)
+
+        # 2. Bulk Fetch Attributes
+        # Map: item_id -> { attribute_id: value }
+        self.attr_map = defaultdict(dict)
+        
+        # Optimization: Only fetch attributes that are actually referenced by rules
+        # to avoid loading thousands of useless graphic/sound attributes.
+        relevant_attr_ids = set(r.attribute_id for r in rules)
+        
+        if relevant_attr_ids and self.item_ids:
+            attrs = TypeAttribute.objects.filter(
+                item_id__in=self.item_ids,
+                attribute_id__in=relevant_attr_ids
+            )
+            for a in attrs:
+                self.attr_map[a.item_id][a.attribute_id] = a.value
+
+    def get_rules(self, group_id):
+        return self.rules_map.get(group_id, [])
+
+    def get_attributes(self, item_id):
+        return self.attr_map.get(item_id, {})
+
+
 class FitComparator:
     """
-    Compares two items (Pilot's Item vs Doctrine Item) based on database Rules.
+    Compares two items. Now stateless regarding DB; requires data passed in.
     """
     
     @staticmethod
-    def compare_items(doctrine_item, pilot_item):
+    def compare_items(doctrine_item, pilot_item, cache):
         """
-        Returns: {
-            'status': ComparisonStatus,
-            'diffs': [ {'attr': 'Thermal Res', 'value': 20, 'target': 25, 'diff': -5, 'pass': False} ]
-        }
+        cache: Instance of ComparisonCache containing pre-fetched rules/attrs
         """
         result = {
             'status': ComparisonStatus.UNKNOWN,
@@ -36,32 +76,18 @@ class FitComparator:
 
         # 2. Group Check (Sanity)
         if doctrine_item.group_id != pilot_item.group_id:
-            # Totally different items (e.g. Shield Booster vs Armor Plate)
-            # We treat this as a mismatch, likely user error or empty slot
-            result['status'] = ComparisonStatus.UNKNOWN
             return result
 
-        # 3. Fetch Rules for this Group
-        rules = FitAnalysisRule.objects.filter(group_id=doctrine_item.group_id).select_related('attribute')
+        # 3. Get Rules from Cache
+        rules = cache.get_rules(doctrine_item.group_id)
         
-        # If no rules exist, we can only check exact match (which failed above).
-        # We default to SIDEGRADE to give benefit of doubt if it's same group.
-        if not rules.exists():
+        if not rules:
             result['status'] = ComparisonStatus.SIDEGRADE
-            result['note'] = "No analysis rules defined for this item group."
             return result
 
-        # 4. Compare Attributes
-        # Bulk fetch attributes for both items
-        required_attr_ids = [r.attribute_id for r in rules]
-        
-        # Helper to fetch values
-        def get_attr_map(item, attr_ids):
-            attrs = TypeAttribute.objects.filter(item=item, attribute_id__in=attr_ids)
-            return {a.attribute_id: a.value for a in attrs}
-
-        doc_attrs = get_attr_map(doctrine_item, required_attr_ids)
-        pilot_attrs = get_attr_map(pilot_item, required_attr_ids)
+        # 4. Compare Attributes using Cache
+        doc_attrs = cache.get_attributes(doctrine_item.type_id)
+        pilot_attrs = cache.get_attributes(pilot_item.type_id)
 
         all_passed = True
         has_upgrade = False
@@ -71,39 +97,28 @@ class FitComparator:
             doc_val = doc_attrs.get(attr_id, 0.0)
             pilot_val = pilot_attrs.get(attr_id, 0.0)
             
-            # Skip if irrelevant (e.g. comparing CPU on items that use none)
-            if doc_val == 0 and pilot_val == 0:
-                continue
+            if doc_val == 0 and pilot_val == 0: continue
 
-            # Calculate Difference %
-            # Avoid division by zero
+            # Calculate Diff %
             if doc_val == 0:
                 diff_pct = 100.0 if pilot_val > 0 else 0.0
             else:
                 diff_pct = ((pilot_val - doc_val) / abs(doc_val)) * 100.0
 
             is_pass = False
-            rule_status = "NEUTRAL"
 
             if rule.comparison_logic == 'match':
                 is_pass = abs(doc_val - pilot_val) < 0.01
-            
             elif rule.comparison_logic == 'higher':
-                # Pass if Pilot >= Doctrine (minus tolerance)
-                # e.g. Tolerance 10%. Doc=100. Pilot=91. Diff=-9%. Pass.
                 if diff_pct >= -rule.tolerance_percent:
                     is_pass = True
-                    if diff_pct > 0: has_upgrade = True
+                    if diff_pct > 0.1: has_upgrade = True
                 else:
                     is_pass = False
-
             elif rule.comparison_logic == 'lower':
-                # Pass if Pilot <= Doctrine (plus tolerance)
-                # e.g. CPU Usage. Lower is better.
-                # Doc=100. Pilot=105. Diff=+5%. Tolerance=10%. Pass.
                 if diff_pct <= rule.tolerance_percent:
                     is_pass = True
-                    if diff_pct < 0: has_upgrade = True
+                    if diff_pct < -0.1: has_upgrade = True
                 else:
                     is_pass = False
 
@@ -129,31 +144,37 @@ class FitComparator:
 
 
 class SmartFitMatcher:
-    """
-    Matches a parsed fit against all DoctrineFits for the given hull.
-    """
-
     def __init__(self, parser_result):
         self.parser = parser_result
         self.hull = parser_result.hull_obj
-        self.pilot_items = parser_result.items # List of {'name', 'quantity', 'obj'}
+        # List of {'name', 'quantity', 'obj'}
+        self.pilot_items_raw = parser_result.items 
 
     def find_best_match(self):
-        """
-        Returns tuple: (BestDoctrineFit, MatchDetails)
-        MatchDetails contains the slot-by-slot comparison for the UI.
-        """
-        candidates = DoctrineFit.objects.filter(ship_type=self.hull)
+        candidates = DoctrineFit.objects.filter(ship_type=self.hull).prefetch_related('modules__item_type')
         
         if not candidates.exists():
             return None, None
 
         best_fit = None
-        best_score = -9999
+        best_score = -99999
         best_analysis = None
 
+        # --- PRE-FETCH OPTIMIZATION ---
+        # 1. Gather all items from ALL candidate fits + Pilot Items
+        all_doc_items = set()
         for fit in candidates:
-            score, analysis = self._score_fit(fit)
+            for mod in fit.modules.all():
+                all_doc_items.add(mod.item_type)
+        
+        pilot_item_objs = [x['obj'] for x in self.pilot_items_raw if x['obj']]
+        
+        # 2. Build Cache once
+        cache = ComparisonCache(all_doc_items, pilot_item_objs)
+
+        # 3. Score
+        for fit in candidates:
+            score, analysis = self._score_fit(fit, cache)
             if score > best_score:
                 best_score = score
                 best_fit = fit
@@ -161,20 +182,17 @@ class SmartFitMatcher:
 
         return best_fit, best_analysis
 
-    def _score_fit(self, doctrine_fit):
-        """
-        Scoring Logic:
-        Exact Match: +10
-        Upgrade: +8
-        Sidegrade: +5
-        Downgrade: -5
-        Missing: -10
-        """
+    def _score_fit(self, doctrine_fit, cache=None):
         score = 0
-        analysis = [] # List of comparison results for display
+        analysis = [] 
 
-        # 1. Flatten Doctrine Modules into a checklist
-        # We need to handle quantities. If doctrine has 2x Heat Sinks, we need to find 2x Heat Sinks.
+        # If cache wasn't provided (e.g. single fit check), build local one
+        if not cache:
+            doc_items = [m.item_type for m in doctrine_fit.modules.all()]
+            pilot_items = [x['obj'] for x in self.pilot_items_raw if x['obj']]
+            cache = ComparisonCache(doc_items, pilot_items)
+
+        # 1. Expand Doctrine Modules
         doctrine_checklist = []
         for mod in doctrine_fit.modules.all():
             for _ in range(mod.quantity):
@@ -183,52 +201,51 @@ class SmartFitMatcher:
                     'slot': mod.slot
                 })
 
-        # 2. Flatten Pilot Items (Mutable copy)
+        # 2. Expand Pilot Inventory (Mutable)
         pilot_inventory = []
-        for p_item in self.pilot_items:
+        for p_item in self.pilot_items_raw:
             for _ in range(p_item['quantity']):
                 pilot_inventory.append(p_item['obj'])
 
-        # 3. Matching Process
-        # We iterate doctrine items and try to find the "best" match in pilot inventory
-        
+        # 3. Matching
         for req in doctrine_checklist:
             doc_item = req['item']
             
-            # Find candidate in pilot inventory
-            # Priority: Exact ID > Same Group > Anything
+            # IMPROVED MATCHING STRATEGY:
+            # Instead of taking the first group match, we should look for:
+            # 1. Exact Match
+            # 2. Upgrade/Sidegrade
+            # 3. Downgrade
             
-            match_idx = -1
-            match_quality = -1 # 0=Group, 1=Exact
+            best_idx = -1
+            best_quality = -1 # 0=Bad, 1=Ok, 2=Exact
             
+            # First pass: Look for Exact
             for idx, p_item in enumerate(pilot_inventory):
                 if p_item.type_id == doc_item.type_id:
-                    match_idx = idx
-                    match_quality = 1
-                    break # Found exact
-                elif p_item.group_id == doc_item.group_id and match_idx == -1:
-                    match_idx = idx
-                    match_quality = 0
-                    # Don't break, keep looking for exact
+                    best_idx = idx
+                    best_quality = 2
+                    break
             
-            if match_idx != -1:
-                # We found a corresponding item
-                pilot_item = pilot_inventory.pop(match_idx)
+            # Second pass: If no exact, find ANY group match
+            if best_idx == -1:
+                for idx, p_item in enumerate(pilot_inventory):
+                    if p_item.group_id == doc_item.group_id:
+                        best_idx = idx
+                        best_quality = 1
+                        break 
+            
+            if best_idx != -1:
+                pilot_item = pilot_inventory.pop(best_idx)
                 
-                # Run Comparison
-                comp = FitComparator.compare_items(doc_item, pilot_item)
+                # Perform Comparison
+                comp = FitComparator.compare_items(doc_item, pilot_item, cache)
                 
-                # Apply Score
-                if comp['status'] == ComparisonStatus.MATCH:
-                    score += 10
-                elif comp['status'] == ComparisonStatus.UPGRADE:
-                    score += 8
-                elif comp['status'] == ComparisonStatus.SIDEGRADE:
-                    score += 5
-                elif comp['status'] == ComparisonStatus.DOWNGRADE:
-                    score -= 5
-                else:
-                    score -= 2 # Unknown match
+                if comp['status'] == ComparisonStatus.MATCH: score += 10
+                elif comp['status'] == ComparisonStatus.UPGRADE: score += 8
+                elif comp['status'] == ComparisonStatus.SIDEGRADE: score += 5
+                elif comp['status'] == ComparisonStatus.DOWNGRADE: score -= 5
+                else: score -= 2
                 
                 analysis.append({
                     'slot': req['slot'],
@@ -238,7 +255,6 @@ class SmartFitMatcher:
                     'diffs': comp['diffs']
                 })
             else:
-                # Missing Item
                 score -= 10
                 analysis.append({
                     'slot': req['slot'],
@@ -248,12 +264,10 @@ class SmartFitMatcher:
                     'diffs': []
                 })
 
-        # 4. Check for Extra Items (Pilot has stuff not in doctrine)
-        # Usually fine, but maybe penalty for weird stuff?
-        # For now, we ignore extra items in scoring, but listing them might be good.
+        # 4. Extras
         for extra in pilot_inventory:
             analysis.append({
-                'slot': 'cargo', # Don't know slot
+                'slot': 'cargo',
                 'doctrine_item': None,
                 'pilot_item': extra,
                 'status': ComparisonStatus.EXTRA,

@@ -67,6 +67,10 @@ def can_manage_doctrines(user):
     if user.is_superuser: return True
     return user.groups.filter(capabilities__slug='manage_doctrines').exists()
 
+def can_manage_analysis_rules(user):
+    if user.is_superuser: return True
+    return user.groups.filter(capabilities__slug='manage_analysis_rules').exists()
+
 def can_manage_roles(user):
     """
     Checks if user has permission to promote/demote others.
@@ -100,7 +104,7 @@ def _get_character_data(active_char):
             esi_data['implants'].append({
                 'id': imp.type_id,
                 'name': item.type_name if item else f"Unknown ({imp.type_id})",
-                'icon_url': f"https://images.evetech.net/types/{imp.type_id}/icon?size=32"
+                'icon_url': f"https://images.evetech.net/types/{{imp.type_id}}/icon?size=32"
             })
     queue = active_char.skill_queue.all().order_by('queue_position')
     q_ids = [q.skill_id for q in queue]
@@ -122,7 +126,7 @@ def _get_character_data(active_char):
             for h in raw_history:
                 item = h_items.get(h.skill_id)
                 esi_data['skill_history'].append({
-                    'name': item.type_name if item else f"Unknown Skill {h.skill_id}",
+                    'name': item.type_name if item else f"Unknown Skill {{h.skill_id}}",
                     'old_level': h.old_level, 'new_level': h.new_level,
                     'sp_diff': h.new_sp - h.old_sp, 'logged_at': h.logged_at
                 })
@@ -514,7 +518,7 @@ def api_manage_group(request):
 # --- RULE MANAGER VIEWS ---
 
 @login_required
-@user_passes_test(is_admin)
+@user_passes_test(can_manage_analysis_rules)
 def management_rules(request):
     """
     Renders the Rule Helper Dashboard.
@@ -526,20 +530,25 @@ def management_rules(request):
     return render(request, 'management/rules_helper.html', context)
 
 @login_required
-@user_passes_test(is_admin)
+@user_passes_test(can_manage_analysis_rules)
 def api_group_search(request):
     """
     Searches for ItemGroups (e.g. "Shield Hardener")
     """
     query = request.GET.get('q', '').strip()
-    if len(query) < 3: return JsonResponse({'results': []})
     
-    groups = ItemGroup.objects.filter(group_name__icontains=query, published=True)[:20]
+    # IMPROVEMENT: Return default list if query is empty/short to prevent blank screen
+    if len(query) < 3: 
+        # Return first 20 module groups (Category 7 = Module)
+        groups = ItemGroup.objects.filter(category_id=7, published=True).order_by('group_name')[:20]
+    else:
+        groups = ItemGroup.objects.filter(group_name__icontains=query, published=True)[:20]
+        
     results = [{'id': g.group_id, 'name': g.group_name} for g in groups]
     return JsonResponse({'results': results})
 
 @login_required
-@user_passes_test(is_admin)
+@user_passes_test(can_manage_analysis_rules)
 def api_rule_discovery(request, group_id):
     """
     The Brains:
@@ -567,18 +576,41 @@ def api_rule_discovery(request, group_id):
 
     # 2. Discover Candidates
     # Fetch up to 10 items in this group to sample their attributes
-    sample_items = ItemType.objects.filter(group=group, published=True)[:10]
+    # FIXED: group_id=group.group_id instead of group=group
+    # ADDED: Verbose Debugging
+    sample_items = ItemType.objects.filter(group_id=group.group_id, published=True)[:10]
     
-    if sample_items.exists():
+    # FIX for MariaDB 1235: Evaluate sliced queryset to a list of IDs immediately
+    sample_ids = list(sample_items.values_list('type_id', flat=True))
+    
+    if not sample_ids:
+        # Fallback: Try finding unpublished items to diagnose
+        unpublished = ItemType.objects.filter(group_id=group.group_id).count()
+        total_items = ItemType.objects.count()
+        
+        print(f"DEBUG: No PUBLISHED items found for group {group.group_name} (ID: {group.group_id})")
+        print(f"DEBUG: Found {unpublished} total items in this group (ignoring published flag).")
+        print(f"DEBUG: Total items in database: {total_items}")
+        
+        # Emergency Fallback: If we found items but they are unpublished, use them anyway for discovery
+        if unpublished > 0:
+            print("DEBUG: Using unpublished items for discovery fallback.")
+            sample_ids = list(ItemType.objects.filter(group_id=group.group_id)[:10].values_list('type_id', flat=True))
+
+    if sample_ids:
+        print(f"DEBUG: Found {len(sample_ids)} items in group {group.group_name}")
+
         # Get all attributes for these items
         # Group by Attribute ID and count frequency
-        common_attrs = TypeAttribute.objects.filter(item__in=sample_items)\
+        common_attrs = TypeAttribute.objects.filter(item_id__in=sample_ids)\
             .values('attribute_id')\
             .annotate(count=Count('item_id'))\
             .order_by('-count')
             
+        print(f"DEBUG: Found {len(common_attrs)} common attributes")
+            
         # Filter for attributes that appear in at least 50% of the sample
-        threshold = sample_items.count() / 2
+        threshold = len(sample_ids) / 2
         candidate_ids = [c['attribute_id'] for c in common_attrs if c['count'] >= threshold]
         
         # Remove ones we already have rules for
@@ -586,6 +618,7 @@ def api_rule_discovery(request, group_id):
         
         # Fetch definitions
         definitions = AttributeDefinition.objects.filter(attribute_id__in=new_ids)
+        print(f"DEBUG: Found {definitions.count()} definitions matching attributes")
         
         # Exclude boring attributes (icons, graphic IDs, etc) usually hidden
         # This is a heuristic; might need tuning.
@@ -614,7 +647,7 @@ def api_rule_discovery(request, group_id):
     })
 
 @login_required
-@user_passes_test(is_admin)
+@user_passes_test(can_manage_analysis_rules)
 @require_POST
 def api_save_rules(request):
     try:

@@ -100,7 +100,10 @@ class ItemGroup(models.Model):
 
 class ItemType(models.Model):
     type_id = models.IntegerField(primary_key=True)
-    group_id = models.IntegerField() 
+    
+    # CHANGED: Added null=True to resolve migration conflict
+    group = models.ForeignKey(ItemGroup, on_delete=models.CASCADE, related_name='types', db_column='group_id', null=True)
+    
     type_name = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
     mass = models.FloatField(default=0)

@@ -266,15 +266,10 @@ def x_up_submit(request, token):
     
     # --- NEW: Smart Matching Logic ---
     matcher = SmartFitMatcher(parser)
-    matched_fit, _ = matcher.find_best_match()
+    matched_fit, analysis = matcher.find_best_match()
     
     # Fallback to simple ship matching if no doctrine fits found, or reject?
-    # Original logic just looked for exact ship type. 
-    # If SmartFitMatcher returns None, it means no fits exist for this hull.
     if not matched_fit:
-        # Check if ship exists at all in doctrines, if not, reject.
-        # Ideally we might allow "Non-Doctrine" fits but label them as such.
-        # For now, strict:
         return JsonResponse({'success': False, 'error': f"No doctrine found for ship '{parser.hull_obj.type_name}'."})
 
     if WaitlistEntry.objects.filter(fleet=fleet, character=character, status__in=['pending', 'approved', 'invited']).exists():
@@ -285,7 +280,15 @@ def x_up_submit(request, token):
     )
     
     broadcast_update(fleet.id, 'add', entry, target_col='pending')
-    return JsonResponse({'success': True})
+    
+    # Add feedback about the match
+    # Example: "Matches 'Paladin - Sniper' (Downgrades detected)"
+    warnings = [i for i in analysis if i['status'] == ComparisonStatus.DOWNGRADE] if analysis else []
+    msg = f"Matched: {matched_fit.name}"
+    if warnings:
+        msg += f" ({len(warnings)} downgrades)"
+        
+    return JsonResponse({'success': True, 'message': msg})
 
 @login_required
 def api_entry_details(request, entry_id):
@@ -305,8 +308,11 @@ def api_entry_details(request, entry_id):
     
     # --- NEW: Generate Live Comparison against the LINKED fit ---
     # We use the internal _score_fit method of the matcher to get the analysis array
+    # The new version allows calling _score_fit directly without a pre-built cache
     matcher = SmartFitMatcher(parser)
+    
     # We force the comparison against the specific fit assigned to the entry
+    # The updated service will build a local cache for this single comparison automatically
     _, analysis = matcher._score_fit(entry.fit)
     
     # Organize analysis by slot for the frontend
@@ -505,34 +511,19 @@ def manage_doctrines(request):
                 if action == 'update':
                     fit_id = request.POST.get('fit_id')
                     fit = get_object_or_404(DoctrineFit, id=fit_id)
-                    fit.name = parser.fit_name
-                    fit.category = category
-                    fit.ship_type = parser.hull_obj
-                    fit.eft_format = parser.raw_text
-                    fit.description = description
-                    fit.save()
+                    fit.name = parser.fit_name; fit.category = category; fit.ship_type = parser.hull_obj
+                    fit.eft_format = parser.raw_text; fit.description = description; fit.save()
                     fit.modules.all().delete()
                 else:
-                    fit = DoctrineFit.objects.create(
-                        name=parser.fit_name, category=category,
-                        ship_type=parser.hull_obj, eft_format=parser.raw_text,
-                        description=description
-                    )
+                    fit = DoctrineFit.objects.create(name=parser.fit_name, category=category, ship_type=parser.hull_obj, eft_format=parser.raw_text, description=description)
                 if tag_ids: fit.tags.set(tag_ids)
                 else: fit.tags.clear()
                 for item in parser.items:
-                    FitModule.objects.create(
-                        fit=fit, item_type=item['obj'],
-                        quantity=item['quantity'], slot=_determine_slot(item['obj'])
-                    )
+                    FitModule.objects.create(fit=fit, item_type=item['obj'], quantity=item['quantity'])
             return redirect('manage_doctrines')
-
     categories = DoctrineCategory.objects.all()
     fits = DoctrineFit.objects.select_related('category', 'ship_type').prefetch_related('tags').order_by('category__name', 'order')
     tags = DoctrineTag.objects.all()
-    context = {
-        'categories': categories, 'fits': fits, 'tags': tags,
-        'base_template': get_template_base(request)
-    }
+    context = { 'categories': categories, 'fits': fits, 'tags': tags, 'base_template': get_template_base(request) }
     context.update(get_mgmt_context(request.user))
     return render(request, 'management/doctrines.html', context)

@@ -15,7 +15,8 @@
     </div>
 
     <!-- CONTROL BAR -->
-    <div class="glass-panel p-4 shrink-0 flex flex-col md:flex-row gap-4 items-center">
+    <!-- ADDED: 'relative z-20' to ensure dropdowns stack ON TOP of the editor panel below -->
+    <div class="glass-panel p-4 shrink-0 flex flex-col md:flex-row gap-4 items-center relative z-20">
         <!-- Scope Switcher (Visual only for now as requested) -->
         <div class="flex bg-black/40 p-1 rounded-lg border border-white/10">
             <button class="px-4 py-1.5 rounded-md text-xs font-bold bg-slate-700 text-white shadow-sm">Global Rules</button>
@@ -30,7 +31,9 @@
             <input type="text" id="group-search"
                    class="input-field pl-10"
                    placeholder="Search by Item Group (e.g. 'Shield Hardener', 'Heat Sink')..."
-                   oninput="handleSearchInput(this)">
+                   oninput="handleSearchInput(this)"
+                   onfocus="handleSearchInput(this)"
+                   autocomplete="off">
 
             <!-- Autocomplete Dropdown -->
             <div id="search-dropdown" class="absolute top-full left-0 w-full mt-2 bg-slate-900 border border-white/10 rounded-xl shadow-2xl z-50 hidden overflow-hidden">
@@ -40,7 +43,8 @@
     </div>
 
     <!-- MAIN EDITOR -->
-    <div id="editor-panel" class="hidden flex-col flex-grow min-h-0 animate-fade-in">
+    <!-- ADDED: 'z-0' to keep it below the control bar -->
+    <div id="editor-panel" class="hidden flex-col flex-grow min-h-0 animate-fade-in relative z-0">
 
         <!-- Selected Group Header -->
         <div class="flex items-center gap-4 mb-4">
@@ -79,14 +83,13 @@
         const query = input.value.trim();
         const dropdown = document.getElementById('search-dropdown');
 
-        if (query.length < 3) {
-            dropdown.classList.add('hidden');
-            return;
-        }
-
+        // Allow empty query to trigger "default list"
         searchTimeout = setTimeout(() => {
             fetch(`{% url 'api_group_search' %}?q=${encodeURIComponent(query)}`)
-                .then(r => r.json())
+                .then(r => {
+                    if (!r.ok) throw new Error(`HTTP Error ${r.status}`);
+                    return r.json();
+                })
                 .then(data => {
                     dropdown.innerHTML = '';
                     if (data.results.length > 0) {
@@ -102,6 +105,11 @@
                         dropdown.innerHTML = '<div class="p-3 text-slate-500 italic text-sm">No groups found.</div>';
                         dropdown.classList.remove('hidden');
                     }
+                })
+                .catch(err => {
+                    console.error("Search API Error:", err);
+                    dropdown.innerHTML = '<div class="p-3 text-red-400 italic text-sm">Error loading groups. Permissions?</div>';
+                    dropdown.classList.remove('hidden');
                 });
         }, 300);
     }
