@@ -14,23 +14,37 @@
 
         <nav class="p-4 space-y-1">
             <!-- GENERAL -->
+            <!-- Visible to anyone with basic management access -->
+            {% if 'access_management' in user_perms %}
             <div class="mb-4">
                 <span class="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-2">Analysis</span>
+
                 <a href="{% url 'custom_admin' %}"
                    class="flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm font-medium {% if request.resolver_match.url_name == 'custom_admin' %}bg-brand-500/10 text-brand-400 border border-brand-500/20{% else %}text-slate-400 hover:text-white hover:bg-white/5{% endif %}">
                     <span>📊</span> Overview
                 </a>
+
+                <!-- FIXED: Wrapped in FC check to prevent Resident/Line Commander access -->
+                {% if 'access_fleet_command' in user_perms %}
                 <a href="{% url 'management_users' %}"
                    class="flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm font-medium {% if request.resolver_match.url_name == 'management_users' %}bg-brand-500/10 text-brand-400 border border-brand-500/20{% else %}text-slate-400 hover:text-white hover:bg-white/5{% endif %}">
                     <span>👥</span> User Database
                 </a>
+                {% endif %}
+
+                <!-- FIXED: Wrapped in Promote/Demote check -->
+                {% if 'promote_demote_users' in user_perms %}
                 <a href="{% url 'management_roles' %}"
                    class="flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm font-medium {% if request.resolver_match.url_name == 'management_roles' %}bg-brand-500/10 text-brand-400 border border-brand-500/20{% else %}text-slate-400 hover:text-white hover:bg-white/5{% endif %}">
                     <span>🛡️</span> Roles
                 </a>
+                {% endif %}
             </div>
+            {% endif %}
 
-            {% if can_view_fleets %}
+            <!-- OPERATIONS -->
+            <!-- 'access_fleet_command' covers FCs -->
+            {% if 'access_fleet_command' in user_perms %}
             <div class="mb-4">
                 <span class="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-2">Operations</span>
                 <a href="{% url 'management_fleets' %}"
@@ -40,13 +54,20 @@
             </div>
             {% endif %}
 
-            {% if can_view_admin %}
+            <!-- SYSTEM -->
+            <!-- Granular checks -->
+            {% if 'access_admin' in user_perms or 'manage_doctrines' in user_perms %}
             <div class="mb-4">
                 <span class="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-2">System</span>
+
+                {% if 'manage_doctrines' in user_perms %}
                 <a href="{% url 'manage_doctrines' %}"
                    class="flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm font-medium {% if request.resolver_match.url_name == 'manage_doctrines' %}bg-brand-500/10 text-brand-400 border border-brand-500/20{% else %}text-slate-400 hover:text-white hover:bg-white/5{% endif %}">
                     <span>📜</span> Doctrines
                 </a>
+                {% endif %}
+
+                {% if 'access_admin' in user_perms %}
                 <a href="{% url 'management_sde' %}"
                    class="flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm font-medium {% if request.resolver_match.url_name == 'management_sde' %}bg-brand-500/10 text-brand-400 border border-brand-500/20{% else %}text-slate-400 hover:text-white hover:bg-white/5{% endif %}">
                     <span>💾</span> SDE Data
@@ -59,6 +80,7 @@
                    class="flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm font-medium {% if request.resolver_match.url_name == 'management_permissions' %}bg-brand-500/10 text-brand-400 border border-brand-500/20{% else %}text-slate-400 hover:text-white hover:bg-white/5{% endif %}">
                     <span>🔑</span> Permissions
                 </a>
+                {% endif %}
             </div>
             {% endif %}
         </nav>

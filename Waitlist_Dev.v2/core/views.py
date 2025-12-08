@@ -13,20 +13,20 @@ import json
 
 # Import Utils
 from core.utils import (
-    get_system_status, get_user_highest_role, can_manage_role, 
+    get_system_status, get_user_highest_role, can_manage_role, get_role_hierarchy,
     ROLE_HIERARCHY, ROLES_ADMIN, ROLES_FC, ROLES_MANAGEMENT, SYSTEM_CAPABILITIES
 )
 
 # Import Celery App
 from waitlist_project.celery import app as celery_app
 
-# Import Models (Updated imports)
+# Import Models
 from pilot_data.models import EveCharacter, ItemType, ItemGroup, SkillHistory, TypeAttribute
 from waitlist_data.models import Fleet
 from esi_calls.token_manager import update_character_data
 from waitlist_data.models import DoctrineCategory, DoctrineFit, FitModule
 from core.eft_parser import EFTParser
-
+from core.models import Capability, RolePriority
 
 # --- Helper for SPA Rendering ---
 def get_template_base(request):
@@ -34,38 +34,60 @@ def get_template_base(request):
         return 'base_content.html'
     return 'base.html'
 
-# --- Permission Helpers (Updated to use Dynamic Groups) ---
+# --- Permission Helpers (Enhanced) ---
+
+def get_user_capabilities(user):
+    """
+    Returns a set of capability slugs for the user.
+    """
+    if user.is_superuser:
+        return set(Capability.objects.values_list('slug', flat=True))
+    
+    return set(Capability.objects.filter(groups__user=user).values_list('slug', flat=True).distinct())
+
 def is_management(user):
     if user.is_superuser: return True
+    if user.groups.filter(capabilities__slug='access_management').exists(): return True
     return user.groups.filter(name__in=ROLES_MANAGEMENT).exists()
 
 def is_fleet_command(user):
     if user.is_superuser: return True
+    if user.groups.filter(capabilities__slug='access_fleet_command').exists(): return True
     return user.groups.filter(name__in=ROLES_FC).exists()
 
 def is_admin(user):
     if user.is_superuser: return True
+    if user.groups.filter(capabilities__slug='access_admin').exists(): return True
+    return user.groups.filter(name__in=ROLES_ADMIN).exists()
+
+def can_manage_doctrines(user):
+    if user.is_superuser: return True
+    return user.groups.filter(capabilities__slug='manage_doctrines').exists()
+
+def can_manage_roles(user):
+    """
+    Checks if user has permission to promote/demote others.
+    """
+    if user.is_superuser: return True
+    if user.groups.filter(capabilities__slug='promote_demote_users').exists(): return True
     return user.groups.filter(name__in=ROLES_ADMIN).exists()
 
 def get_mgmt_context(user):
+    """
+    Injects the granular permission set into the template.
+    """
+    perms = get_user_capabilities(user)
     return {
-        'can_view_fleets': is_fleet_command(user),
-        'can_view_admin': is_admin(user)
+        'user_perms': perms,
+        'can_view_fleets': 'access_fleet_command' in perms,
+        'can_view_admin': 'access_admin' in perms
     }
 
 # --- Data Builder Helper ---
 def _get_character_data(active_char):
-    """
-    Constructs the ESI data dictionary and grouped skills for a character
-    purely from the database.
-    """
     esi_data = {'implants': [], 'queue': [], 'history': [], 'skill_history': []}
     grouped_skills = {}
-    
-    if not active_char:
-        return esi_data, grouped_skills
-
-    # 1. Implants
+    if not active_char: return esi_data, grouped_skills
     implants = active_char.implants.all()
     if implants.exists():
         imp_ids = [i.type_id for i in implants]
@@ -77,8 +99,6 @@ def _get_character_data(active_char):
                 'name': item.type_name if item else f"Unknown ({imp.type_id})",
                 'icon_url': f"https://images.evetech.net/types/{imp.type_id}/icon?size=32"
             })
-
-    # 2. Skill Queue
     queue = active_char.skill_queue.all().order_by('queue_position')
     q_ids = [q.skill_id for q in queue]
     q_types = ItemType.objects.filter(type_id__in=q_ids).in_bulk(field_name='type_id')
@@ -90,37 +110,26 @@ def _get_character_data(active_char):
                 'finished_level': q.finished_level,
                 'finish_date': q.finish_date
             })
-
-    # 3. Corp History
     esi_data['history'] = active_char.corp_history.all().order_by('-start_date')
-
-    # 4. Skill History
     try:
         raw_history = active_char.skill_history.all().order_by('-logged_at')[:30]
         if raw_history.exists():
             h_ids = [h.skill_id for h in raw_history]
             h_items = ItemType.objects.filter(type_id__in=h_ids).in_bulk(field_name='type_id')
-            
             for h in raw_history:
                 item = h_items.get(h.skill_id)
                 esi_data['skill_history'].append({
                     'name': item.type_name if item else f"Unknown Skill {h.skill_id}",
-                    'old_level': h.old_level,
-                    'new_level': h.new_level,
-                    'sp_diff': h.new_sp - h.old_sp,
-                    'logged_at': h.logged_at
+                    'old_level': h.old_level, 'new_level': h.new_level,
+                    'sp_diff': h.new_sp - h.old_sp, 'logged_at': h.logged_at
                 })
-    except Exception:
-        pass
-
-    # 5. Skills
+    except Exception: pass
     skills = active_char.skills.select_related().all()
     if skills.exists():
         s_ids = [s.skill_id for s in skills]
         s_types = ItemType.objects.filter(type_id__in=s_ids).in_bulk(field_name='type_id')
         group_ids = set(st.group_id for st in s_types.values())
         skill_groups = ItemGroup.objects.filter(group_id__in=group_ids).in_bulk(field_name='group_id')
-        
         for s in skills:
             item = s_types.get(s.skill_id)
             if item:
@@ -128,76 +137,37 @@ def _get_character_data(active_char):
                 group_name = group.group_name if group else "Unknown"
                 if group_name not in grouped_skills: grouped_skills[group_name] = []
                 grouped_skills[group_name].append({
-                    'name': item.type_name,
-                    'level': s.active_skill_level,
-                    'sp': s.skillpoints_in_skill
+                    'name': item.type_name, 'level': s.active_skill_level, 'sp': s.skillpoints_in_skill
                 })
-        
-        for g in grouped_skills:
-            grouped_skills[g].sort(key=lambda x: x['name'])
+        for g in grouped_skills: grouped_skills[g].sort(key=lambda x: x['name'])
         grouped_skills = dict(sorted(grouped_skills.items()))
-
-    # 6. Ship
     if active_char.current_ship_type_id:
             try:
                 ship_item = ItemType.objects.get(type_id=active_char.current_ship_type_id)
                 active_char.ship_type_name = ship_item.type_name
             except ItemType.DoesNotExist:
                 active_char.ship_type_name = "Unknown Hull"
-    
     return esi_data, grouped_skills
 
 # --- Public Views ---
 
 def landing_page(request):
-    """
-    Public landing page.
-    Logic:
-    1. Fetches active fleets.
-    2. If Authenticated AND exactly 1 fleet is active -> Redirect immediately to Dashboard.
-    3. If Multiple fleets -> Show list (enriched with FC Character Names).
-    """
     active_fleets_qs = Fleet.objects.filter(is_active=True).select_related('commander').order_by('-created_at')
-    
-    # 1. Auto-Redirect Logic
     if request.user.is_authenticated and active_fleets_qs.count() == 1:
-        # FIXED: Use 'token' and 'join_token' instead of 'fleet_id' and 'id'
         return redirect('fleet_dashboard', token=active_fleets_qs.first().join_token)
-
-    # 2. Enrich Data (Resolve FC Character Names)
-    # We convert to a list so we can modify the objects with 'fc_name'
     fleets_list = list(active_fleets_qs)
-    
     if fleets_list:
         commander_user_ids = [f.commander_id for f in fleets_list]
-        
-        # Bulk Fetch: Try to find 'Main' characters for these commanders
-        mains = EveCharacter.objects.filter(
-            user_id__in=commander_user_ids, 
-            is_main=True
-        ).values('user_id', 'character_name')
-        
-        # Map: UserID -> Character Name
+        mains = EveCharacter.objects.filter(user_id__in=commander_user_ids, is_main=True).values('user_id', 'character_name')
         fc_name_map = {m['user_id']: m['character_name'] for m in mains}
-        
-        # Fallback: For commanders with no "Main" set, grab *any* character
         missing_ids = set(commander_user_ids) - set(fc_name_map.keys())
         if missing_ids:
             others = EveCharacter.objects.filter(user_id__in=missing_ids).values('user_id', 'character_name')
-            # Just take the first one found per user to ensure we have a name
             for o in others:
-                if o['user_id'] not in fc_name_map:
-                    fc_name_map[o['user_id']] = o['character_name']
-
-        # Apply names to fleet objects
+                if o['user_id'] not in fc_name_map: fc_name_map[o['user_id']] = o['character_name']
         for fleet in fleets_list:
-            # Default to username if absolutely no characters found (e.g. Superuser admin with no link)
             fleet.fc_name = fc_name_map.get(fleet.commander_id, fleet.commander.username)
-
-    context = { 
-        'active_fleets': fleets_list,
-        'base_template': get_template_base(request) 
-    }
+    context = { 'active_fleets': fleets_list, 'base_template': get_template_base(request) }
     return render(request, 'landing.html', context)
 
 # --- Profile & Alt Management ---
@@ -206,50 +176,29 @@ def landing_page(request):
 def profile_view(request):
     characters = request.user.characters.all()
     active_char_id = request.session.get('active_char_id')
-    
-    if active_char_id:
-        active_char = characters.filter(character_id=active_char_id).first()
+    if active_char_id: active_char = characters.filter(character_id=active_char_id).first()
     else:
         active_char = characters.filter(is_main=True).first()
-        if not active_char and characters.exists():
-            active_char = characters.first()
-            
-    # Use Helper
+        if not active_char and characters.exists(): active_char = characters.first()
     esi_data, grouped_skills = _get_character_data(active_char)
-    
     token_missing = False
-    if active_char and not active_char.refresh_token:
-        token_missing = True
-
-    totals = characters.aggregate(
-        wallet_sum=Sum('wallet_balance'),
-        lp_sum=Sum('concord_lp'),
-        sp_sum=Sum('total_sp')
-    )
-
+    if active_char and not active_char.refresh_token: token_missing = True
+    totals = characters.aggregate(wallet_sum=Sum('wallet_balance'), lp_sum=Sum('concord_lp'), sp_sum=Sum('total_sp'))
     context = {
-        'active_char': active_char,
-        'characters': characters,
-        'esi': esi_data,
-        'grouped_skills': grouped_skills,
-        'token_missing': token_missing,
-        'total_wallet': totals['wallet_sum'] or 0,
-        'total_lp': totals['lp_sum'] or 0,
-        'account_total_sp': totals['sp_sum'] or 0,
-        'is_admin_user': is_admin(request.user), # NEW: Pass admin status to template
+        'active_char': active_char, 'characters': characters,
+        'esi': esi_data, 'grouped_skills': grouped_skills, 'token_missing': token_missing,
+        'total_wallet': totals['wallet_sum'] or 0, 'total_lp': totals['lp_sum'] or 0,
+        'account_total_sp': totals['sp_sum'] or 0, 'is_admin_user': is_admin(request.user),
         'base_template': get_template_base(request) 
     }
-
     if request.headers.get('x-requested-with') == 'XMLHttpRequest' and request.GET.get('partial') == 'true':
         return render(request, 'partials/profile_content.html', context)
-
     return render(request, 'profile.html', context)
 
 @login_required
 def api_refresh_profile(request, char_id):
     character = get_object_or_404(EveCharacter, character_id=char_id, user=request.user)
-    if not character.refresh_token:
-        return JsonResponse({'success': False, 'error': 'No refresh token'})
+    if not character.refresh_token: return JsonResponse({'success': False, 'error': 'No refresh token'})
     success = update_character_data(character)
     return JsonResponse({'success': success, 'last_updated': timezone.now().isoformat()})
 
@@ -259,7 +208,6 @@ def switch_character(request, char_id):
     request.session['active_char_id'] = character.character_id
     return redirect('profile')
 
-# Deprecated in favor of api_promote_alt but kept for fallback
 @login_required
 def make_main(request, char_id):
     new_main = get_object_or_404(EveCharacter, character_id=char_id, user=request.user)
@@ -269,14 +217,8 @@ def make_main(request, char_id):
     request.session['active_char_id'] = new_main.character_id
     return redirect('profile')
 
-# --- Access Denied View ---
 def access_denied(request):
-    """
-    Custom Login/Access Denied page.
-    """
-    context = {
-        'base_template': get_template_base(request)
-    }
+    context = { 'base_template': get_template_base(request) }
     return render(request, 'access_denied.html', context)
 
 # --- MANAGEMENT VIEWS ---
@@ -285,26 +227,14 @@ def access_denied(request):
 @user_passes_test(is_management)
 def management_dashboard(request):
     thirty_days_ago = timezone.now() - timedelta(days=30)
-    user_growth = User.objects.filter(date_joined__gte=thirty_days_ago) \
-        .annotate(date=TruncDate('date_joined')) \
-        .values('date') \
-        .annotate(count=Count('id')) \
-        .order_by('date')
-
+    user_growth = User.objects.filter(date_joined__gte=thirty_days_ago).annotate(date=TruncDate('date_joined')).values('date').annotate(count=Count('id')).order_by('date')
     growth_labels = [entry['date'].strftime('%b %d') for entry in user_growth]
     growth_data = [entry['count'] for entry in user_growth]
-
-    corp_distribution = EveCharacter.objects.values('corporation_name') \
-        .annotate(count=Count('id')) \
-        .order_by('-count')[:5]
-
+    corp_distribution = EveCharacter.objects.values('corporation_name').annotate(count=Count('id')).order_by('-count')[:5]
     context = {
-        'total_users': User.objects.count(),
-        'total_fleets': Fleet.objects.count(),
-        'active_fleets_count': Fleet.objects.filter(is_active=True).count(),
-        'total_characters': EveCharacter.objects.count(),
-        'growth_labels': growth_labels,
-        'growth_data': growth_data,
+        'total_users': User.objects.count(), 'total_fleets': Fleet.objects.count(),
+        'active_fleets_count': Fleet.objects.filter(is_active=True).count(), 'total_characters': EveCharacter.objects.count(),
+        'growth_labels': growth_labels, 'growth_data': growth_data,
         'corp_labels': [e['corporation_name'] for e in corp_distribution],
         'corp_data': [e['count'] for e in corp_distribution],
         'base_template': get_template_base(request)
@@ -313,309 +243,151 @@ def management_dashboard(request):
     return render(request, 'management/dashboard.html', context)
 
 @login_required
-@user_passes_test(is_fleet_command) # RESTRICTED: FC+
+@user_passes_test(is_fleet_command)
 def management_users(request):
-    """
-    Searchable Character Directory with Linked Character Counts & Main Character info.
-    Includes sorting functionality.
-    """
     query = request.GET.get('q', '')
     sort_by = request.GET.get('sort', 'character')
     direction = request.GET.get('dir', 'asc')
-    
-    # Subquery to fetch the name of the 'Main' character for the user owning the row's character
-    # This avoids N+1 queries when displaying the "Main" column.
-    main_name_sq = EveCharacter.objects.filter(
-        user=OuterRef('user'),
-        is_main=True
-    ).values('character_name')[:1]
-
-    # 1. Base Query with Annotations
+    main_name_sq = EveCharacter.objects.filter(user=OuterRef('user'), is_main=True).values('character_name')[:1]
     char_qs = EveCharacter.objects.select_related('user').annotate(
-        # Count all characters belonging to this user
-        linked_count=Count('user__characters', distinct=True),
-        # Attach the Main Character's name
-        main_char_name=Subquery(main_name_sq)
+        linked_count=Count('user__characters', distinct=True), main_char_name=Subquery(main_name_sq)
     )
-    
-    # 2. Search
-    if query:
-        char_qs = char_qs.filter(character_name__icontains=query)
-
-    # 3. Sorting
+    if query: char_qs = char_qs.filter(character_name__icontains=query)
     valid_sorts = {
-        'character': 'character_name',
-        'main': 'main_char_name',
-        'linked': 'linked_count',
-        'corporation': 'corporation_name',
-        'alliance': 'alliance_name',
-        'status': 'last_updated'
+        'character': 'character_name', 'main': 'main_char_name', 'linked': 'linked_count',
+        'corporation': 'corporation_name', 'alliance': 'alliance_name', 'status': 'last_updated'
     }
-    
-    # Default to character_name if invalid sort provided
     db_sort_field = valid_sorts.get(sort_by, 'character_name')
-    
-    # Handle descending
-    if direction == 'desc':
-        db_sort_field = '-' + db_sort_field
-        
+    if direction == 'desc': db_sort_field = '-' + db_sort_field
     char_qs = char_qs.order_by(db_sort_field)
-
-    # 4. Pagination (UPDATED: 10 per page)
     paginator = Paginator(char_qs, 10) 
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
-
     context = {
-        'page_obj': page_obj,
-        'query': query,
-        'current_sort': sort_by,
-        'current_dir': direction,
+        'page_obj': page_obj, 'query': query, 'current_sort': sort_by, 'current_dir': direction,
         'base_template': get_template_base(request)
     }
     context.update(get_mgmt_context(request.user))
     return render(request, 'management/users.html', context)
 
 @login_required
-@user_passes_test(is_fleet_command) # RESTRICTED: FC+
+@user_passes_test(is_fleet_command)
 def management_user_inspect(request, user_id, char_id=None):
-    """
-    Replica Profile View (Read-Only)
-    """
     target_user = get_object_or_404(User, pk=user_id)
     characters = target_user.characters.all()
-    
-    if char_id:
-        active_char = characters.filter(character_id=char_id).first()
+    if char_id: active_char = characters.filter(character_id=char_id).first()
     else:
         active_char = characters.filter(is_main=True).first()
-        if not active_char:
-            active_char = characters.filter(is_main=True).first()
-            
-    # Use Helper
+        if not active_char: active_char = characters.filter(is_main=True).first()
     esi_data, grouped_skills = _get_character_data(active_char)
-    
-    totals = characters.aggregate(
-        wallet_sum=Sum('wallet_balance'),
-        lp_sum=Sum('concord_lp'),
-        sp_sum=Sum('total_sp')
-    )
-
-    # Obfuscation Logic
+    totals = characters.aggregate(wallet_sum=Sum('wallet_balance'), lp_sum=Sum('concord_lp'), sp_sum=Sum('total_sp'))
     obfuscate_financials = not is_admin(request.user)
-
     context = {
-        'active_char': active_char,
-        'characters': characters,
-        'esi': esi_data,
-        'grouped_skills': grouped_skills,
-        'token_missing': False, # Suppress warning in inspect mode
-        'total_wallet': totals['wallet_sum'] or 0,
-        'total_lp': totals['lp_sum'] or 0,
-        'account_total_sp': totals['sp_sum'] or 0,
-        
-        # Inspection Flags
-        'is_inspection_mode': True,
-        'inspect_user_id': target_user.id,
-        'obfuscate_financials': obfuscate_financials,
-        
+        'active_char': active_char, 'characters': characters, 'esi': esi_data,
+        'grouped_skills': grouped_skills, 'token_missing': False,
+        'total_wallet': totals['wallet_sum'] or 0, 'total_lp': totals['lp_sum'] or 0,
+        'account_total_sp': totals['sp_sum'] or 0, 'is_inspection_mode': True,
+        'inspect_user_id': target_user.id, 'obfuscate_financials': obfuscate_financials,
         'base_template': get_template_base(request)
     }
     context.update(get_mgmt_context(request.user))
-
-    # Support partial loading for switching tabs/characters within inspection
     if request.headers.get('x-requested-with') == 'XMLHttpRequest' and request.GET.get('partial') == 'true':
         return render(request, 'partials/profile_content.html', context)
-
-    # Reuse the standard profile template but with injected context
     return render(request, 'profile.html', context)
 
 @login_required
-@user_passes_test(is_admin) # RESTRICTED: Admins Only
+@user_passes_test(is_admin)
 @require_POST
 def api_unlink_alt(request):
-    """
-    Unlinks an alt character from a user account.
-    RESTRICTED TO ADMINS ONLY.
-    """
     try:
         data = json.loads(request.body)
         char_id = data.get('character_id')
-    except json.JSONDecodeError:
-        return JsonResponse({'success': False, 'error': 'Invalid JSON'})
-
-    if not char_id:
-        return JsonResponse({'success': False, 'error': 'Character ID required'})
-
-    # Find the character
+    except json.JSONDecodeError: return JsonResponse({'success': False, 'error': 'Invalid JSON'})
+    if not char_id: return JsonResponse({'success': False, 'error': 'Character ID required'})
     char = get_object_or_404(EveCharacter, character_id=char_id)
-    
-    # 1. Check Permissions: STRICTLY ADMIN
-    # We removed the 'is_owner' check. Regular users cannot unlink anymore.
-    if not is_admin(request.user):
-        return JsonResponse({'success': False, 'error': 'Permission denied. Only Admins can unlink characters.'}, status=403)
-
-    # 2. Safety Check: Do not unlink MAIN characters
-    if char.is_main:
-        return JsonResponse({'success': False, 'error': 'Cannot unlink a Main Character. Please promote another character first.'})
-
-    # Delete (Unlink)
+    if not is_admin(request.user): return JsonResponse({'success': False, 'error': 'Permission denied.'}, status=403)
+    if char.is_main: return JsonResponse({'success': False, 'error': 'Cannot unlink a Main Character.'})
     char.delete()
-    
     return JsonResponse({'success': True})
 
 @login_required
 @require_POST
 def api_promote_alt(request):
-    """
-    Promotes an alt to Main character status.
-    Available to:
-    1. The Owner (for their own chars)
-    2. Admins (for any char)
-    """
     try:
         data = json.loads(request.body)
         char_id = data.get('character_id')
-    except json.JSONDecodeError:
-        return JsonResponse({'success': False, 'error': 'Invalid JSON'})
-
-    if not char_id:
-        return JsonResponse({'success': False, 'error': 'Character ID required'})
-
+    except json.JSONDecodeError: return JsonResponse({'success': False, 'error': 'Invalid JSON'})
+    if not char_id: return JsonResponse({'success': False, 'error': 'Character ID required'})
     target_char = get_object_or_404(EveCharacter, character_id=char_id)
     target_user = target_char.user
-    
-    # Permissions
     is_owner = (target_user == request.user)
     is_admin_user = is_admin(request.user)
-    
-    if not is_owner and not is_admin_user:
-        return JsonResponse({'success': False, 'error': 'Permission denied.'}, status=403)
-        
-    # Logic
-    if target_char.is_main:
-        return JsonResponse({'success': False, 'error': 'Character is already main.'})
-        
-    # Reset old main
+    if not is_owner and not is_admin_user: return JsonResponse({'success': False, 'error': 'Permission denied.'}, status=403)
+    if target_char.is_main: return JsonResponse({'success': False, 'error': 'Character is already main.'})
     target_user.characters.update(is_main=False)
-    
-    # Set new main
     target_char.is_main = True
     target_char.save()
-    
-    # Update Session if it's the current user
-    if is_owner:
-        request.session['active_char_id'] = target_char.character_id
-        
+    if is_owner: request.session['active_char_id'] = target_char.character_id
     return JsonResponse({'success': True})
 
 @login_required
 @user_passes_test(is_fleet_command)
 def management_fleets(request):
-    """
-    Management view for listing, creating, and closing fleets.
-    """
     if request.method == 'POST':
         action = request.POST.get('action')
-        
         if action == 'create':
             name = request.POST.get('name')
-            if name:
-                Fleet.objects.create(name=name, commander=request.user, is_active=True)
-                
+            if name: Fleet.objects.create(name=name, commander=request.user, is_active=True)
         elif action == 'close':
             fleet_id = request.POST.get('fleet_id')
             fleet = get_object_or_404(Fleet, id=fleet_id)
             fleet.is_active = False
             fleet.save()
-            
         elif action == 'delete':
             fleet_id = request.POST.get('fleet_id')
-            # Only Admins can hard delete, but FCs can archive/close
-            if is_admin(request.user):
-                Fleet.objects.filter(id=fleet_id).delete()
-        
+            if is_admin(request.user): Fleet.objects.filter(id=fleet_id).delete()
         return redirect('management_fleets')
-
-    # Get all active fleets first, then closed fleets
     fleets = Fleet.objects.all().order_by('-is_active', '-created_at')[:50]
-    
-    context = {
-        'fleets': fleets,
-        'base_template': get_template_base(request)
-    }
+    context = { 'fleets': fleets, 'base_template': get_template_base(request) }
     context.update(get_mgmt_context(request.user))
     return render(request, 'management/fleets.html', context)
 
 @login_required
 @user_passes_test(is_admin)
 def management_sde(request):
-    """
-    Enhanced SDE Statistics View with Group Explorer
-    """
     item_count = ItemType.objects.count()
     group_count = ItemGroup.objects.count()
     attr_count = TypeAttribute.objects.count()
-    
-    # --- CHART DATA (Top 50) ---
-    
-    # Category IDs to exclude from the chart to reduce noise
     EXCLUDED_CATEGORIES = [2, 9, 11, 17, 20, 25, 30, 40, 46, 63, 91, 2118, 350001]
-
-    excluded_group_ids = ItemGroup.objects.filter(
-        category_id__in=EXCLUDED_CATEGORIES
-    ).values_list('group_id', flat=True)
-
-    top_groups = ItemType.objects.exclude(
-        group_id__in=Subquery(excluded_group_ids)
-    ).values('group_id').annotate(
-        count=Count('type_id')
-    ).order_by('-count')[:50]
-    
+    excluded_group_ids = ItemGroup.objects.filter(category_id__in=EXCLUDED_CATEGORIES).values_list('group_id', flat=True)
+    top_groups = ItemType.objects.exclude(group_id__in=Subquery(excluded_group_ids)).values('group_id').annotate(count=Count('type_id')).order_by('-count')[:50]
     group_ids = [g['group_id'] for g in top_groups]
     group_map = ItemGroup.objects.filter(group_id__in=group_ids).in_bulk()
-    
     group_labels = []
     group_data = []
-    group_cat_ids = []  # NEW: List to hold Category IDs for the chart
-    
+    group_cat_ids = []
     for g in top_groups:
         grp = group_map.get(g['group_id'])
         group_labels.append(grp.group_name if grp else f"Group {g['group_id']}")
         group_data.append(g['count'])
-        # Add the category ID (default to 0 if missing)
         group_cat_ids.append(grp.category_id if grp else 0)
-
-    # --- GROUP EXPLORER TABLE ---
     count_qs = ItemType.objects.values('group_id').annotate(cnt=Count('type_id'))
     count_map = {item['group_id']: item['cnt'] for item in count_qs}
-
     search_query = request.GET.get('q', '')
     all_groups_qs = ItemGroup.objects.all()
-    if search_query:
-        all_groups_qs = all_groups_qs.filter(group_name__icontains=search_query)
-
+    if search_query: all_groups_qs = all_groups_qs.filter(group_name__icontains=search_query)
     processed_groups = []
     for grp in all_groups_qs:
         grp.calculated_count = count_map.get(grp.group_id, 0)
         processed_groups.append(grp)
-    
     processed_groups.sort(key=lambda x: (-x.calculated_count, x.group_name))
-
     paginator = Paginator(processed_groups, 20)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
-
     context = {
-        'item_count': item_count,
-        'group_count': group_count,
-        'attr_count': attr_count,
-        'group_labels': group_labels,
-        'group_data': group_data,
-        'group_cat_ids': group_cat_ids, # NEW: Pass to template
-        'groups_page': page_obj,
-        'search_query': search_query,
-        'base_template': get_template_base(request)
+        'item_count': item_count, 'group_count': group_count, 'attr_count': attr_count,
+        'group_labels': group_labels, 'group_data': group_data, 'group_cat_ids': group_cat_ids,
+        'groups_page': page_obj, 'search_query': search_query, 'base_template': get_template_base(request)
     }
     context.update(get_mgmt_context(request.user))
     return render(request, 'management/sde.html', context)
@@ -629,17 +401,12 @@ def management_celery(request):
     stale_count = EveCharacter.objects.filter(last_updated__lt=threshold).count()
     invalid_token_count = 0
     for char in EveCharacter.objects.all().iterator():
-        if not char.refresh_token:
-            invalid_token_count += 1
-    if total_characters > 0:
-        esi_health_percent = int(((total_characters - stale_count) / total_characters * 100))
-    else:
-        esi_health_percent = 0
+        if not char.refresh_token: invalid_token_count += 1
+    if total_characters > 0: esi_health_percent = int(((total_characters - stale_count) / total_characters * 100))
+    else: esi_health_percent = 0
     context.update({
-        'total_characters': total_characters,
-        'stale_count': stale_count,
-        'invalid_token_count': invalid_token_count,
-        'esi_health_percent': esi_health_percent,
+        'total_characters': total_characters, 'stale_count': stale_count,
+        'invalid_token_count': invalid_token_count, 'esi_health_percent': esi_health_percent,
         'base_template': get_template_base(request)
     })
     context.update(get_mgmt_context(request.user))
@@ -647,98 +414,160 @@ def management_celery(request):
         return render(request, 'partials/celery_content.html', context)
     return render(request, 'management/celery_status.html', context)
 
+# --- PERMISSIONS & GROUPS MANAGEMENT (Enhanced) ---
+
 @login_required
 @user_passes_test(is_admin)
 def management_permissions(request):
     """
-    Overview of system permissions and role access.
-    Now dynamic based on core/utils.py registry.
+    Dynamic Access Control Matrix using Database Models.
     """
+    db_caps = Capability.objects.all().prefetch_related('groups')
+    # Use Priority Order
+    groups = Group.objects.all().select_related('priority_config').order_by('priority_config__level', 'name')
+
     context = {
-        'roles': ROLE_HIERARCHY,
-        'capabilities': SYSTEM_CAPABILITIES,
+        'groups': groups,
+        'capabilities': db_caps,
         'base_template': get_template_base(request)
     }
     context.update(get_mgmt_context(request.user))
     return render(request, 'management/permissions.html', context)
 
 @login_required
-@user_passes_test(is_management)
+@user_passes_test(is_admin)
+@require_POST
+def api_reorder_roles(request):
+    """
+    Updates the level of roles based on a list of IDs.
+    """
+    try:
+        data = json.loads(request.body)
+        ordered_ids = data.get('ordered_ids', [])
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'})
+
+    if not ordered_ids:
+        return JsonResponse({'success': False, 'error': 'No data'})
+
+    for index, group_id in enumerate(ordered_ids):
+        try:
+            group = Group.objects.get(id=group_id)
+            RolePriority.objects.update_or_create(
+                group=group,
+                defaults={'level': index}
+            )
+        except Group.DoesNotExist:
+            continue
+
+    return JsonResponse({'success': True})
+
+@login_required
+@user_passes_test(is_admin)
+@require_POST
+def api_permissions_toggle(request):
+    try:
+        data = json.loads(request.body)
+        group_id = data.get('group_id')
+        cap_id = data.get('cap_id')
+    except json.JSONDecodeError: return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+    group = get_object_or_404(Group, id=group_id)
+    cap = get_object_or_404(Capability, id=cap_id)
+    if cap.groups.filter(id=group.id).exists():
+        cap.groups.remove(group)
+        state = False
+    else:
+        cap.groups.add(group)
+        state = True
+    return JsonResponse({'success': True, 'new_state': state})
+
+@login_required
+@user_passes_test(is_admin)
+@require_POST
+def api_manage_group(request):
+    try:
+        data = json.loads(request.body)
+        action = data.get('action')
+        group_name = data.get('name', '').strip()
+        group_id = data.get('id')
+    except json.JSONDecodeError: return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+    if action == 'create':
+        if not group_name: return JsonResponse({'success': False, 'error': 'Name required'})
+        if Group.objects.filter(name=group_name).exists(): return JsonResponse({'success': False, 'error': 'Group exists'})
+        Group.objects.create(name=group_name)
+    elif action == 'update':
+        group = get_object_or_404(Group, id=group_id)
+        if group_name and group_name != group.name:
+            if Group.objects.filter(name=group_name).exclude(id=group_id).exists():
+                return JsonResponse({'success': False, 'error': 'Name taken'})
+            group.name = group_name
+            group.save()
+    elif action == 'delete':
+        group = get_object_or_404(Group, id=group_id)
+        if group.name == 'Admin': return JsonResponse({'success': False, 'error': 'Cannot delete Admin group'})
+        group.delete()
+    return JsonResponse({'success': True})
+
+# --- ROLES MANAGEMENT ---
+
+@login_required
+@user_passes_test(can_manage_roles) # Restricted to those with 'promote_demote_users'
 def management_roles(request):
-    # Pre-populate with Main Characters, paginated 10 per page
-    # Using 'select_related' to grab the User model immediately
     char_qs = EveCharacter.objects.filter(is_main=True).select_related('user').order_by('character_name')
-    
     paginator = Paginator(char_qs, 10)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
-
-    context = {
-        'page_obj': page_obj,
-        'roles': ROLE_HIERARCHY, # Pass roles for the dropdown
-        'base_template': get_template_base(request)
-    }
+    context = { 'page_obj': page_obj, 'roles': get_role_hierarchy(), 'base_template': get_template_base(request) }
     context.update(get_mgmt_context(request.user))
     return render(request, 'management/roles.html', context)
 
-# --- API Endpoints ---
 @login_required
-@user_passes_test(is_management)
+@user_passes_test(can_manage_roles)
 def api_search_users(request):
     query = request.GET.get('q', '').strip()
     role_filter = request.GET.get('role', '').strip()
-    
-    # If no criteria provided, return empty
-    if not query and not role_filter:
-        return JsonResponse({'results': []})
-    
-    # If only text query provided, require 3 chars
-    if query and len(query) < 3 and not role_filter:
-        return JsonResponse({'results': []})
-
+    if not query and not role_filter: return JsonResponse({'results': []})
+    if query and len(query) < 3 and not role_filter: return JsonResponse({'results': []})
     users = User.objects.all()
-    
-    # Filter by Role
-    if role_filter:
-        users = users.filter(groups__name=role_filter)
-        
-    # Filter by Name
+    if role_filter: users = users.filter(groups__name=role_filter)
     if query:
         matching_chars = EveCharacter.objects.filter(character_name__icontains=query)
         users = users.filter(characters__in=matching_chars)
-        
-    # Limit and Distinct
     users = users.distinct()[:20]
-    
     results = []
     for u in users:
         main_char = u.characters.filter(is_main=True).first() or u.characters.first()
         results.append({
-            'id': u.id,
-            'username': main_char.character_name if main_char else u.username,
+            'id': u.id, 'username': main_char.character_name if main_char else u.username,
             'char_id': main_char.character_id if main_char else 0,
             'corp': main_char.corporation_name if main_char else "Unknown"
         })
     return JsonResponse({'results': results})
 
 @login_required
-@user_passes_test(is_management)
+@user_passes_test(can_manage_roles)
 def api_get_user_roles(request, user_id):
     target_user = get_object_or_404(User, pk=user_id)
     current_roles = list(target_user.groups.values_list('name', flat=True))
     _, req_highest_index = get_user_highest_role(request.user)
     available = []
-    for role in ROLE_HIERARCHY:
-        if ROLE_HIERARCHY.index(role) > req_highest_index or is_admin(request.user):
-             available.append(role)
-    return JsonResponse({
-        'user_id': target_user.id,
-        'current_roles': current_roles,
-        'available_roles': available
-    })
+    
+    # Use Dynamic Hierarchy
+    hierarchy = get_role_hierarchy()
+    
+    for role in hierarchy:
+        # Check index in dynamic list if possible, or fallback
+        try:
+            role_idx = hierarchy.index(role)
+            if role_idx > req_highest_index or is_admin(request.user):
+                available.append(role)
+        except ValueError:
+            pass
+            
+    return JsonResponse({'user_id': target_user.id, 'current_roles': current_roles, 'available_roles': available})
 
 @login_required
-@user_passes_test(is_management)
+@user_passes_test(can_manage_roles)
 @require_POST
 def api_update_user_role(request):
     try:
@@ -746,152 +575,78 @@ def api_update_user_role(request):
         target_user = get_object_or_404(User, pk=data['user_id'])
         role_name = data['role']
         action = data['action']
-    except (KeyError, json.JSONDecodeError):
-        return HttpResponseBadRequest("Invalid JSON")
+    except (KeyError, json.JSONDecodeError): return HttpResponseBadRequest("Invalid JSON")
     
-    # Allow explicit override if the actor is an admin and assigning the admin role
     is_admin_actor = is_admin(request.user)
     if not (is_admin_actor and role_name == 'Admin'):
-        if not can_manage_role(request.user, role_name):
-            return JsonResponse({'success': False, 'error': 'Permission denied.'}, status=403)
-            
+        if not can_manage_role(request.user, role_name): return JsonResponse({'success': False, 'error': 'Permission denied.'}, status=403)
+        
     group = get_object_or_404(Group, name=role_name)
     if action == 'add':
         target_user.groups.add(group)
-        if role_name == 'Admin':
-            target_user.is_staff = True
-            target_user.save()
+        if role_name == 'Admin': target_user.is_staff = True; target_user.save()
     elif action == 'remove':
         target_user.groups.remove(group)
-        if role_name == 'Admin':
-            target_user.is_staff = False
-            target_user.save()
+        if role_name == 'Admin': target_user.is_staff = False; target_user.save()
     return JsonResponse({'success': True})
 
-# --- DOCTRINE LIST VIEWS ---
+# --- DOCTRINES ---
 
 def doctrine_list(request):
-    """
-    Public accessible page showing all fits.
-    """
     categories = DoctrineCategory.objects.filter(parent__isnull=True).prefetch_related(
-        'fits__ship_type', 'fits__tags',
-        'subcategories__fits__ship_type', 'subcategories__fits__tags',
+        'fits__ship_type', 'fits__tags', 'subcategories__fits__ship_type', 'subcategories__fits__tags',
         'subcategories__subcategories__fits__ship_type', 'subcategories__subcategories__fits__tags',
         'subcategories__subcategories__subcategories__fits__ship_type', 'subcategories__subcategories__subcategories__fits__tags',
         'subcategories__subcategories__subcategories__subcategories__fits__ship_type', 'subcategories__subcategories__subcategories__subcategories__fits__tags'
     )
-    
-    context = {
-        'categories': categories,
-        'base_template': get_template_base(request)
-    }
-    
+    context = { 'categories': categories, 'base_template': get_template_base(request) }
     return render(request, 'doctrines/public_index.html', context)
 
 def doctrine_detail_api(request, fit_id):
-    """
-    Returns JSON data for a specific fit to populate the modal.
-    """
     fit = get_object_or_404(DoctrineFit, id=fit_id)
-    
-    # Serialize modules
     modules = []
     for mod in fit.modules.select_related('item_type').all():
-        modules.append({
-            'name': mod.item_type.type_name,
-            'quantity': mod.quantity,
-            'icon_id': mod.item_type.type_id
-        })
-        
+        modules.append({ 'name': mod.item_type.type_name, 'quantity': mod.quantity, 'icon_id': mod.item_type.type_id })
     data = {
-        'id': fit.id,
-        'name': fit.name,
-        'hull': fit.ship_type.type_name,
-        'hull_id': fit.ship_type.type_id,
-        'description': fit.description,
-        'eft_block': fit.eft_format,
-        'modules': modules
+        'id': fit.id, 'name': fit.name, 'hull': fit.ship_type.type_name,
+        'hull_id': fit.ship_type.type_id, 'description': fit.description,
+        'eft_block': fit.eft_format, 'modules': modules
     }
     return JsonResponse(data)
 
-
-# --- MANAGEMENT VIEWS ---
-
 @login_required
-@user_passes_test(is_admin)
+@user_passes_test(can_manage_doctrines)
 def manage_doctrines(request):
     if request.method == 'POST':
         action = request.POST.get('action')
-        
         if action == 'delete':
             fit_id = request.POST.get('fit_id')
             DoctrineFit.objects.filter(id=fit_id).delete()
             return redirect('manage_doctrines')
-
         elif action == 'create' or action == 'update':
             raw_eft = request.POST.get('eft_paste')
             cat_id = request.POST.get('category_id')
             description = request.POST.get('description', '')
             tag_ids = request.POST.getlist('tags')
-            
             parser = EFTParser(raw_eft)
             if parser.parse():
                 category = get_object_or_404(DoctrineCategory, id=cat_id)
-                
                 if action == 'update':
                     fit_id = request.POST.get('fit_id')
                     fit = get_object_or_404(DoctrineFit, id=fit_id)
-                    fit.name = parser.fit_name
-                    fit.category = category
-                    fit.ship_type = parser.hull_obj
-                    fit.eft_format = parser.raw_text
-                    fit.description = description
-                    fit.save()
-                    
-                    # Clear old modules to re-add them
+                    fit.name = parser.fit_name; fit.category = category; fit.ship_type = parser.hull_obj
+                    fit.eft_format = parser.raw_text; fit.description = description; fit.save()
                     fit.modules.all().delete()
                 else:
-                    # Create New
-                    fit = DoctrineFit.objects.create(
-                        name=parser.fit_name,
-                        category=category,
-                        ship_type=parser.hull_obj,
-                        eft_format=parser.raw_text,
-                        description=description
-                    )
-                
-                # Set Tags (Works for both create and update)
-                if tag_ids:
-                    fit.tags.set(tag_ids)
-                else:
-                    fit.tags.clear()
-                
-                # Re-create Modules
+                    fit = DoctrineFit.objects.create(name=parser.fit_name, category=category, ship_type=parser.hull_obj, eft_format=parser.raw_text, description=description)
+                if tag_ids: fit.tags.set(tag_ids)
+                else: fit.tags.clear()
                 for item in parser.items:
-                    FitModule.objects.create(
-                        fit=fit,
-                        item_type=item['obj'],
-                        quantity=item['quantity']
-                    )
-            else:
-                print(f"Parser Error: {parser.error}")
-                # Ideally flash a message here
-
+                    FitModule.objects.create(fit=fit, item_type=item['obj'], quantity=item['quantity'])
             return redirect('manage_doctrines')
-
     categories = DoctrineCategory.objects.all()
-    # Fits ordered by order then name
     fits = DoctrineFit.objects.select_related('category', 'ship_type').prefetch_related('tags').order_by('category__name', 'order')
     tags = DoctrineTag.objects.all()
-
-    context = {
-        'categories': categories,
-        'fits': fits,
-        'tags': tags,
-        'base_template': get_template_base(request)
-    }
-    
+    context = { 'categories': categories, 'fits': fits, 'tags': tags, 'base_template': get_template_base(request) }
     context.update(get_mgmt_context(request.user))
-    
     return render(request, 'management/doctrines.html', context)

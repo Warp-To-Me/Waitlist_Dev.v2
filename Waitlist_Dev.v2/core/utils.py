@@ -5,107 +5,94 @@ from django.utils import timezone
 from datetime import timedelta
 from django.db.models import Count, Q 
 from waitlist_project.celery import app as celery_app
+from django.contrib.auth.models import Group
 
 from pilot_data.models import EveCharacter, EsiHeaderCache
 
-ROLE_HIERARCHY = [
+# --- LEGACY / FALLBACK DEFAULTS ---
+ROLE_HIERARCHY_DEFAULT = [
     'Admin', 'Leadership', 'Officer', 'Certified Trainer', 'Training CT',
     'Fleet Commander', 'Training FC', 'Assault FC', 'Line Commander',
     'Resident', 'Pilot', 'Public'
 ]
 
-# --- DYNAMIC PERMISSION GROUPS ---
-# Centralized definition of role groups. 
-# Changing these lists here updates access control across the app AND the permissions documentation.
+# ALIAS FOR BACKWARD COMPATIBILITY
+ROLE_HIERARCHY = ROLE_HIERARCHY_DEFAULT
 
 ROLES_ADMIN = ['Admin']
-
-# Fleet Command: Admin down to Assault FC (Index 0-7)
-ROLES_FC = ROLE_HIERARCHY[:8]
-
-# Management: Admin down to Resident (Index 0-9)
-ROLES_MANAGEMENT = ROLE_HIERARCHY[:10]
-
-# All Roles
-ROLES_ALL = ROLE_HIERARCHY
+ROLES_FC = ROLE_HIERARCHY_DEFAULT[:8]
+ROLES_MANAGEMENT = ROLE_HIERARCHY_DEFAULT[:10]
 
 # --- CAPABILITY REGISTRY ---
-# Maps abstract system capabilities to specific role groups.
-# Used by management_permissions view to generate the access matrix dynamically.
 SYSTEM_CAPABILITIES = [
-    {
-        "category": "System Administration",
-        "name": "Full System Access",
-        "desc": "Manage SDE, Roles, System Health, Unlink Alts.",
-        "roles": ROLES_ADMIN
-    },
-    {
-        "category": "System Administration",
-        "name": "Manage Doctrines",
-        "desc": "Create, Edit, and Delete Doctrine Fits.",
-        "roles": ROLES_ADMIN
-    },
-    {
-        "category": "System Administration",
-        "name": "Promote/Demote Users",
-        "desc": "Assign roles to users (up to own rank) and Unlink Alts.",
-        "roles": ROLES_ADMIN
-    },
-    {
-        "category": "Fleet Operations",
-        "name": "Fleet Command",
-        "desc": "Create/Close Fleets, Take Command, FC Actions (Approve/Invite).",
-        "roles": ROLES_FC
-    },
-    {
-        "category": "Fleet Operations",
-        "name": "Inspect Pilots",
-        "desc": "View full pilot details (Skills, Assets) in User Search.",
-        "roles": ROLES_FC
-    },
-    {
-        "category": "Fleet Operations",
-        "name": "View Fleet Overview",
-        "desc": "See the live fleet composition sidebar on the dashboard.",
-        "roles": ROLES_MANAGEMENT
-    },
-    {
-        "category": "General",
-        "name": "Management Access",
-        "desc": "Access the Management Dashboard (limited view).",
-        "roles": ROLES_MANAGEMENT
-    },
-    {
-        "category": "General",
-        "name": "Join Waitlists",
-        "desc": "X-Up for fleets.",
-        "roles": ROLES_ALL
-    }
+    {"category": "System Administration", "name": "Full System Access", "desc": "Manage SDE, Roles, System Health, Unlink Alts.", "roles": ROLES_ADMIN},
+    {"category": "System Administration", "name": "Manage Doctrines", "desc": "Create, Edit, and Delete Doctrine Fits.", "roles": ROLES_ADMIN},
+    {"category": "System Administration", "name": "Promote/Demote Users", "desc": "Assign roles to users (up to own rank) and Unlink Alts.", "roles": ROLES_ADMIN},
+    {"category": "Fleet Operations", "name": "Fleet Command", "desc": "Create/Close Fleets, Take Command, FC Actions (Approve/Invite).", "roles": ROLES_FC},
+    {"category": "Fleet Operations", "name": "Inspect Pilots", "desc": "View full pilot details (Skills, Assets) in User Search.", "roles": ROLES_FC},
+    {"category": "Fleet Operations", "name": "View Fleet Overview", "desc": "See the live fleet composition sidebar on the dashboard.", "roles": ROLES_MANAGEMENT},
+    {"category": "General", "name": "Management Access", "desc": "Access the Management Dashboard (limited view).", "roles": ROLES_MANAGEMENT},
+    {"category": "General", "name": "Join Waitlists", "desc": "X-Up for fleets.", "roles": ROLE_HIERARCHY_DEFAULT}
 ]
 
+# --- DYNAMIC HIERARCHY HELPERS ---
+
+def get_role_hierarchy():
+    """
+    Fetches roles from DB ordered by Priority.
+    Returns list of strings.
+    """
+    # Check if RolePriority table is populated
+    # We do a cheap check or cache this in a real prod env
+    from core.models import RolePriority
+    
+    if RolePriority.objects.exists():
+        # Return names ordered by level
+        return list(Group.objects.filter(priority_config__isnull=False).order_by('priority_config__level').values_list('name', flat=True))
+    
+    return ROLE_HIERARCHY_DEFAULT
+
 def get_role_priority(group_name):
+    """
+    Returns integer priority. Lower is better.
+    """
+    # Try DB first
+    from core.models import RolePriority
     try:
-        return ROLE_HIERARCHY.index(group_name)
+        priority = RolePriority.objects.get(group__name=group_name)
+        return priority.level
+    except (RolePriority.DoesNotExist, Group.DoesNotExist):
+        pass
+
+    # Fallback to list
+    try:
+        return ROLE_HIERARCHY_DEFAULT.index(group_name)
     except ValueError:
         return 999
 
 def get_user_highest_role(user):
     if user.is_superuser: return 'Admin', 0
+    
     user_groups = list(user.groups.values_list('name', flat=True))
-    if not user_groups: return 'Public', get_role_priority('Public')
+    if not user_groups: return 'Public', 999
+    
+    # Get all priorities in one query if possible, or iterate
     best_role = 'Public'
     best_index = 999
+    
     for group in user_groups:
         idx = get_role_priority(group)
         if idx < best_index:
             best_index = idx
             best_role = group
+            
     return best_role, best_index
 
 def can_manage_role(actor, target_role_name):
     if actor.is_superuser: return True
     _, actor_index = get_user_highest_role(actor)
     target_index = get_role_priority(target_role_name)
+    # Strictly less: Can only manage roles BELOW you
     return actor_index < target_index
 
 # --- SYSTEM STATUS UTILS ---

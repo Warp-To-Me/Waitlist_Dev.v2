@@ -27,9 +27,12 @@
     <Compile Include="core\consumers.py" />
     <Compile Include="core\context_processors.py" />
     <Compile Include="core\eft_parser.py" />
+    <Compile Include="core\management\commands\migrate_capabilities.py" />
     <Compile Include="core\management\commands\setup_roles.py" />
+    <Compile Include="core\management\commands\setup_role_priorities.py" />
     <Compile Include="core\management\commands\__init__.py" />
     <Compile Include="core\management\__init__.py" />
+    <Compile Include="core\models.py" />
     <Compile Include="core\routing.py" />
     <Compile Include="core\utils.py" />
     <Compile Include="core\__init__.py" />

@@ -15,7 +15,7 @@ urlpatterns = [
     path('management/fleets/', core_views.management_fleets, name='management_fleets'),
     path('management/sde/', core_views.management_sde, name='management_sde'),
     path('management/system/', core_views.management_celery, name='management_celery'),
-    path('management/permissions/', core_views.management_permissions, name='management_permissions'), # NEW
+    path('management/permissions/', core_views.management_permissions, name='management_permissions'),
     
     # Roles Management
     path('management/roles/', core_views.management_roles, name='management_roles'),
@@ -23,9 +23,14 @@ urlpatterns = [
     path('api/mgmt/user_roles/<int:user_id>/', core_views.api_get_user_roles, name='api_get_user_roles'),
     path('api/mgmt/update_role/', core_views.api_update_user_role, name='api_update_user_role'),
     
+    # --- PERMISSION & GROUP API ROUTES (NEW) ---
+    path('api/mgmt/permissions/toggle/', core_views.api_permissions_toggle, name='api_permissions_toggle'),
+    path('api/mgmt/groups/', core_views.api_manage_group, name='api_manage_group'),
+    path('api/mgmt/roles/reorder/', core_views.api_reorder_roles, name='api_reorder_roles'),
+
     # --- API ROUTES ---
     path('api/mgmt/unlink_alt/', core_views.api_unlink_alt, name='api_unlink_alt'),
-    path('api/mgmt/promote_alt/', core_views.api_promote_alt, name='api_promote_alt'), # NEW
+    path('api/mgmt/promote_alt/', core_views.api_promote_alt, name='api_promote_alt'),
 
     # --- Public Area ---
     path('', core_views.landing_page, name='landing_page'),
@@ -33,7 +38,7 @@ urlpatterns = [
     
     # Character Switching Routes
     path('profile/switch/<int:char_id>/', core_views.switch_character, name='switch_character'),
-    path('profile/make_main/<int:char_id>/', core_views.make_main, name='make_main'), # Legacy, can keep or remove if fully replaced
+    path('profile/make_main/<int:char_id>/', core_views.make_main, name='make_main'),
     
     # API Routes
     path('api/refresh_profile/<int:char_id>/', core_views.api_refresh_profile, name='api_refresh_profile'),

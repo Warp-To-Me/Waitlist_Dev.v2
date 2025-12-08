@@ -1,83 +1,254 @@
 ﻿{% extends 'management/base_management.html' %}
 
 {% block management_content %}
-<div class="flex flex-col gap-6 animate-fade-in">
+<div class="flex flex-col gap-6 animate-fade-in pb-20">
     <!-- Header -->
     <div class="flex justify-between items-end border-b border-white/5 pb-6">
         <div>
             <h1 class="heading-1">Access Control Matrix</h1>
-            <p class="text-slate-400 text-sm mt-1">Overview of system capabilities and role assignments.</p>
+            <p class="text-slate-400 text-sm mt-1">Manage groups and capabilities dynamically.</p>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="saveRoleOrder()" id="btn-save-order" class="hidden btn-success py-2 px-4 text-xs shadow-green-500/20 animate-pulse">
+                Save Order
+            </button>
+            <button onclick="openGroupModal('create')" class="btn-primary py-2 px-4 text-xs shadow-brand-500/20">
+                <span>+</span> Create Group
+            </button>
         </div>
     </div>
 
-    <!-- Matrix Table -->
-    <div class="glass-panel overflow-hidden">
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm text-left border-collapse">
+    <!-- Scrollable Matrix Container -->
+    <div class="glass-panel overflow-hidden flex flex-col">
+        <div class="overflow-x-auto custom-scrollbar relative">
+            <table class="w-full text-sm text-left border-collapse" id="permissions-table">
                 <thead>
-                    <tr class="bg-white/5 border-b border-white/10 text-xs uppercase tracking-wider text-slate-300">
-                        <th class="p-4 sticky left-0 bg-[#121a2b] z-10 border-r border-white/10 w-64 shadow-xl">Capability</th>
-                        {% for role in roles %}
-                        <!-- Added border-r and border-white/5 for vertical lines -->
-                        <th class="p-2 text-center min-w-[80px] vertical-text border-r border-white/5 last:border-r-0">
-                            <div class="writing-mode-vertical transform rotate-180 h-32 flex items-center justify-center">
-                                {{ role }}
+                    <tr class="bg-slate-900/90 text-xs uppercase tracking-wider text-slate-300">
+                        <!-- Sticky Group Column Header -->
+                        <th class="p-4 sticky left-0 z-30 bg-slate-900/95 border-r border-b border-white/10 w-72 shadow-xl backdrop-blur-md">
+                            Role / Group
+                        </th>
+
+                        <!-- Dynamic Capability Headers -->
+                        {% for cap in capabilities %}
+                        <th class="p-2 text-center min-w-[60px] max-w-[100px] border-r border-b border-white/10 group relative hover:bg-white/5 transition align-bottom pb-4">
+                            <div class="absolute inset-0 group-hover:bg-white/5 transition z-0"></div>
+                            <div class="writing-mode-vertical transform rotate-180 text-[10px] font-bold tracking-widest text-slate-400 group-hover:text-white transition cursor-help h-48 flex items-center justify-start relative z-10" title="{{ cap.description }}">
+                                {{ cap.name }}
                             </div>
                         </th>
                         {% endfor %}
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-white/5">
-                    {% for cap in capabilities %}
-                    <tr class="hover:bg-white/5 transition group">
-                        <!-- Capability Name & Desc -->
-                        <td class="p-4 sticky left-0 bg-slate-900/95 z-10 border-r border-white/10 group-hover:bg-[#162032] transition">
-                            <div class="font-bold text-white">{{ cap.name }}</div>
-                            <div class="text-[10px] text-slate-500 font-mono mt-1">{{ cap.desc }}</div>
-                            <div class="text-[9px] text-brand-500 uppercase tracking-widest mt-2">{{ cap.category }}</div>
+                <tbody class="divide-y divide-white/5" id="roles-tbody">
+                    {% for group in groups %}
+                    <tr class="hover:bg-white/5 transition group/row" data-group-id="{{ group.id }}">
+                        <!-- Row Header: Group Name & Controls -->
+                        <td class="p-4 sticky left-0 z-20 bg-slate-900/95 border-r border-white/10 group-hover/row:bg-[#162032] transition backdrop-blur-md shadow-xl">
+                            <div class="flex justify-between items-center gap-2">
+                                <div class="flex items-center gap-3">
+                                    <!-- Reorder Controls -->
+                                    <div class="flex flex-col gap-0.5 opacity-0 group-hover/row:opacity-100 transition">
+                                        <button onclick="moveRow(this, 'up')" class="text-slate-600 hover:text-brand-400 leading-none">▲</button>
+                                        <button onclick="moveRow(this, 'down')" class="text-slate-600 hover:text-brand-400 leading-none">▼</button>
+                                    </div>
+                                    <span class="font-bold text-white text-sm truncate" title="{{ group.name }}">{{ group.name }}</span>
+                                </div>
+
+                                <!-- Actions -->
+                                <div class="flex gap-1 opacity-0 group-hover/row:opacity-100 transition shrink-0">
+                                    <button onclick="openGroupModal('update', '{{ group.id }}', '{{ group.name|escapejs }}')"
+                                            class="p-1 hover:bg-blue-500/20 rounded text-slate-500 hover:text-blue-400 transition" title="Rename">
+                                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                    </button>
+                                    {% if group.name != 'Admin' %}
+                                    <button onclick="deleteGroup('{{ group.id }}', '{{ group.name|escapejs }}')"
+                                            class="p-1 hover:bg-red-500/20 rounded text-slate-500 hover:text-red-400 transition" title="Delete">
+                                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </div>
                         </td>
 
-                        <!-- Role Checks -->
-                        {% for role in roles %}
-                        <!-- Added border-r and border-white/5 for vertical lines in body as well -->
-                        <td class="p-2 text-center relative border-r border-white/5 last:border-r-0">
-                            {% if role in cap.roles %}
-                            <div class="absolute inset-0 bg-green-500/5 m-px"></div>
-                            <span class="text-green-400 text-lg relative z-10">●</span>
-                            {% else %}
-                            <span class="text-slate-800 text-xs">·</span>
-                            {% endif %}
+                        <!-- Interaction Cells -->
+                        {% for cap in capabilities %}
+                        <td class="p-0 border-r border-white/5 last:border-r-0 relative cursor-pointer hover:bg-white/10 transition"
+                            onclick="togglePermission(this, '{{ group.id }}', '{{ cap.id }}')"
+                            title="{{ group.name }} -> {{ cap.name }}">
+                            <div class="w-full h-full min-h-[48px] flex items-center justify-center">
+                                {% if group in cap.groups.all %}
+                                <div class="w-3 h-3 rounded-sm bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)] transition-all duration-300 transform scale-100" data-active="true"></div>
+                                {% else %}
+                                <div class="w-1 h-1 rounded-full bg-slate-800 transition-all duration-300 transform scale-100 opacity-50" data-active="false"></div>
+                                {% endif %}
+                            </div>
                         </td>
                         {% endfor %}
                     </tr>
+                    {% empty %}
+                    <tr><td colspan="100%" class="p-8 text-center text-slate-500 italic">No groups found.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
     </div>
+</div>
 
-    <!-- Legend -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div class="glass-panel p-4 border-l-4 border-brand-500">
-            <h3 class="font-bold text-white text-sm mb-1">Role Hierarchy</h3>
-            <p class="text-xs text-slate-400">Roles operate on a waterfall inheritance model. Higher roles typically inherit permissions from lower tiers.</p>
+<!-- GROUP MODAL (Unchanged) -->
+<div id="group-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-dark-950/80 backdrop-blur-sm px-4">
+    <!-- ... (Keep existing modal code) ... -->
+    <div class="bg-slate-900 border border-white/10 rounded-xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-95 opacity-0" id="group-modal-panel">
+        <div class="glass-header px-6 py-4 border-b border-white/5 flex justify-between items-center">
+            <h3 class="font-bold text-white text-lg" id="modal-title">Manage Group</h3>
+            <button onclick="closeGroupModal()" class="text-slate-400 hover:text-white">✕</button>
         </div>
-        <div class="glass-panel p-4 border-l-4 border-blue-500">
-            <h3 class="font-bold text-white text-sm mb-1">Fleet Command</h3>
-            <p class="text-xs text-slate-400">Restricted to operational staff. Includes FCs, Leadership, and Officers.</p>
-        </div>
-        <div class="glass-panel p-4 border-l-4 border-green-500">
-            <h3 class="font-bold text-white text-sm mb-1">Management</h3>
-            <p class="text-xs text-slate-400">Includes Residents and above. Grants visibility into fleet compositions but not command actions.</p>
+        <div class="p-6 space-y-4">
+            <div>
+                <label class="label-text">Group Name</label>
+                <input type="text" id="group-name-input" class="input-field" placeholder="e.g. Logistics Commander">
+                <input type="hidden" id="group-id-input">
+                <input type="hidden" id="group-action-input">
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="closeGroupModal()" class="btn-ghost text-xs">Cancel</button>
+                <button onclick="saveGroup()" class="btn-primary text-xs px-6">Save</button>
+            </div>
         </div>
     </div>
 </div>
 
 <style>
-    /* Utility for vertical text headers */
     .writing-mode-vertical {
         writing-mode: vertical-rl;
         text-orientation: mixed;
     }
 </style>
+
+<script>
+    const CSRF_TOKEN = '{{ csrf_token }}';
+
+    // --- REORDER LOGIC ---
+    function moveRow(btn, direction) {
+        const row = btn.closest('tr');
+        const tbody = document.getElementById('roles-tbody');
+
+        if (direction === 'up') {
+            if (row.previousElementSibling) {
+                tbody.insertBefore(row, row.previousElementSibling);
+                markDirty();
+            }
+        } else {
+            if (row.nextElementSibling) {
+                tbody.insertBefore(row.nextElementSibling, row);
+                markDirty();
+            }
+        }
+    }
+
+    function markDirty() {
+        document.getElementById('btn-save-order').classList.remove('hidden');
+    }
+
+    function saveRoleOrder() {
+        const rows = document.querySelectorAll('#roles-tbody tr');
+        const ids = Array.from(rows).map(r => parseInt(r.getAttribute('data-group-id')));
+
+        const btn = document.getElementById('btn-save-order');
+        btn.textContent = 'Saving...';
+        btn.disabled = true;
+
+        fetch("{% url 'api_reorder_roles' %}", {
+            method: 'POST',
+            headers: { 'X-CSRFToken': CSRF_TOKEN, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ordered_ids: ids })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if(data.success) {
+                location.reload();
+            } else {
+                alert("Error saving order: " + data.error);
+                btn.textContent = 'Save Order';
+                btn.disabled = false;
+            }
+        });
+    }
+
+    // --- PERMISSION TOGGLE (Keep existing logic) ---
+    function togglePermission(cell, groupId, capId) {
+        // ... (Keep existing implementation) ...
+        const indicator = cell.querySelector('div[data-active]');
+        const isActive = indicator.getAttribute('data-active') === 'true';
+        indicator.className = "w-2 h-2 rounded-full bg-brand-500 animate-ping opacity-75";
+
+        fetch("{% url 'api_permissions_toggle' %}", {
+            method: 'POST',
+            headers: { 'X-CSRFToken': CSRF_TOKEN, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ group_id: groupId, cap_id: capId })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if(data.success) {
+                if(data.new_state) {
+                    indicator.className = "w-3 h-3 rounded-sm bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)] transition-all duration-300 transform scale-100";
+                    indicator.setAttribute('data-active', 'true');
+                } else {
+                    indicator.className = "w-1 h-1 rounded-full bg-slate-800 transition-all duration-300 transform scale-100 opacity-50";
+                    indicator.setAttribute('data-active', 'false');
+                }
+            } else {
+                alert("Error: " + data.error);
+                location.reload();
+            }
+        });
+    }
+
+    // --- GROUP MANAGEMENT (Keep existing logic) ---
+    function openGroupModal(action, id = '', name = '') {
+        const modal = document.getElementById('group-modal');
+        const panel = document.getElementById('group-modal-panel');
+        document.getElementById('modal-title').textContent = action === 'create' ? 'Create New Group' : 'Rename Group';
+        document.getElementById('group-action-input').value = action;
+        document.getElementById('group-id-input').value = id;
+        document.getElementById('group-name-input').value = name;
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+            panel.classList.remove('scale-95', 'opacity-0');
+            panel.classList.add('scale-100', 'opacity-100');
+        }, 10);
+    }
+
+    function closeGroupModal() {
+        const modal = document.getElementById('group-modal');
+        const panel = document.getElementById('group-modal-panel');
+        panel.classList.remove('scale-100', 'opacity-100');
+        panel.classList.add('scale-95', 'opacity-0');
+        setTimeout(() => { modal.classList.add('hidden'); }, 200);
+    }
+
+    function saveGroup() {
+        const action = document.getElementById('group-action-input').value;
+        const id = document.getElementById('group-id-input').value;
+        const name = document.getElementById('group-name-input').value;
+        fetch("{% url 'api_manage_group' %}", {
+            method: 'POST',
+            headers: { 'X-CSRFToken': CSRF_TOKEN, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: action, id: id, name: name })
+        }).then(res => res.json()).then(data => {
+            if(data.success) { location.reload(); } else { alert(data.error); }
+        });
+    }
+
+    function deleteGroup(id, name) {
+        if(!confirm(`Delete group "${name}"?`)) return;
+        fetch("{% url 'api_manage_group' %}", {
+            method: 'POST',
+            headers: { 'X-CSRFToken': CSRF_TOKEN, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'delete', id: id })
+        }).then(res => res.json()).then(data => {
+            if(data.success) { location.reload(); } else { alert(data.error); }
+        });
+    }
+</script>
 {% endblock %}
