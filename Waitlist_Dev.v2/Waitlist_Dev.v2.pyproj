@@ -65,7 +65,13 @@
     <Compile Include="waitlist_data\fitting_service.py" />
     <Compile Include="waitlist_data\forms.py" />
     <Compile Include="waitlist_data\stats.py" />
-    <Compile Include="waitlist_data\views.py" />
+    <Compile Include="waitlist_data\views\actions.py" />
+    <Compile Include="waitlist_data\views\dashboard.py" />
+    <Compile Include="waitlist_data\views\doctrines.py" />
+    <Compile Include="waitlist_data\views\fleet_settings.py" />
+    <Compile Include="waitlist_data\views\fleet_setup.py" />
+    <Compile Include="waitlist_data\views\helpers.py" />
+    <Compile Include="waitlist_data\views\__init__.py" />
     <Compile Include="waitlist_project\apps.py" />
     <Compile Include="waitlist_project\asgi.py" />
     <Compile Include="models.py" />
@@ -149,6 +155,7 @@
     <Folder Include="templates\partials\" />
     <Folder Include="templates\waitlist\" />
     <Folder Include="templates\waitlist\partials\" />
+    <Folder Include="waitlist_data\views\" />
     <Folder Include="waitlist_project\" />
     <Folder Include="templates\" />
     <Folder Include="waitlist_data\" />
