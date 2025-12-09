@@ -17,8 +17,9 @@
                 <div class="p-6 md:w-1/2 flex flex-col border-b md:border-b-0 md:border-r border-white/5">
                     <label class="label-text mb-2">Paste Fit(s)</label>
                     <div class="flex-grow relative">
+                        <!-- FIXED: Replaced manual bg-black/30 classes with input-field class -->
                         <textarea name="eft_paste"
-                                  class="w-full h-full bg-black/30 border border-slate-700 rounded p-3 font-mono text-[10px] text-slate-300 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none resize-none custom-scrollbar leading-tight"
+                                  class="input-field h-full text-[10px] resize-none leading-tight"
                                   placeholder="[Hull, Fit Name]...&#10;&#10;Paste multiple fits to submit multiple entries at once."></textarea>
                     </div>
                     <div id="xup-error" class="hidden bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-3 rounded mt-4"></div>
@@ -32,6 +33,7 @@
                         {% for char in user_chars %}
                         <div class="bg-black/20 rounded border border-white/5 p-3 hover:border-white/20 transition group">
                             <label class="flex items-start gap-3 cursor-pointer mb-2">
+                                <!-- FIXED: Updated checked/focus color to brand-500 -->
                                 <input type="checkbox" name="character_id" value="{{ char.character_id }}" class="mt-1 w-4 h-4 rounded border-slate-600 bg-slate-800 text-brand-500 focus:ring-0 focus:ring-offset-0 shrink-0">
                                 <div class="flex-grow min-w-0">
                                     <div class="flex items-center gap-2">

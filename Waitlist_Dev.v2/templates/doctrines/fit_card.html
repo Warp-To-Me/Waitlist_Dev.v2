@@ -1,4 +1,4 @@
-<div class="bg-slate-800 rounded-xl border border-slate-700 shadow-lg overflow-hidden hover:border-amber-500 transition group cursor-pointer flex flex-col"
+<div class="bg-slate-800 rounded-xl border border-slate-700 shadow-lg overflow-hidden hover:border-brand-500 transition group cursor-pointer flex flex-col"
      onclick="openFit({{ fit.id }})">
 
     <!-- Ship Render -->
@@ -16,7 +16,8 @@
     <!-- Details -->
     <div class="p-4 flex-grow flex flex-col justify-between">
         <div>
-            <h4 class="text-amber-400 font-mono text-sm font-bold mb-1">{{ fit.name }}</h4>
+            <!-- FIXED: Replaced text-amber-400 with text-brand-400 -->
+            <h4 class="text-brand-400 font-mono text-sm font-bold mb-1">{{ fit.name }}</h4>
             <p class="text-slate-400 text-xs line-clamp-2">{{ fit.description|default:"No description." }}</p>
         </div>
 

@@ -1,7 +1,8 @@
 ﻿<div class="w-72 flex flex-col bg-slate-800/50 rounded-lg border border-slate-700/50 shadow-lg h-full flex-shrink-0">
     <!-- Header -->
+    <!-- FIXED: Mapped 'amber' to 'brand' classes for consistent theming -->
     <div class="p-3 border-b border-slate-700 flex justify-between items-center bg-slate-800 rounded-t-lg
-        {% if color == 'amber' %}border-b-amber-500{% else %}border-b-green-500{% endif %} border-b-2">
+        {% if color == 'amber' %}border-b-brand-500{% else %}border-b-green-500{% endif %} border-b-2">
         <h3 class="font-bold text-white uppercase text-sm tracking-wider">{{ title }}</h3>
         <!-- Counter ID for JS updates (e.g., count-pending) -->
         <span id="count-{{ id }}" class="bg-slate-700 text-slate-300 text-xs font-mono px-2 py-0.5 rounded">{{ entries|length }}</span>

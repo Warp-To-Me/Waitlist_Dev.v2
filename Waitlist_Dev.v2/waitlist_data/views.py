@@ -111,8 +111,8 @@ def broadcast_update(fleet_id, action, entry, target_col=None):
         # --- NEW: Inject Real Stats into Entry for Template Render ---
         stats = calculate_pilot_stats(entry.character)
         
-        # Calculate specific hull hours
-        hull_name = entry.fit.ship_type.type_name if entry.fit else "Unknown"
+        # Calculate specific hull hours (Use stored hull)
+        hull_name = entry.hull.type_name if entry.hull else "Unknown"
         hull_seconds = stats['hull_breakdown'].get(hull_name, 0)
         
         # Attach to entry object temporarily for the template
@@ -220,7 +220,7 @@ def fleet_dashboard(request, token):
         fc_name = fleet.commander.username
 
     entries = WaitlistEntry.objects.filter(fleet=fleet).exclude(status__in=['rejected', 'left']).select_related(
-        'character', 'fit', 'fit__ship_type', 'fit__category'
+        'character', 'fit', 'fit__ship_type', 'fit__category', 'hull'
     ).order_by('created_at')
 
     # --- NEW: Batch Stats Calculation ---
@@ -232,7 +232,8 @@ def fleet_dashboard(request, token):
     for entry in entries:
         # Attach stats to entry for template
         stats = all_stats.get(entry.character.character_id, {})
-        hull_name = entry.fit.ship_type.type_name if entry.fit else "Unknown"
+        # Fallback to stored hull, then fit's hull
+        hull_name = entry.hull.type_name if entry.hull else "Unknown"
         hull_seconds = stats.get('hull_breakdown', {}).get(hull_name, 0)
         
         entry.display_stats = {
@@ -242,13 +243,16 @@ def fleet_dashboard(request, token):
 
         if entry.status == 'pending':
             columns['pending'].append(entry)
-        else:
+        elif entry.fit:
             tags = [t.name.lower() for t in entry.fit.tags.all()]
             cat_name = entry.fit.category.name.lower()
             if 'logi' in tags or 'logistics' in cat_name: columns['logi'].append(entry)
             elif 'sniper' in tags: columns['sniper'].append(entry)
             elif 'dps' in tags or 'brawl' in tags: columns['dps'].append(entry)
             else: columns['other'].append(entry)
+        else:
+            # No Doctrine Fit = Other
+            columns['other'].append(entry)
 
     # --- Fetch Characters & Implants (FILTERED) ---
     user_chars = request.user.characters.filter(x_up_visible=True).prefetch_related('implants')
@@ -347,21 +351,51 @@ def x_up_submit(request, token):
             parser = EFTParser(fit_text)
             if not parser.parse(): continue
             
+            # Use Hull Object from Parser
+            hull_obj = parser.hull_obj
+            
             matcher = SmartFitMatcher(parser)
             matched_fit, analysis = matcher.find_best_match()
             
-            if not matched_fit:
-                errors.append(f"{char.character_name}: No doctrine match")
+            # --- MODIFIED: Allow Null Fit ---
+            # If no match, matched_fit is None. We still create the entry.
+            fit_name_for_log = matched_fit.name if matched_fit else "Custom Fit"
+
+            # UPDATED CHECK: Allow multiple entries per pilot, but block EXACT duplicates
+            # Previously this blocked 'character=char' globally for the fleet.
+            # Now we check 'raw_eft=fit_text' to allow different fits.
+            if WaitlistEntry.objects.filter(
+                fleet=fleet, 
+                character=char, 
+                raw_eft=fit_text,
+                status__in=['pending', 'approved', 'invited']
+            ).exists():
+                # Prevent duplicate active entries for same fit string
                 continue
 
-            if WaitlistEntry.objects.filter(fleet=fleet, character=char, fit=matched_fit, status__in=['pending', 'approved', 'invited']).exists():
-                continue
-
-            entry = WaitlistEntry.objects.create(fleet=fleet, character=char, fit=matched_fit, raw_eft=fit_text, status='pending')
+            entry = WaitlistEntry.objects.create(
+                fleet=fleet, 
+                character=char, 
+                fit=matched_fit, 
+                hull=hull_obj, # Save Hull explicitly
+                raw_eft=fit_text, 
+                status='pending'
+            )
             
             # --- LOGGING ---
-            _log_fleet_action(fleet, char, 'x_up', actor=request.user, ship_type=matched_fit.ship_type, details=f"Fit: {matched_fit.name}", eft_text=fit_text)
+            _log_fleet_action(
+                fleet, 
+                char, 
+                'x_up', 
+                actor=request.user, 
+                ship_type=hull_obj, 
+                details=f"Fit: {fit_name_for_log}", 
+                eft_text=fit_text
+            )
             
+            # --- RE-FETCH FOR BROADCAST (Fix for missing user_id in template) ---
+            entry = WaitlistEntry.objects.select_related('character__user', 'fit', 'hull', 'fit__ship_type', 'fit__category').get(id=entry.id)
+
             broadcast_update(fleet.id, 'add', entry, target_col='pending')
             processed_count += 1
 
@@ -384,20 +418,25 @@ def update_fit(request, entry_id):
     matcher = SmartFitMatcher(parser)
     matched_fit, analysis = matcher.find_best_match()
 
-    if not matched_fit: return JsonResponse({'success': False, 'error': "No doctrine found."})
+    # --- MODIFIED: Allow Null Fit ---
+    old_fit_name = entry.fit.name if entry.fit else "Custom Fit"
+    new_fit_name = matched_fit.name if matched_fit else "Custom Fit"
 
-    old_fit_name = entry.fit.name if entry.fit else "Unknown"
     entry.fit = matched_fit
+    entry.hull = parser.hull_obj
     entry.raw_eft = raw_eft
     entry.status = 'pending' 
     entry.save()
 
     # --- LOGGING ---
-    _log_fleet_action(entry.fleet, entry.character, 'fit_update', actor=request.user, ship_type=matched_fit.ship_type, details=f"{old_fit_name} -> {matched_fit.name}", eft_text=raw_eft)
+    _log_fleet_action(entry.fleet, entry.character, 'fit_update', actor=request.user, ship_type=parser.hull_obj, details=f"{old_fit_name} -> {new_fit_name}", eft_text=raw_eft)
+
+    # --- RE-FETCH FOR BROADCAST (Fix for missing user_id in template) ---
+    entry = WaitlistEntry.objects.select_related('character__user', 'fit', 'hull', 'fit__ship_type', 'fit__category').get(id=entry.id)
 
     broadcast_update(entry.fleet.id, 'move', entry, target_col='pending')
     
-    return JsonResponse({'success': True, 'message': f"Updated to: {matched_fit.name}"})
+    return JsonResponse({'success': True, 'message': f"Updated to: {new_fit_name}"})
 
 @login_required
 @require_POST
@@ -423,7 +462,8 @@ def api_entry_details(request, entry_id):
     if not is_owner and not can_inspect: return HttpResponse("Unauthorized", status=403)
 
     # Use Common Helper to build JSON response
-    data = _build_fit_analysis_response(entry.raw_eft, entry.fit, entry.character, can_inspect)
+    # PASS HULL EXPLICITLY in case fit is None
+    data = _build_fit_analysis_response(entry.raw_eft, entry.fit, entry.hull, entry.character, can_inspect)
     data['status'] = entry.status
     data['id'] = entry.id
     
@@ -442,64 +482,90 @@ def api_history_fit_details(request, log_id):
     matcher = SmartFitMatcher(parser)
     matched_fit, _ = matcher.find_best_match()
     
-    if not matched_fit:
-        return JsonResponse({
-            'character_name': log.character.character_name,
-            'ship_name': log.ship_name,
-            'fit_name': "Unknown / Legacy Fit",
-            'raw_eft': log.fit_eft,
-            'slots': [],
-            'is_fc': True
-        })
-
-    data = _build_fit_analysis_response(log.fit_eft, matched_fit, log.character, True)
+    # Even if not matched, we display what we parsed
+    data = _build_fit_analysis_response(log.fit_eft, matched_fit, parser.hull_obj, log.character, True)
     return JsonResponse(data)
 
-def _build_fit_analysis_response(raw_eft, fit_obj, character, is_fc):
+def _build_fit_analysis_response(raw_eft, fit_obj, hull_obj, character, is_fc):
     parser = EFTParser(raw_eft)
     parser.parse() 
-    hull = fit_obj.ship_type
-    matcher = SmartFitMatcher(parser)
-    _, analysis = matcher._score_fit(fit_obj)
     
-    aggregated = {}
-    for item in analysis:
-        slot_key = item['slot']
-        status = item['status']
-        p_id = item['pilot_item'].type_id if item['pilot_item'] else 0
-        d_id = item['doctrine_item'].type_id if item['doctrine_item'] else 0
-        p_name = item['pilot_item'].type_name if item['pilot_item'] else None
-        d_name = item['doctrine_item'].type_name if item['doctrine_item'] else None
-        group_key = (slot_key, p_id, d_id, status)
-        if group_key not in aggregated:
-            aggregated[group_key] = {
-                'name': p_name or d_name or "Empty", 'id': p_id or d_id,
-                'quantity': 0, 'status': status, 'diffs': item['diffs'],
-                'doctrine_name': d_name, 'slot': slot_key
-            }
-        aggregated[group_key]['quantity'] += 1
+    # If hull_obj is None (e.g. historical log), try to use fit's hull, or parser's hull
+    if not hull_obj and fit_obj: hull_obj = fit_obj.ship_type
+    if not hull_obj: hull_obj = parser.hull_obj
 
+    # --- 1. ANALYSIS LOGIC ---
+    if fit_obj:
+        # Doctrine Match: Perform comparison
+        matcher = SmartFitMatcher(parser)
+        _, analysis = matcher._score_fit(fit_obj)
+        
+        aggregated = {}
+        for item in analysis:
+            slot_key = item['slot']
+            status = item['status']
+            p_id = item['pilot_item'].type_id if item['pilot_item'] else 0
+            d_id = item['doctrine_item'].type_id if item['doctrine_item'] else 0
+            p_name = item['pilot_item'].type_name if item['pilot_item'] else None
+            d_name = item['doctrine_item'].type_name if item['doctrine_item'] else None
+            group_key = (slot_key, p_id, d_id, status)
+            if group_key not in aggregated:
+                aggregated[group_key] = {
+                    'name': p_name or d_name or "Empty", 'id': p_id or d_id,
+                    'quantity': 0, 'status': status, 'diffs': item['diffs'],
+                    'doctrine_name': d_name, 'slot': slot_key
+                }
+            aggregated[group_key]['quantity'] += 1
+    else:
+        # No Doctrine: Just list items
+        aggregated = {}
+        for item in parser.items:
+            item_obj = item['obj']
+            # Determine slot manually
+            slot_key = _determine_slot(item_obj)
+            
+            key = (slot_key, item_obj.type_id)
+            if key not in aggregated:
+                aggregated[key] = {
+                    'name': item_obj.type_name,
+                    'id': item_obj.type_id,
+                    'quantity': 0,
+                    'status': 'MATCH', # Neutral status
+                    'diffs': [],
+                    'doctrine_name': None,
+                    'slot': slot_key
+                }
+            aggregated[key]['quantity'] += item['quantity']
+
+    # --- 2. SLOT MAPPING ---
     slots_map = { 'high': [], 'mid': [], 'low': [], 'rig': [], 'subsystem': [], 'drone': [], 'cargo': [] }
     for data in aggregated.values():
         s = data['slot']
         if s not in slots_map: s = 'cargo'
         slots_map[s].append(data)
 
-    high_total = int(hull.high_slots)
-    mid_total = int(hull.mid_slots)
-    low_total = int(hull.low_slots)
-    rig_total = int(hull.rig_slots)
-    if hull.group_id == 963:
-        for item in parser.items:
-            attrs = {a.attribute_id: a.value for a in item['obj'].attributes.all()}
-            if 14 in attrs: high_total += int(attrs[14])
-            if 13 in attrs: mid_total += int(attrs[13])
-            if 12 in attrs: low_total += int(attrs[12])
+    # --- 3. CALCULATE TOTALS ---
+    if hull_obj:
+        high_total = int(hull_obj.high_slots)
+        mid_total = int(hull_obj.mid_slots)
+        low_total = int(hull_obj.low_slots)
+        rig_total = int(hull_obj.rig_slots)
+        
+        # T3C Handling
+        if hull_obj.group_id == 963:
+            for item in parser.items:
+                attrs = {a.attribute_id: a.value for a in item['obj'].attributes.all()}
+                if 14 in attrs: high_total += int(attrs[14])
+                if 13 in attrs: mid_total += int(attrs[13])
+                if 12 in attrs: low_total += int(attrs[12])
+    else:
+        # Fallback if Hull is totally missing
+        high_total = mid_total = low_total = rig_total = 0
 
     slot_config = [
         ('High Slots', 'high', high_total), ('Mid Slots', 'mid', mid_total),
         ('Low Slots', 'low', low_total), ('Rigs', 'rig', rig_total),
-        ('Subsystems', 'subsystem', 5 if hull.group_id == 963 else 0),
+        ('Subsystems', 'subsystem', 5 if hull_obj and hull_obj.group_id == 963 else 0),
         ('Drone Bay', 'drone', 0), ('Cargo Hold', 'cargo', 0),
     ]
 
@@ -507,9 +573,11 @@ def _build_fit_analysis_response(raw_eft, fit_obj, character, is_fc):
     for label, key, total_attr in slot_config:
         mods = slots_map.get(key, [])
         used_count = sum(m['quantity'] for m in mods)
+        
         if total_attr < used_count: total_attr = used_count
         is_hardpoint = key in ['high', 'mid', 'low', 'rig', 'subsystem']
         empties_count = max(0, total_attr - used_count) if is_hardpoint else 0
+        
         slot_groups.append({
             'name': label, 'key': key, 'total': total_attr if is_hardpoint else None,
             'used': used_count if is_hardpoint else None, 'modules': mods,
@@ -519,9 +587,9 @@ def _build_fit_analysis_response(raw_eft, fit_obj, character, is_fc):
     return {
         'character_name': character.character_name,
         'corp_name': character.corporation_name, 
-        'ship_name': hull.type_name,
-        'hull_id': hull.type_id, 
-        'fit_name': fit_obj.name,
+        'ship_name': hull_obj.type_name if hull_obj else "Unknown Ship",
+        'hull_id': hull_obj.type_id if hull_obj else 0, 
+        'fit_name': fit_obj.name if fit_obj else "Custom Fit",
         'raw_eft': raw_eft, 
         'slots': slot_groups,
         'is_fc': is_fc
@@ -559,16 +627,23 @@ def fc_action(request, entry_id, action):
     fleet = entry.fleet
     if action == 'approve':
         entry.status = 'approved'; entry.approved_at = timezone.now(); entry.save()
-        _log_fleet_action(fleet, entry.character, 'approved', actor=request.user, ship_type=entry.fit.ship_type)
-        tags = [t.name.lower() for t in entry.fit.tags.all()]
-        cat_name = entry.fit.category.name.lower()
+        
+        hull_for_log = entry.hull if entry.hull else entry.fit.ship_type if entry.fit else None
+        
+        _log_fleet_action(fleet, entry.character, 'approved', actor=request.user, ship_type=hull_for_log)
+        
         col = 'other'
-        if 'logi' in tags or 'logistics' in cat_name: col = 'logi'
-        elif 'sniper' in tags: col = 'sniper'
-        elif 'dps' in tags or 'brawl' in tags: col = 'dps'
+        if entry.fit:
+            tags = [t.name.lower() for t in entry.fit.tags.all()]
+            cat_name = entry.fit.category.name.lower()
+            if 'logi' in tags or 'logistics' in cat_name: col = 'logi'
+            elif 'sniper' in tags: col = 'sniper'
+            elif 'dps' in tags or 'brawl' in tags: col = 'dps'
+            
         broadcast_update(fleet.id, 'move', entry, target_col=col)
     elif action == 'deny':
-        _log_fleet_action(fleet, entry.character, 'denied', actor=request.user, ship_type=entry.fit.ship_type, details="Manual FC Rejection")
+        hull_for_log = entry.hull if entry.hull else entry.fit.ship_type if entry.fit else None
+        _log_fleet_action(fleet, entry.character, 'denied', actor=request.user, ship_type=hull_for_log, details="Manual FC Rejection")
         entry.status = 'rejected'; entry.save()
         broadcast_update(fleet.id, 'remove', entry)
     elif action == 'invite':
@@ -578,23 +653,26 @@ def fc_action(request, entry_id, action):
         if success:
             entry.status = 'invited'; entry.invited_at = timezone.now(); entry.save()
             
-            # --- UPDATED: Pass raw_eft from the WaitlistEntry ---
+            hull_for_log = entry.hull if entry.hull else entry.fit.ship_type if entry.fit else None
+            
             _log_fleet_action(
                 fleet, 
                 entry.character, 
                 'invited', 
                 actor=request.user, 
-                ship_type=entry.fit.ship_type, 
+                ship_type=hull_for_log, 
                 details="ESI Invite Sent",
-                eft_text=entry.raw_eft  # Capture the fit!
+                eft_text=entry.raw_eft
             )
 
-            tags = [t.name.lower() for t in entry.fit.tags.all()]
-            cat_name = entry.fit.category.name.lower()
             col = 'other'
-            if 'logi' in tags or 'logistics' in cat_name: col = 'logi'
-            elif 'sniper' in tags: col = 'sniper'
-            elif 'dps' in tags or 'brawl' in tags: col = 'dps'
+            if entry.fit:
+                tags = [t.name.lower() for t in entry.fit.tags.all()]
+                cat_name = entry.fit.category.name.lower()
+                if 'logi' in tags or 'logistics' in cat_name: col = 'logi'
+                elif 'sniper' in tags: col = 'sniper'
+                elif 'dps' in tags or 'brawl' in tags: col = 'dps'
+                
             broadcast_update(fleet.id, 'move', entry, target_col=col)
             return JsonResponse({'success': True})
         else: return JsonResponse({'success': False, 'error': f'Invite Failed: {msg}'})

@@ -1,4 +1,5 @@
-<div class="fit-row group flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-slate-800/80 border-l-4 border-transparent hover:border-amber-500 hover:bg-slate-800 rounded transition cursor-pointer shadow-sm hover:shadow-lg mb-1"
+<!-- FIXED: Replaced hover:border-amber-500 with hover:border-brand-500 -->
+<div class="fit-row group flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-slate-800/80 border-l-4 border-transparent hover:border-brand-500 hover:bg-slate-800 rounded transition cursor-pointer shadow-sm hover:shadow-lg mb-1"
      onclick="openFit({{ fit.id }})"
      data-search="{{ fit.ship_type.type_name }} {{ fit.name }} {{ fit.description }} {% for tag in fit.tags.all %}{{ tag.name }} {% endfor %}">
 
@@ -12,7 +13,8 @@
         </div>
 
         <div>
-            <h3 class="font-bold text-white text-base group-hover:text-amber-500 transition leading-tight">
+            <!-- FIXED: Replaced group-hover:text-amber-500 with group-hover:text-brand-500 -->
+            <h3 class="font-bold text-white text-base group-hover:text-brand-500 transition leading-tight">
                 {{ fit.ship_type.type_name }}
             </h3>
             <p class="text-xs text-slate-400 font-mono">{{ fit.name }}</p>

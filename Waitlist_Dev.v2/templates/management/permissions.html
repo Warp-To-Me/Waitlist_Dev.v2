@@ -44,7 +44,8 @@
                     {% for group in groups %}
                     <tr class="hover:bg-white/5 transition group/row" data-group-id="{{ group.id }}">
                         <!-- Row Header: Group Name & Controls -->
-                        <td class="p-4 sticky left-0 z-20 bg-slate-900/95 border-r border-white/10 group-hover/row:bg-[#162032] transition backdrop-blur-md shadow-xl">
+                        <!-- FIXED: Replaced hardcoded hex bg-[#162032] with theme class bg-white/10 -->
+                        <td class="p-4 sticky left-0 z-20 bg-slate-900/95 border-r border-white/10 group-hover/row:bg-white/10 transition backdrop-blur-md shadow-xl">
                             <div class="flex justify-between items-center gap-2">
                                 <div class="flex items-center gap-3">
                                     <!-- Reorder Controls -->

@@ -107,7 +107,12 @@ class WaitlistEntry(models.Model):
 
     fleet = models.ForeignKey(Fleet, on_delete=models.CASCADE, related_name='entries')
     character = models.ForeignKey(EveCharacter, on_delete=models.CASCADE, related_name='waitlist_entries')
-    fit = models.ForeignKey(DoctrineFit, on_delete=models.SET_NULL, null=True, related_name='active_entries')
+    
+    # Optional Doctrine Link
+    fit = models.ForeignKey(DoctrineFit, on_delete=models.SET_NULL, null=True, blank=True, related_name='active_entries')
+    
+    # Explicit Hull Link (Required even if no fit matched)
+    hull = models.ForeignKey(ItemType, on_delete=models.CASCADE, related_name='waitlist_entries_hull', null=True)
     
     # Store the actual paste the user provided
     raw_eft = models.TextField(blank=True, default="")
@@ -122,7 +127,8 @@ class WaitlistEntry(models.Model):
         ordering = ['created_at']
 
     def __str__(self):
-        return f"{self.character.character_name} - {self.fit.name if self.fit else 'No Fit'}"
+        fit_name = self.fit.name if self.fit else "Custom Fit"
+        return f"{self.character.character_name} - {fit_name}"
     
     @property
     def time_waiting(self):
