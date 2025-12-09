@@ -19,9 +19,16 @@ class Fleet(models.Model):
     
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    end_time = models.DateTimeField(null=True, blank=True)
     
     def __str__(self):
         return f"{self.name} (FC: {self.commander.username if self.commander else 'None'})"
+
+    @property
+    def duration(self):
+        from django.utils import timezone
+        end = self.end_time or timezone.now()
+        return end - self.created_at
 
 # --- DOCTRINE MODELS (Existing) ---
 
@@ -88,7 +95,7 @@ class FitModule(models.Model):
     def __str__(self):
         return f"{self.quantity}x {self.item_type.type_name}"
 
-# --- WAITLIST ENTRIES (New) ---
+# --- WAITLIST ENTRIES ---
 
 class WaitlistEntry(models.Model):
     STATUS_CHOICES = [
@@ -122,3 +129,48 @@ class WaitlistEntry(models.Model):
         from django.utils import timezone
         diff = timezone.now() - self.created_at
         return int(diff.total_seconds() / 60)
+
+# --- HISTORY & AUDIT LOGS (New) ---
+
+class FleetActivity(models.Model):
+    ACTION_TYPES = [
+        ('x_up', 'X-Up (Joined Waitlist)'),
+        ('approved', 'Approved by FC'),
+        ('denied', 'Denied by FC'),
+        ('invited', 'Invited to Fleet'),
+        ('esi_join', 'Joined Fleet (In-Game)'),
+        ('left_waitlist', 'Left Waitlist'),
+        ('left_fleet', 'Left Fleet (In-Game)'),
+        ('fit_update', 'Updated Fit'),
+        ('ship_change', 'Changed Ship'), # NEW
+        ('moved', 'Position Changed'),
+        ('promoted', 'Promoted'),
+        ('demoted', 'Demoted'),
+        ('kicked', 'Kicked from Fleet')
+    ]
+
+    fleet = models.ForeignKey(Fleet, on_delete=models.CASCADE, related_name='activity_logs')
+    character = models.ForeignKey(EveCharacter, on_delete=models.CASCADE, related_name='fleet_history')
+    
+    # Who performed the action? (e.g. FC invited Pilot)
+    actor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='actions_performed')
+    
+    action = models.CharField(max_length=20, choices=ACTION_TYPES)
+    timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
+    
+    # Snapshots for metrics
+    ship_name = models.CharField(max_length=100, blank=True) # Hull name e.g. "Megathron"
+    hull_id = models.IntegerField(null=True, blank=True)
+    
+    # Store the RAW EFT for historical inspection
+    fit_eft = models.TextField(blank=True, null=True)
+    
+    # JSON for extra details (e.g. fit name, specific slot changes)
+    details = models.TextField(blank=True, null=True) 
+
+    class Meta:
+        ordering = ['-timestamp']
+        verbose_name_plural = "Fleet Activities"
+
+    def __str__(self):
+        return f"[{self.fleet.name}] {self.character.character_name} - {self.action}"

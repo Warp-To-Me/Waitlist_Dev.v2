@@ -10,6 +10,15 @@
     <!-- HEADER BAR -->
     <div class="glass-header p-4 relative flex justify-center items-center z-20 shrink-0 min-h-[4rem]">
 
+        <!-- LEFT ACTIONS -->
+        {% if is_fc %}
+        <div class="absolute left-4 top-1/2 -translate-y-1/2 hidden md:block">
+            <a href="{% url 'fleet_history' fleet.join_token %}" class="btn-secondary py-1.5 px-3 text-xs gap-2 shadow-lg">
+                <span>📜</span> History Log
+            </a>
+        </div>
+        {% endif %}
+
         <div class="flex items-center gap-6">
             <div class="bg-brand-500/10 p-2.5 rounded-lg border border-brand-500/20 hidden sm:block shadow-[0_0_15px_rgba(245,158,11,0.2)]">
                 <span class="text-2xl">🛸</span>

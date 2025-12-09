@@ -35,6 +35,8 @@
     <Compile Include="core\models.py" />
     <Compile Include="core\permissions.py" />
     <Compile Include="core\routing.py" />
+    <Compile Include="core\templatetags\core_filters.py" />
+    <Compile Include="core\templatetags\__init__.py" />
     <Compile Include="core\utils.py" />
     <Compile Include="core\views_management.py" />
     <Compile Include="core\views_profile.py" />
@@ -62,6 +64,7 @@
     <Compile Include="waitlist_data\consumers.py" />
     <Compile Include="waitlist_data\fitting_service.py" />
     <Compile Include="waitlist_data\forms.py" />
+    <Compile Include="waitlist_data\stats.py" />
     <Compile Include="waitlist_data\views.py" />
     <Compile Include="waitlist_project\apps.py" />
     <Compile Include="waitlist_project\asgi.py" />
@@ -116,6 +119,7 @@
     <Content Include="templates\waitlist\column.html" />
     <Content Include="templates\waitlist\dashboard.html" />
     <Content Include="templates\waitlist\entry_card.html" />
+    <Content Include="templates\waitlist\history.html" />
     <Content Include="templates\waitlist\partials\dashboard_scripts.html" />
     <Content Include="templates\waitlist\partials\entry_modal.html" />
     <Content Include="templates\waitlist\partials\update_modal.html" />
@@ -127,6 +131,7 @@
     <Folder Include="core\management\commands\" />
     <Folder Include="core\management\commands\__pycache__\" />
     <Folder Include="core\management\__pycache__\" />
+    <Folder Include="core\templatetags\" />
     <Folder Include="esi_auth\" />
     <Folder Include="esi_calls\" />
     <Folder Include="esi_calls\management\" />

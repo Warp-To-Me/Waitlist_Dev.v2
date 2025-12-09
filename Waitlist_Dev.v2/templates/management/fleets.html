@@ -30,6 +30,8 @@
                                 <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
                                 Active
                             </span>
+                            {% else %}
+                            <span class="badge badge-slate text-xs">CLOSED</span>
                             {% endif %}
                         </h3>
                         <div class="text-sm text-slate-400 flex gap-4 mt-1 font-mono text-xs">
@@ -41,6 +43,13 @@
                 </div>
 
                 <div class="flex items-center gap-3">
+                    <!-- HISTORY BUTTON (NEW) -->
+                    <a href="{% url 'fleet_history' fleet.join_token %}"
+                       class="btn-secondary py-1.5 px-3 text-xs inline-flex items-center gap-2 border-slate-600 hover:border-white/50 text-slate-300 hover:text-white"
+                       title="View Audit Log">
+                        <span>📜</span> History
+                    </a>
+
                     {% if fleet.is_active %}
                     <!-- Updated URL to use fleet.join_token -->
                     <a href="{% url 'fleet_dashboard' fleet.join_token %}"
@@ -58,7 +67,7 @@
                         </button>
                     </form>
                     {% else %}
-                    <span class="badge badge-slate text-xs py-1 px-3">CLOSED</span>
+
                     {% if can_view_admin %}
                     <!-- FIXED: Added class="contents" to align delete link with badge -->
                     <form method="POST" onsubmit="return confirm('DELETE this fleet record? This cannot be undone.');" class="contents">

@@ -7,20 +7,19 @@ urlpatterns = [
     path('doctrines/api/<int:fit_id>/', views.doctrine_detail_api, name='doctrine_detail_api'),
     path('management/doctrines/', views.manage_doctrines, name='manage_doctrines'),
 
-    # WAITLIST / FLEET (Updated to use UUID tokens)
+    # WAITLIST / FLEET
     path('fleet/<uuid:token>/dashboard/', views.fleet_dashboard, name='fleet_dashboard'),
+    path('fleet/<uuid:token>/history/', views.fleet_history_view, name='fleet_history'), 
     path('fleet/<uuid:token>/xup/', views.x_up_submit, name='x_up_submit'),
     path('fleet/<uuid:token>/take_command/', views.take_fleet_command, name='take_fleet_command'),
     
-    # Internal Actions still use integer IDs for simplicity where not exposed in the main URL bar
+    # Internal Actions
     path('fleet/action/<int:entry_id>/<str:action>/', views.fc_action, name='fc_action'),
-    
-    # User Actions (New)
     path('fleet/entry/<int:entry_id>/leave/', views.leave_fleet, name='leave_fleet'),
     path('fleet/entry/<int:entry_id>/update/', views.update_fit, name='update_fit'),
-    
-    # Fleet Overview API
     path('fleet/<uuid:token>/overview/', views.fleet_overview_api, name='fleet_overview_api'),
-    
     path('fleet/entry/api/<int:entry_id>/', views.api_entry_details, name='api_entry_details'),
+    
+    # History API
+    path('fleet/history/api/<int:log_id>/', views.api_history_fit_details, name='api_history_fit_details'),
 ]

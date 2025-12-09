@@ -1,0 +1,317 @@
+﻿{% extends base_template|default:'base.html' %}
+{% load humanize %}
+{% load core_filters %}
+
+{% block title %}History: {{ fleet.name }}{% endblock %}
+
+{% block content %}
+<div class="flex flex-col h-full bg-dark-950 overflow-hidden relative">
+
+    <!-- HEADER -->
+    <div class="glass-header px-6 py-4 flex justify-between items-center shrink-0 z-40 bg-slate-900/90 backdrop-blur-md shadow-lg relative">
+        <div class="flex items-center gap-4">
+            <a href="{% url 'fleet_dashboard' fleet.join_token %}" class="btn-secondary py-1.5 px-3 text-xs flex items-center gap-2 group">
+                <span class="group-hover:-translate-x-1 transition">&larr;</span> Back to Board
+            </a>
+            <div>
+                <h1 class="text-xl font-bold text-white tracking-tight">{{ fleet.name }} <span class="text-slate-500 font-normal">History Log</span></h1>
+                <p class="text-xs text-slate-400 mt-0.5">Comprehensive audit trail of all fleet events.</p>
+            </div>
+        </div>
+
+        <!-- STATS PILLS -->
+        <div class="flex gap-4">
+            <div class="px-3 py-1 bg-white/5 border border-white/5 rounded-full flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-brand-500"></span>
+                <span class="text-xs text-slate-400 uppercase font-bold tracking-wider">X-Ups</span>
+                <span class="text-sm font-bold text-white font-mono">{{ stats.xups }}</span>
+            </div>
+            <div class="px-3 py-1 bg-white/5 border border-white/5 rounded-full flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+                <span class="text-xs text-slate-400 uppercase font-bold tracking-wider">Unique Pilots</span>
+                <span class="text-sm font-bold text-white font-mono">{{ stats.pilots }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- FILTER BAR (Fixed: Added shrink-0, relative, z-30, and opaque background) -->
+    <div class="px-6 py-3 border-b border-white/5 bg-slate-900 flex-shrink-0 flex flex-wrap gap-2 items-center relative z-30 overflow-x-auto no-scrollbar shadow-md">
+        <!-- Clear Filter -->
+        <button onclick="clearHistoryFilters()" class="p-1.5 rounded-md border border-red-500/30 text-red-400 hover:bg-red-500/20 transition mr-2" title="Clear Filters">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+
+        <!-- Filter Buttons -->
+        {% for action, label, icon in "x_up|X-Up|✋,approved|Approved|✔,invited|Invited|📩,esi_join|Detected|🔗,left_waitlist|Left WL|🚪,left_fleet|Left Fleet|💨,fit_update|Update|🔄,ship_change|Reship|🚢,moved|Moved|↔,promoted|Promoted|⬆,demoted|Demoted|⬇,kicked|Kicked|🥾,denied|Denied|✖"|split_actions %}
+        <button onclick="toggleHistoryFilter('{{ action }}')"
+                id="filter-btn-{{ action }}"
+                class="hist-filter-btn flex items-center gap-1.5 px-2.5 py-1 rounded border border-white/10 bg-white/5 text-[10px] uppercase font-bold text-slate-400 hover:text-white hover:border-slate-500 transition select-none"
+                data-action="{{ action }}">
+            <span>{{ icon }}</span> {{ label }}
+        </button>
+        {% endfor %}
+    </div>
+
+    <!-- TIMELINE CONTAINER -->
+    <div class="flex-grow overflow-y-auto custom-scrollbar p-6 relative z-0 bg-dark-950">
+        <div class="max-w-5xl mx-auto space-y-4" id="history-log-container">
+            {% for log in logs %}
+            <div class="flex gap-4 group history-row" data-action="{{ log.action }}">
+
+                <!-- TIMESTAMP COLUMN -->
+                <div class="w-24 pt-3 text-right flex-shrink-0">
+                    <div class="text-xs font-mono font-bold text-slate-400">{{ log.timestamp|date:"H:i:s" }}</div>
+                    <div class="text-[10px] text-slate-600">{{ log.timestamp|date:"M d" }}</div>
+                </div>
+
+                <!-- CONNECTOR -->
+                <div class="flex flex-col items-center relative">
+                    <div class="w-2 h-2 rounded-full mt-4
+                        {% if log.action == 'x_up' %}bg-brand-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]
+                        {% elif log.action == 'approved' %}bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]
+                        {% elif log.action == 'esi_join' %}bg-blue-500
+                        {% elif log.action == 'left_waitlist' %}bg-red-500
+                        {% elif log.action == 'denied' %}bg-red-600
+                        {% else %}bg-slate-600{% endif %} z-10"></div>
+                    {% if not forloop.last %}
+                    <div class="w-px bg-white/10 flex-grow h-full absolute top-5 bottom-0"></div>
+                    {% endif %}
+                </div>
+
+                <!-- CARD -->
+                <div class="flex-grow pb-4">
+                    <div class="glass-panel p-3 border border-white/5 hover:border-white/10 transition flex justify-between items-center">
+                        <div class="flex items-center gap-4">
+                            <!-- Avatar -->
+                            <img src="https://images.evetech.net/characters/{{ log.character.character_id }}/portrait?size=64"
+                                 class="w-10 h-10 rounded border border-white/10 opacity-80 group-hover:opacity-100 transition" alt="">
+
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-sm font-bold text-slate-200">{{ log.character.character_name }}</span>
+                                    {% if log.action == 'x_up' %}
+                                    <span class="badge badge-brand text-[9px]">X-UP</span>
+                                    {% elif log.action == 'approved' %}
+                                    <span class="badge badge-green text-[9px]">APPROVED</span>
+                                    {% elif log.action == 'invited' %}
+                                    <span class="badge badge-green text-[9px]">INVITED</span>
+                                    {% elif log.action == 'esi_join' %}
+                                    <span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide border bg-blue-900/20 text-blue-400 border-blue-500/30">IN-GAME DETECT</span>
+                                    {% elif log.action == 'denied' %}
+                                    <span class="badge badge-red text-[9px]">REJECTED</span>
+                                    {% elif log.action == 'left_waitlist' %}
+                                    <span class="badge badge-slate text-[9px]">LEFT</span>
+                                    {% elif log.action == 'ship_change' %}
+                                    <span class="badge badge-brand bg-purple-900/20 text-purple-400 border-purple-500/30 text-[9px]">RESHIP</span>
+                                    {% else %}
+                                    <span class="badge badge-slate text-[9px]">{{ log.action|upper }}</span>
+                                    {% endif %}
+                                </div>
+                                <div class="text-xs text-slate-500 mt-0.5 flex gap-2 items-center">
+                                    {% if log.ship_name %}
+                                    <span class="flex items-center gap-1">
+                                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                                        {{ log.ship_name }}
+                                    </span>
+                                    {% endif %}
+
+                                    {% if log.details %}
+                                    <span class="opacity-50">|</span>
+                                    <span class="italic text-slate-400">{{ log.details }}</span>
+                                    {% endif %}
+
+                                    <!-- FIT LINK (If exists) -->
+                                    {% if log.fit_eft %}
+                                    <span class="opacity-50">|</span>
+                                    <button onclick="openHistoryFit({{ log.id }})" class="text-brand-400 hover:text-brand-300 underline font-bold flex items-center gap-1">
+                                        <span>🔍</span> View Fit
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ACTOR (Who did it?) -->
+                        {% if log.actor and log.actor != log.character.user %}
+                        <div class="text-right">
+                            <span class="text-[10px] text-slate-500 uppercase tracking-wider block">By</span>
+                            <span class="text-xs font-bold text-slate-300">{{ log.actor.username }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="p-12 text-center text-slate-500 italic">No history recorded for this fleet.</div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- FIT MODAL (Simplified for History) -->
+<div id="history-modal" class="fixed inset-0 z-50 hidden" onclick="closeHistoryModal()">
+    <div class="fixed inset-0 bg-dark-950/80 backdrop-blur-sm transition-opacity"></div>
+    <div class="fixed inset-0 z-10 overflow-y-auto flex items-center justify-center p-4">
+        <div class="relative transform rounded-xl bg-slate-900 border border-white/10 shadow-2xl sm:w-full sm:max-w-5xl max-h-[90vh] flex flex-col transition-all" onclick="event.stopPropagation()">
+            <!-- Header -->
+            <div class="glass-header px-6 py-4 flex justify-between items-center shrink-0">
+                <div class="flex items-center gap-4">
+                    <img id="hist-icon" src="" class="w-14 h-14 rounded-lg border border-white/10 bg-dark-900 shadow-lg">
+                    <div>
+                        <h3 class="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+                            <span id="hist-pilot" class="text-brand-500">Pilot</span>
+                            <span class="text-slate-600 text-lg">vs.</span>
+                            <span id="hist-fitname" class="text-slate-300">Doctrine</span>
+                        </h3>
+                        <p class="text-sm text-slate-400 font-mono mt-0.5" id="hist-ship"></p>
+                    </div>
+                </div>
+                <button onclick="closeHistoryModal()" class="text-slate-400 hover:text-white transition p-2 hover:bg-white/5 rounded-full">
+                    <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+
+            <!-- Content -->
+            <div class="px-6 py-6 grid grid-cols-1 md:grid-cols-3 gap-8 overflow-hidden h-full bg-dark-950">
+                <!-- Left: Raw EFT -->
+                <div class="md:col-span-1 flex flex-col h-full overflow-hidden">
+                    <div class="glass-panel p-4 mb-4 flex-grow overflow-y-auto custom-scrollbar bg-black/30 border-white/5">
+                        <pre id="hist-eft" class="text-[10px] text-slate-400 font-mono whitespace-pre-wrap break-all select-all"></pre>
+                    </div>
+                    <button onclick="copyHistEft()" class="btn-secondary w-full text-xs py-2 shrink-0">
+                        <span>📋</span> Copy to Clipboard
+                    </button>
+                </div>
+
+                <!-- Right: Analysis -->
+                <div class="md:col-span-2 glass-panel p-4 overflow-y-auto custom-scrollbar border-white/5 bg-slate-900/50" id="hist-slots">
+                    <div class="flex items-center justify-center h-full text-slate-500 animate-pulse">Loading snapshot...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- FILTER LOGIC ---
+    let activeHistoryFilters = new Set();
+
+    function toggleHistoryFilter(action) {
+        const btn = document.getElementById('filter-btn-' + action);
+
+        if (activeHistoryFilters.has(action)) {
+            activeHistoryFilters.delete(action);
+            btn.classList.remove('bg-brand-500', 'text-white', 'border-brand-400');
+            btn.classList.add('bg-white/5', 'text-slate-400', 'border-white/10');
+        } else {
+            activeHistoryFilters.add(action);
+            btn.classList.remove('bg-white/5', 'text-slate-400', 'border-white/10');
+            btn.classList.add('bg-brand-500', 'text-white', 'border-brand-400');
+        }
+        applyHistoryFilters();
+    }
+
+    function clearHistoryFilters() {
+        activeHistoryFilters.clear();
+        document.querySelectorAll('.hist-filter-btn').forEach(btn => {
+            btn.classList.remove('bg-brand-500', 'text-white', 'border-brand-400');
+            btn.classList.add('bg-white/5', 'text-slate-400', 'border-white/10');
+        });
+        applyHistoryFilters();
+    }
+
+    function applyHistoryFilters() {
+        const rows = document.querySelectorAll('.history-row');
+        rows.forEach(row => {
+            const action = row.dataset.action;
+            if (activeHistoryFilters.size === 0 || activeHistoryFilters.has(action)) {
+                row.classList.remove('hidden');
+            } else {
+                row.classList.add('hidden');
+            }
+        });
+    }
+
+    // --- MODAL LOGIC ---
+    function openHistoryFit(logId) {
+        const modal = document.getElementById('history-modal');
+        const slotContainer = document.getElementById('hist-slots');
+        modal.classList.remove('hidden');
+        slotContainer.innerHTML = '<div class="flex items-center justify-center h-full text-slate-500 animate-pulse">Retrieving archive...</div>';
+
+        fetch(`/fleet/history/api/${logId}/`)
+            .then(r => r.json())
+            .then(d => {
+                document.getElementById('hist-pilot').textContent = d.character_name;
+                document.getElementById('hist-fitname').textContent = d.fit_name || "Historical Fit";
+                document.getElementById('hist-ship').textContent = `${d.ship_name} (${d.corp_name})`;
+                document.getElementById('hist-icon').src = `https://images.evetech.net/types/${d.hull_id}/icon?size=64`;
+                document.getElementById('hist-eft').textContent = d.raw_eft;
+
+                renderSlots(d.slots, slotContainer);
+            })
+            .catch(err => {
+                slotContainer.innerHTML = '<div class="text-red-500 text-center p-8">Error loading fit data.</div>';
+            });
+    }
+
+    function closeHistoryModal() {
+        document.getElementById('history-modal').classList.add('hidden');
+    }
+
+    function copyHistEft() {
+        navigator.clipboard.writeText(document.getElementById("hist-eft").textContent);
+    }
+
+    function renderSlots(slots, container) {
+        if (!slots || slots.length === 0) {
+            container.innerHTML = '<div class="p-8 text-center text-slate-500 italic">No slot data available.</div>';
+            return;
+        }
+
+        let html = '';
+        slots.forEach(group => {
+            html += `
+            <div class="mb-2">
+                <div class="flex items-center gap-3 mb-1 border-b border-white/5 pb-1">
+                    <h5 class="text-slate-400 text-[10px] uppercase font-bold tracking-wider">${group.name}</h5>
+                    ${group.is_hardpoint ? `<span class="text-[9px] text-slate-600 font-mono bg-white/5 px-1.5 rounded">(${group.used} / ${group.total})</span>` : ''}
+                </div>
+                <div class="space-y-1">
+            `;
+
+            group.modules.forEach((mod, index) => {
+                const styles = getStatusStyles(mod.status);
+                const bgClass = index % 2 === 0 ? 'bg-white/5' : 'bg-transparent';
+                const finalBg = mod.status === 'MATCH' ? bgClass : styles.bg;
+
+                html += `
+                <div class="flex items-center gap-2 px-1.5 py-0.5 rounded border ${styles.border} ${finalBg} min-h-[2rem]">
+                    <img src="https://images.evetech.net/types/${mod.id}/icon?size=32" class="w-6 h-6 rounded border border-black/50 shadow-inner flex-shrink-0">
+                    <div class="flex-grow min-w-0">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold text-slate-200 truncate">${mod.name}</span>
+                            ${styles.icon ? `<span class="text-[10px] ${styles.textClass}">${styles.icon}</span>` : ''}
+                        </div>
+                    </div>
+                    ${mod.quantity > 1 ? `<span class="text-[10px] text-brand-400 font-mono px-1.5 bg-brand-900/20 rounded border border-brand-500/30">x${mod.quantity}</span>` : ''}
+                </div>`;
+            });
+            html += `</div></div>`;
+        });
+        container.innerHTML = html;
+    }
+
+    function getStatusStyles(status) {
+        switch (status) {
+            case 'MATCH': return { border: 'border-transparent', bg: 'bg-transparent', icon: null, textClass: 'text-slate-400' };
+            case 'UPGRADE': return { border: 'border-green-500/50', bg: 'bg-green-500/10', icon: 'UPGRADE', textClass: 'text-green-400' };
+            case 'SIDEGRADE': return { border: 'border-blue-500/50', bg: 'bg-blue-500/10', icon: 'SIDEGRADE', textClass: 'text-blue-400' };
+            case 'DOWNGRADE': return { border: 'border-amber-500/50', bg: 'bg-amber-500/10', icon: '⚠️', textClass: 'text-amber-400' };
+            case 'MISSING': return { border: 'border-red-500/50', bg: 'bg-red-500/10', icon: 'MISSING', textClass: 'text-red-400' };
+            case 'EXTRA': return { border: 'border-purple-500/50', bg: 'bg-purple-500/10', icon: 'EXTRA', textClass: 'text-purple-400' };
+            default: return { border: 'border-white/10', bg: 'bg-transparent', icon: '?', textClass: 'text-slate-500' };
+        }
+    }
+</script>
+{% endblock %}

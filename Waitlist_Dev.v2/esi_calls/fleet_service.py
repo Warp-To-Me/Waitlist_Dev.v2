@@ -1,4 +1,5 @@
 import email.utils
+import requests
 from django.core.cache import cache
 from pilot_data.models import EveCharacter, ItemType, ItemGroup
 from esi_calls.esi_network import call_esi
@@ -10,7 +11,7 @@ def get_fleet_composition(fleet_id, fc_character):
     """
     Fetches raw fleet members AND wing structure.
     Uses Django Cache to prevent ESI spam when multiple users are dashboarding.
-    Cache TTL: 10 seconds.
+    Cache TTL: 5 seconds (Matches ESI spec).
     """
     cache_key = f"fleet_comp_{fleet_id}"
     cached_data = cache.get(cache_key)
@@ -35,16 +36,49 @@ def get_fleet_composition(fleet_id, fc_character):
         'wings': wings_resp.get('data', [])
     }
     
-    # Cache the successful result for 10 seconds
-    cache.set(cache_key, data, timeout=10)
+    # Cache the successful result for 5 seconds
+    cache.set(cache_key, data, timeout=5)
     
     return data, None
 
-def process_fleet_data(composite_data):
+def resolve_unknown_names(char_ids):
+    """
+    Bulk resolves character names from ESI for IDs not in our DB.
+    """
+    if not char_ids: return {}
+    
+    # 1. Filter out what we already know
+    known_ids = set(EveCharacter.objects.filter(character_id__in=char_ids).values_list('character_id', flat=True))
+    missing_ids = list(set(char_ids) - known_ids)
+    
+    if not missing_ids: return {}
+
+    # 2. Resolve missing via ESI
+    resolved = {}
+    url = f"{ESI_BASE}/universe/names/"
+    
+    # Chunking just in case, though fleet size usually fits in one request (limit 1000)
+    chunk_size = 500
+    for i in range(0, len(missing_ids), chunk_size):
+        chunk = missing_ids[i:i + chunk_size]
+        try:
+            resp = requests.post(url, json=chunk, timeout=3)
+            if resp.status_code == 200:
+                for entry in resp.json():
+                    if entry['category'] == 'character':
+                        resolved[entry['id']] = entry['name']
+        except Exception as e:
+            print(f"Name Resolution Error: {e}")
+            
+    return resolved
+
+def process_fleet_data(composite_data, external_names=None):
     """
     Transforms raw ESI data into Summary and Hierarchy.
-    Sorts Wings and Squads by ID to match In-Game order.
+    external_names: Dictionary of {id: name} for pilots not in local DB.
     """
+    if external_names is None: external_names = {}
+    
     members = composite_data.get('members') or []
     wings_structure = composite_data.get('wings') or []
 
@@ -116,7 +150,10 @@ def process_fleet_data(composite_data):
         if ship_item:
             group_name = group_map.get(ship_item.group_id, "Unknown Group")
             
-        char_name = name_map.get(m['character_id'], f"Guest ({m['character_id']})")
+        # Try Local DB -> External Map -> Fallback
+        char_name = name_map.get(m['character_id'])
+        if not char_name:
+            char_name = external_names.get(m['character_id'], f"Guest ({m['character_id']})")
         
         obj = {
             'character_id': m['character_id'],
@@ -177,7 +214,10 @@ def process_fleet_data(composite_data):
 
 def invite_to_fleet(fleet_id, fc_character, target_character_id, role='squad_member', squad_id=None, wing_id=None):
     from esi_calls.token_manager import check_token
-    if not check_token(fc_character): return False
+    
+    # 1. Token Check
+    if not check_token(fc_character): 
+        return False, "FC Token Expired"
     
     headers = {'Authorization': f'Bearer {fc_character.access_token}'}
     url = f"{ESI_BASE}/fleets/{fleet_id}/members/"
@@ -186,5 +226,22 @@ def invite_to_fleet(fleet_id, fc_character, target_character_id, role='squad_mem
     if squad_id: payload['squad_id'] = squad_id
     elif wing_id: payload['wing_id'] = wing_id
     
-    resp = requests.post(url, headers=headers, json=payload)
-    return resp.status_code == 204
+    try:
+        resp = requests.post(url, headers=headers, json=payload, timeout=5)
+        
+        if resp.status_code == 204:
+            return True, "Invite Sent"
+        
+        # Handle Errors
+        error_msg = f"ESI {resp.status_code}"
+        try:
+            data = resp.json()
+            if 'error' in data: error_msg = data['error']
+        except:
+            pass
+            
+        print(f"Invite Failed: {error_msg}")
+        return False, error_msg
+        
+    except Exception as e:
+        return False, f"Network Error: {str(e)}"

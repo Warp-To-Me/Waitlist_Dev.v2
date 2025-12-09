@@ -14,6 +14,8 @@ from core.utils import get_character_data
 
 # Models & Services
 from pilot_data.models import EveCharacter
+from waitlist_data.models import FleetActivity
+from waitlist_data.stats import calculate_pilot_stats # NEW IMPORT
 from esi_calls.token_manager import update_character_data
 
 @login_required
@@ -27,6 +29,21 @@ def profile_view(request):
         
     # Use Shared Helper
     esi_data, grouped_skills = get_character_data(active_char)
+    
+    # --- Service Record Stats ---
+    service_record = calculate_pilot_stats(active_char)
+    
+    # Add history logs explicitly here as the service only returns aggregates
+    # We do this separation because the dashboard doesn't need the full log list, only metrics
+    service_record['history_logs'] = FleetActivity.objects.filter(character=active_char)\
+        .select_related('fleet', 'actor').order_by('-timestamp')[:50]
+    
+    # Convert hull dict to sorted list for template
+    service_record['hull_breakdown'] = sorted(
+        service_record['hull_breakdown'].items(), 
+        key=lambda x: x[1], 
+        reverse=True
+    )
     
     token_missing = False
     if active_char and not active_char.refresh_token: token_missing = True
@@ -53,6 +70,7 @@ def profile_view(request):
     context = {
         'active_char': active_char, 'characters': characters,
         'esi': esi_data, 'grouped_skills': grouped_skills, 
+        'service_record': service_record,
         'token_missing': token_missing,
         'scopes_missing': scopes_missing,
         'total_wallet': totals['wallet_sum'] or 0, 'total_lp': totals['lp_sum'] or 0,
@@ -88,9 +106,6 @@ def make_main(request, char_id):
 @login_required
 @require_POST
 def api_toggle_xup_visibility(request):
-    """
-    Toggles the x_up_visible flag for a character.
-    """
     try:
         data = json.loads(request.body)
         char_id = data.get('character_id')
@@ -100,10 +115,7 @@ def api_toggle_xup_visibility(request):
     if not char_id:
         return JsonResponse({'success': False, 'error': 'Character ID required'})
 
-    # Ensure user owns this character
     character = get_object_or_404(EveCharacter, character_id=char_id, user=request.user)
-    
-    # Toggle
     character.x_up_visible = not character.x_up_visible
     character.save(update_fields=['x_up_visible'])
     

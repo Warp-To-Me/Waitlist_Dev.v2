@@ -29,14 +29,13 @@
         </div>
     </div>
 
-    <!-- Stats (Mocked) -->
+    <!-- Stats -->
     <div class="flex justify-between text-[9px] text-slate-500 uppercase tracking-wide border-t border-slate-700/50 pt-2 mt-2">
-        <span>Total: <span class="text-slate-300">12h</span></span>
-        <span>Hull: <span class="text-slate-300">4h</span></span>
+        <span title="Total Fleet Hours">Total: <span class="text-slate-300 font-mono">{{ entry.display_stats.total_hours|default:"0" }}h</span></span>
+        <span title="Time in this Hull">Hull: <span class="text-slate-300 font-mono">{{ entry.display_stats.hull_hours|default:"0" }}h</span></span>
     </div>
 
-    <!-- OWNER ACTIONS (Updated) -->
-    <!-- Revealed by JS if current user owns this entry -->
+    <!-- OWNER ACTIONS (Revealed by JS) -->
     <div id="owner-controls-{{ entry.id }}" class="owner-controls hidden mt-2 pt-2 border-t border-slate-700 grid grid-cols-2 gap-2" onclick="event.stopPropagation()">
         <button onclick="openUpdateModal({{ entry.id }})" class="bg-blue-600 hover:bg-blue-500 text-white text-[10px] py-1 rounded font-bold transition">
             Update Fit
@@ -48,18 +47,15 @@
 
     <!-- FC Actions -->
     {% if is_fc %}
-    <!-- stopPropagation prevents opening the modal when clicking these specific buttons -->
     <div class="mt-3 pt-2 border-t border-slate-700" id="actions-{{ entry.id }}" onclick="event.stopPropagation()">
         <div class="flex gap-2">
             {% if entry.status == 'pending' %}
             <button onclick="sendAction({{ entry.id }}, 'approve')" class="flex-1 bg-green-700 hover:bg-green-600 text-white text-xs py-1 rounded text-center font-bold">✔</button>
             <button onclick="sendAction({{ entry.id }}, 'deny')" class="flex-1 bg-red-900/50 hover:bg-red-700 text-red-300 hover:text-white text-xs py-1 rounded text-center font-bold">✖</button>
             {% else %}
-            <!-- For Accepted/Invited entries, show Invite (if not yet) and Remove -->
             {% if entry.status == 'approved' %}
             <button onclick="sendAction({{ entry.id }}, 'invite')" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-xs py-1 rounded text-center font-bold">Invite</button>
             {% endif %}
-
             <button onclick="sendAction({{ entry.id }}, 'deny')" class="flex-1 bg-slate-700 hover:bg-red-600 text-slate-300 hover:text-white text-xs py-1 rounded text-center font-bold flex items-center justify-center gap-1 group">
                 <span>🗑️</span> <span class="group-hover:inline hidden">Remove</span>
             </button>
