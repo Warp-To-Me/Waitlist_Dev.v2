@@ -1,63 +1,108 @@
 ﻿<div id="entry-{{ entry.id }}"
-     class="bg-slate-800 border border-slate-600 rounded p-3 relative group hover:border-amber-500 transition shadow-sm mb-2 entry-card cursor-pointer"
+     class="group relative mb-3 cursor-pointer overflow-hidden rounded-xl border border-white/5 bg-dark-900/40 p-3 shadow-lg backdrop-blur-md transition-all duration-300 hover:border-brand-500/50 hover:bg-white/5 hover:shadow-[0_0_20px_rgba(var(--brand-500),0.15)] entry-card"
      onclick="openEntry({{ entry.id }})"
      data-entry-id="{{ entry.id }}"
      data-owner-id="{{ entry.character.user.id }}">
 
-    <!-- Time Indicator -->
-    <div class="absolute top-2 right-2 text-[10px] font-mono {% if entry.time_waiting > 15 %}text-red-400{% else %}text-amber-400{% endif %}">
+    <!-- Decorative Gradient Glow (Hidden by default, visible on hover) -->
+    <div class="absolute inset-0 bg-gradient-to-br from-brand-500/0 via-transparent to-brand-500/5 opacity-0 transition-opacity duration-500 group-hover:opacity-100 pointer-events-none"></div>
+
+    <!-- Time Indicator (Floating Glass Badge) -->
+    <div class="absolute right-2 top-2 z-10 rounded-md border border-white/10 bg-black/30 px-2 py-0.5 text-[9px] font-mono font-bold backdrop-blur-sm {% if entry.time_waiting > 15 %}text-red-400 border-red-500/30 bg-red-900/20{% else %}text-brand-400{% endif %}">
         {{ entry.time_waiting }}m
     </div>
 
-    <!-- Pilot Info -->
-    <div class="flex items-center gap-3 mb-2">
-        <img src="https://images.evetech.net/characters/{{ entry.character.character_id }}/portrait?size=64"
-             class="w-10 h-10 rounded border border-slate-600" alt="">
-        <div>
-            <div class="font-bold text-sm text-white truncate w-32">{{ entry.character.character_name }}</div>
-            <div class="text-[10px] text-slate-400">{{ entry.character.corporation_name|truncatechars:20 }}</div>
+    <!-- Pilot Identity -->
+    <div class="relative z-10 mb-3 flex items-center gap-3">
+        <div class="relative shrink-0">
+            <img src="https://images.evetech.net/characters/{{ entry.character.character_id }}/portrait?size=64"
+                 class="h-10 w-10 rounded-lg border border-white/10 bg-black/50 shadow-md"
+                 alt="{{ entry.character.character_name }}">
+            <!-- Online/Status Indicator (Optional visual flair) -->
+            <div class="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-dark-900 bg-green-500 shadow-sm"></div>
+        </div>
+        <div class="min-w-0 flex-1 overflow-hidden">
+            <div class="truncate text-sm font-bold text-slate-200 transition-colors group-hover:text-white">
+                {{ entry.character.character_name }}
+            </div>
+            <div class="truncate text-[10px] font-medium text-slate-500 group-hover:text-slate-400">
+                {{ entry.character.corporation_name|default:"Unknown Corp" }}
+            </div>
         </div>
     </div>
 
-    <!-- Fit Info -->
-    <div class="flex items-center gap-2 bg-slate-900/50 p-1.5 rounded border border-slate-700/50 mb-2 hover:bg-slate-900 transition">
+    <!-- Ship/Fit Details (Inset Dark Glass) -->
+    <div class="relative z-10 mb-3 flex items-center gap-3 rounded-lg border border-white/5 bg-black/20 p-2 transition-colors group-hover:border-white/10 group-hover:bg-black/30">
         <img src="https://images.evetech.net/types/{{ entry.fit.ship_type.type_id }}/icon?size=32"
-             class="w-8 h-8 rounded bg-slate-800" alt="">
-        <div class="overflow-hidden">
-            <div class="text-xs font-bold text-slate-200 truncate">{{ entry.fit.ship_type.type_name }}</div>
-            <div class="text-[10px] text-slate-500 truncate">{{ entry.fit.name }}</div>
+             class="h-8 w-8 shrink-0 rounded border border-white/5 bg-slate-800/50"
+             alt="">
+        <div class="min-w-0 flex-1 overflow-hidden">
+            <div class="truncate text-xs font-bold text-brand-400 group-hover:text-brand-300">
+                {{ entry.fit.ship_type.type_name }}
+            </div>
+            <div class="truncate text-[10px] text-slate-400 group-hover:text-slate-300">
+                {{ entry.fit.name }}
+            </div>
         </div>
     </div>
 
-    <!-- Stats -->
-    <div class="flex justify-between text-[9px] text-slate-500 uppercase tracking-wide border-t border-slate-700/50 pt-2 mt-2">
-        <span title="Total Fleet Hours">Total: <span class="text-slate-300 font-mono">{{ entry.display_stats.total_hours|default:"0" }}h</span></span>
-        <span title="Time in this Hull">Hull: <span class="text-slate-300 font-mono">{{ entry.display_stats.hull_hours|default:"0" }}h</span></span>
+    <!-- Stats Footer -->
+    <div class="relative z-10 flex justify-between border-t border-white/5 pt-2 text-[9px] font-bold uppercase tracking-wider text-slate-500">
+        <div class="flex items-center gap-1.5" title="Total Fleet Hours">
+            <svg class="h-3 w-3 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <span class="font-mono text-slate-300">{{ entry.display_stats.total_hours|default:"0" }}h</span>
+        </div>
+        <div class="flex items-center gap-1.5" title="Time in this Hull">
+            <svg class="h-3 w-3 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+            <span class="font-mono text-slate-300">{{ entry.display_stats.hull_hours|default:"0" }}h</span>
+        </div>
     </div>
 
-    <!-- OWNER ACTIONS (Revealed by JS) -->
-    <div id="owner-controls-{{ entry.id }}" class="owner-controls hidden mt-2 pt-2 border-t border-slate-700 grid grid-cols-2 gap-2" onclick="event.stopPropagation()">
-        <button onclick="openUpdateModal({{ entry.id }})" class="bg-blue-600 hover:bg-blue-500 text-white text-[10px] py-1 rounded font-bold transition">
-            Update Fit
-        </button>
-        <button onclick="leaveFleet({{ entry.id }})" class="bg-red-900/50 hover:bg-red-600 text-red-200 hover:text-white text-[10px] py-1 rounded font-bold transition border border-red-900/50">
-            Leave Fleet
-        </button>
+    <!-- OWNER CONTROLS (Hidden unless owned) -->
+    <div id="owner-controls-{{ entry.id }}" class="owner-controls relative z-20 mt-3 hidden border-t border-white/10 pt-2" onclick="event.stopPropagation()">
+        <div class="grid grid-cols-2 gap-2">
+            <button onclick="openUpdateModal({{ entry.id }})"
+                    class="group/btn flex items-center justify-center gap-2 rounded-lg bg-blue-600/20 border border-blue-500/30 py-2 text-[10px] font-bold uppercase text-blue-400 transition-all hover:bg-blue-600 hover:text-white hover:border-blue-500 hover:shadow-[0_0_10px_rgba(59,130,246,0.4)]">
+                <svg class="h-3 w-3 opacity-70 group-hover/btn:opacity-100" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                Update
+            </button>
+            <button onclick="leaveFleet({{ entry.id }})"
+                    class="group/btn flex items-center justify-center gap-2 rounded-lg bg-red-600/20 border border-red-500/30 py-2 text-[10px] font-bold uppercase text-red-400 transition-all hover:bg-red-600 hover:text-white hover:border-red-500 hover:shadow-[0_0_10px_rgba(220,38,38,0.4)]">
+                <svg class="h-3 w-3 opacity-70 group-hover/btn:opacity-100" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                Leave
+            </button>
+        </div>
     </div>
 
-    <!-- FC Actions -->
+    <!-- FC ACTIONS (Visible only to FCs) -->
     {% if is_fc %}
-    <div class="mt-3 pt-2 border-t border-slate-700" id="actions-{{ entry.id }}" onclick="event.stopPropagation()">
+    <div class="relative z-20 mt-3 border-t border-white/10 pt-2" id="actions-{{ entry.id }}" onclick="event.stopPropagation()">
         <div class="flex gap-2">
             {% if entry.status == 'pending' %}
-            <button onclick="sendAction({{ entry.id }}, 'approve')" class="flex-1 bg-green-700 hover:bg-green-600 text-white text-xs py-1 rounded text-center font-bold">✔</button>
-            <button onclick="sendAction({{ entry.id }}, 'deny')" class="flex-1 bg-red-900/50 hover:bg-red-700 text-red-300 hover:text-white text-xs py-1 rounded text-center font-bold">✖</button>
+            <!-- Approve -->
+            <button onclick="sendAction({{ entry.id }}, 'approve')"
+                    class="flex-1 rounded-lg bg-green-600 py-1.5 text-center text-xs font-bold text-white shadow-lg shadow-green-900/20 transition hover:bg-green-500 hover:scale-105 active:scale-95">
+                ✔
+            </button>
+            <!-- Deny -->
+            <button onclick="sendAction({{ entry.id }}, 'deny')"
+                    class="flex-1 rounded-lg border border-red-500/30 bg-red-900/20 py-1.5 text-center text-xs font-bold text-red-300 transition hover:bg-red-600 hover:text-white hover:border-red-500 hover:scale-105 active:scale-95">
+                ✖
+            </button>
             {% else %}
             {% if entry.status == 'approved' %}
-            <button onclick="sendAction({{ entry.id }}, 'invite')" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-xs py-1 rounded text-center font-bold">Invite</button>
+            <!-- Invite -->
+            <button onclick="sendAction({{ entry.id }}, 'invite')"
+                    class="flex-1 rounded-lg bg-blue-600 py-1.5 text-center text-xs font-bold text-white shadow-lg shadow-blue-900/20 transition hover:bg-blue-500 hover:scale-105 active:scale-95">
+                Invite
+            </button>
             {% endif %}
-            <button onclick="sendAction({{ entry.id }}, 'deny')" class="flex-1 bg-slate-700 hover:bg-red-600 text-slate-300 hover:text-white text-xs py-1 rounded text-center font-bold flex items-center justify-center gap-1 group">
-                <span>🗑️</span> <span class="group-hover:inline hidden">Remove</span>
+            <!-- Remove/Kick -->
+            <button onclick="sendAction({{ entry.id }}, 'deny')"
+                    class="flex-1 rounded-lg border border-slate-600/50 bg-slate-800/50 py-1.5 text-center text-xs font-bold text-slate-300 transition hover:bg-red-600 hover:text-white hover:border-red-500 hover:scale-105 active:scale-95 group/btn"
+                    title="Remove from fleet">
+                <span class="group-hover/btn:hidden">🗑️</span>
+                <span class="hidden group-hover/btn:inline">Remove</span>
             </button>
             {% endif %}
         </div>

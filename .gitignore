@@ -366,3 +366,4 @@ FodyWeavers.xsd
 /Waitlist_Dev.v2/celerybeat-schedule.bak
 /Waitlist_Dev.v2/celerybeat-schedule.dat
 /Waitlist_Dev.v2/celerybeat-schedule.dir
+/Waitlist_Dev.v2/.env

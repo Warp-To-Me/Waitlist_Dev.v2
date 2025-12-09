@@ -275,19 +275,169 @@
 
 <!-- TABS -->
 <div class="mb-6 border-b border-white/10">
-    <nav class="flex space-x-8" aria-label="Tabs">
-        <button onclick="openTab('tab-skills')" id="btn-tab-skills" class="tab-btn border-b-2 border-brand-500 text-brand-500 py-4 px-1 font-bold text-sm transition">Current Skills</button>
+    <nav class="flex space-x-8 overflow-x-auto" aria-label="Tabs">
+        <!-- Reordered Tabs: Service Record First -->
+        <button onclick="openTab('tab-service')" id="btn-tab-service" class="tab-btn border-b-2 border-brand-500 text-brand-500 py-4 px-1 font-bold text-sm transition">Service Record</button>
+        <button onclick="openTab('tab-skills')" id="btn-tab-skills" class="tab-btn border-b-2 border-transparent text-slate-400 hover:text-white py-4 px-1 font-medium text-sm transition">Current Skills</button>
         <button onclick="openTab('tab-queue')" id="btn-tab-queue" class="tab-btn border-b-2 border-transparent text-slate-400 hover:text-white py-4 px-1 font-medium text-sm transition">Skill Queue</button>
         <button onclick="openTab('tab-history')" id="btn-tab-history" class="tab-btn border-b-2 border-transparent text-slate-400 hover:text-white py-4 px-1 font-medium text-sm transition">Corp History</button>
         <button onclick="openTab('tab-skill-history')" id="btn-tab-skill-history" class="tab-btn border-b-2 border-transparent text-slate-400 hover:text-white py-4 px-1 font-medium text-sm transition">Skill History</button>
-        <button onclick="openTab('tab-service')" id="btn-tab-service" class="tab-btn border-b-2 border-transparent text-slate-400 hover:text-white py-4 px-1 font-medium text-sm transition">Service Record</button>
     </nav>
 </div>
 
 <!-- TABS CONTENT -->
 <div class="min-h-[400px]">
+
+    <!-- SERVICE RECORD (Moved to First Position) -->
+    <div id="tab-service" class="tab-content block">
+        <div class="flex flex-col lg:flex-row gap-8">
+
+            <!-- LEFT: Stats Summary -->
+            <div class="lg:w-80 space-y-6 flex-shrink-0">
+                <!-- Total Time Card -->
+                <div class="glass-panel p-6 bg-gradient-to-br from-slate-900 to-black/50 border-brand-500/20"
+                     id="service-record-stats"
+                     data-active-start="{{ service_record.active_session_start }}"
+                     data-total-seconds="{{ service_record.total_seconds }}"
+                     data-active-hull="{{ service_record.active_hull|slugify }}">
+
+                    <h3 class="label-text text-brand-500 flex items-center gap-2">
+                        Total Time in Fleet
+                        {% if service_record.active_session_start %}
+                        <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.8)]" title="Live Session Active"></span>
+                        {% endif %}
+                    </h3>
+                    <div class="text-4xl font-mono font-bold text-white mt-2" id="val-total-time">
+                        {{ service_record.total_hours }}<span class="text-sm text-slate-500 ml-1">hrs</span>
+                    </div>
+                    <div class="w-full bg-dark-900/50 h-1 mt-4 rounded-full overflow-hidden">
+                        <div class="bg-brand-500 h-full w-full opacity-80"></div>
+                    </div>
+                </div>
+
+                <!-- Top Hulls -->
+                <div class="glass-panel p-6">
+                    <h3 class="label-text mb-4">Hull Breakdown</h3>
+                    <div class="space-y-3">
+                        {% for hull, duration in service_record.hull_breakdown %}
+                        <div class="group" id="row-hull-{{ hull|slugify }}" data-duration="{{ duration }}">
+                            <div class="flex justify-between items-end mb-1">
+                                <span class="text-sm font-bold text-slate-300 group-hover:text-white transition">{{ hull }}</span>
+                                <span class="text-xs font-mono text-slate-500 hull-time-display">
+                                    {% widthratio duration 3600 1 %}h
+                                </span>
+                            </div>
+                            <!-- Simple Bar -->
+                            <div class="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
+                                <div class="bg-blue-500 h-full rounded-full opacity-60 group-hover:opacity-100 transition"
+                                     style="width: {% widthratio duration service_record.total_seconds 100 %}%"></div>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <p class="text-xs text-slate-500 italic">No hull data recorded.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT: Event Log -->
+            <div class="flex-grow glass-panel overflow-hidden flex flex-col">
+                <div class="p-4 bg-white/5 border-b border-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <h3 class="font-bold text-white">Recent Activity</h3>
+
+                    <!-- FILTER BAR (UPDATED: Matches History Page) -->
+                    <div class="flex flex-wrap gap-1.5 items-center">
+                        <button onclick="clearServiceFilters()" class="p-1 rounded border border-red-500/30 text-red-400 hover:bg-red-500/20 transition" title="Clear Filters">
+                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                        <!-- Added all filters from history page -->
+                        {% for action, label, icon in "x_up|X-Up|✋,approved|Approved|✔,invited|Invited|📩,esi_join|Detected|🔗,left_waitlist|Left WL|🚪,left_fleet|Left Fleet|💨,fit_update|Update|🔄,ship_change|Reship|🚢,moved|Moved|↔,promoted|Promoted|⬆,demoted|Demoted|⬇,kicked|Kicked|🥾,denied|Denied|✖"|split_actions %}
+                        <button onclick="toggleServiceFilter('{{ action }}')"
+                                id="srv-filter-btn-{{ action }}"
+                                class="srv-filter-btn flex items-center gap-1 px-2 py-0.5 rounded border border-white/10 bg-white/5 text-[9px] uppercase font-bold text-slate-400 hover:text-white hover:border-slate-500 transition select-none"
+                                data-action="{{ action }}">
+                            {{ icon }} {{ label }}
+                        </button>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="overflow-y-auto custom-scrollbar max-h-[600px] p-4 space-y-3" id="service-log-container">
+                    {% for log in service_record.history_logs %}
+                    <div class="flex gap-4 group service-row" data-action="{{ log.action }}">
+                        <!-- Time -->
+                        <div class="w-16 pt-1 text-right flex-shrink-0">
+                            <div class="text-xs font-bold text-slate-400">{{ log.timestamp|date:"M d" }}</div>
+                            <div class="text-[10px] text-slate-600 font-mono">{{ log.timestamp|date:"H:i" }}</div>
+                        </div>
+
+                        <!-- Connector -->
+                        <div class="flex flex-col items-center relative">
+                            <div class="w-2 h-2 rounded-full mt-1.5
+                                {% if log.action == 'x_up' %}bg-brand-500
+                                {% elif log.action == 'approved' %}bg-green-500
+                                {% elif log.action == 'esi_join' %}bg-blue-500
+                                {% elif log.action == 'invited' %}bg-green-400
+                                {% elif log.action == 'left_fleet' %}bg-red-500
+                                {% elif log.action == 'ship_change' %}bg-purple-500
+                                {% elif log.action == 'denied' %}bg-red-600
+                                {% else %}bg-slate-600{% endif %} z-10"></div>
+                            {% if not forloop.last %}
+                            <div class="w-px bg-white/5 flex-grow h-full absolute top-2 bottom-0"></div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Content -->
+                        <div class="flex-grow pb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-bold text-slate-200">
+                                    {% if log.action == 'x_up' %}X-UP (Waitlist)
+                                    {% elif log.action == 'approved' %}APPROVED
+                                    {% elif log.action == 'esi_join' %}FLEET DETECTED
+                                    {% elif log.action == 'invited' %}INVITED
+                                    {% elif log.action == 'left_fleet' %}LEFT FLEET
+                                    {% elif log.action == 'ship_change' %}RESHIP
+                                    {% elif log.action == 'fit_update' %}FIT UPDATE
+                                    {% elif log.action == 'moved' %}MOVED
+                                    {% elif log.action == 'kicked' %}KICKED
+                                    {% else %}{{ log.get_action_display|upper }}{% endif %}
+                                </span>
+                                <span class="text-[10px] bg-white/5 px-1.5 py-0.5 rounded text-slate-500 border border-white/5">{{ log.fleet.name }}</span>
+                            </div>
+                            <div class="text-xs text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
+                                {% if log.ship_name %}
+                                <span class="flex items-center gap-1 text-slate-400">
+                                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                                    {{ log.ship_name }}
+                                </span>
+                                {% endif %}
+
+                                {% if log.details %}
+                                <span class="opacity-50">|</span>
+                                <span class="italic">{{ log.details }}</span>
+                                {% endif %}
+
+                                <!-- VIEW FIT BUTTON -->
+                                {% if log.fit_eft %}
+                                <span class="opacity-50">|</span>
+                                <button onclick="openHistoryFit({{ log.id }})" class="text-brand-400 hover:text-brand-300 underline font-bold flex items-center gap-1">
+                                    <span>🔍</span> View Fit
+                                </button>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-center py-12 text-slate-500 italic">No fleet history found.</div>
+                    {% endfor %}
+                </div>
+            </div>
+
+        </div>
+    </div>
+
     <!-- Current Skills -->
-    <div id="tab-skills" class="tab-content block">
+    <div id="tab-skills" class="tab-content hidden">
         {% if grouped_skills %}
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {% for group, skills in grouped_skills.items %}
@@ -370,7 +520,7 @@
         </div>
     </div>
 
-    <!-- Skill History Log (RESTORED) -->
+    <!-- Skill History Log -->
     <div id="tab-skill-history" class="tab-content hidden">
         <div class="glass-panel overflow-hidden">
             <table class="w-full text-sm text-left text-slate-400">
@@ -414,146 +564,6 @@
                     {% endfor %}
                 </tbody>
             </table>
-        </div>
-    </div>
-
-    <!-- SERVICE RECORD (New Tab) -->
-    <div id="tab-service" class="tab-content hidden">
-        <div class="flex flex-col lg:flex-row gap-8">
-
-            <!-- LEFT: Stats Summary -->
-            <div class="lg:w-80 space-y-6 flex-shrink-0">
-                <!-- Total Time Card -->
-                <div class="glass-panel p-6 bg-gradient-to-br from-slate-900 to-black/50 border-brand-500/20"
-                     id="service-record-stats"
-                     data-active-start="{{ service_record.active_session_start }}"
-                     data-total-seconds="{{ service_record.total_seconds }}"
-                     data-active-hull="{{ service_record.active_hull|slugify }}">
-
-                    <h3 class="label-text text-brand-500 flex items-center gap-2">
-                        Total Time in Fleet
-                        {% if service_record.active_session_start %}
-                        <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.8)]" title="Live Session Active"></span>
-                        {% endif %}
-                    </h3>
-                    <div class="text-4xl font-mono font-bold text-white mt-2" id="val-total-time">
-                        {{ service_record.total_hours }}<span class="text-sm text-slate-500 ml-1">hrs</span>
-                    </div>
-                    <div class="w-full bg-dark-900/50 h-1 mt-4 rounded-full overflow-hidden">
-                        <div class="bg-brand-500 h-full w-full opacity-80"></div>
-                    </div>
-                </div>
-
-                <!-- Top Hulls -->
-                <div class="glass-panel p-6">
-                    <h3 class="label-text mb-4">Hull Breakdown</h3>
-                    <div class="space-y-3">
-                        {% for hull, duration in service_record.hull_breakdown %}
-                        <div class="group" id="row-hull-{{ hull|slugify }}" data-duration="{{ duration }}">
-                            <div class="flex justify-between items-end mb-1">
-                                <span class="text-sm font-bold text-slate-300 group-hover:text-white transition">{{ hull }}</span>
-                                <span class="text-xs font-mono text-slate-500 hull-time-display">
-                                    {% widthratio duration 3600 1 %}h
-                                </span>
-                            </div>
-                            <!-- Simple Bar -->
-                            <div class="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
-                                <div class="bg-blue-500 h-full rounded-full opacity-60 group-hover:opacity-100 transition"
-                                     style="width: {% widthratio duration service_record.total_seconds 100 %}%"></div>
-                            </div>
-                        </div>
-                        {% empty %}
-                        <p class="text-xs text-slate-500 italic">No hull data recorded.</p>
-                        {% endfor %}
-                    </div>
-                </div>
-            </div>
-
-            <!-- RIGHT: Event Log -->
-            <div class="flex-grow glass-panel overflow-hidden flex flex-col">
-                <div class="p-4 bg-white/5 border-b border-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <h3 class="font-bold text-white">Recent Activity</h3>
-
-                    <!-- FILTER BAR (New) -->
-                    <div class="flex flex-wrap gap-1.5 items-center">
-                        <button onclick="clearServiceFilters()" class="p-1 rounded border border-red-500/30 text-red-400 hover:bg-red-500/20 transition" title="Clear Filters">
-                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                        </button>
-                        {% for action, label, icon in "x_up|Waitlist|✋,esi_join|Joined|🔗,left_fleet|Left|💨,ship_change|Reship|🚢,invited|Invited|📩,approved|Approved|✔"|split_actions %}
-                        <button onclick="toggleServiceFilter('{{ action }}')"
-                                id="srv-filter-btn-{{ action }}"
-                                class="srv-filter-btn flex items-center gap-1 px-2 py-0.5 rounded border border-white/10 bg-white/5 text-[9px] uppercase font-bold text-slate-400 hover:text-white hover:border-slate-500 transition select-none"
-                                data-action="{{ action }}">
-                            {{ icon }} {{ label }}
-                        </button>
-                        {% endfor %}
-                    </div>
-                </div>
-
-                <div class="overflow-y-auto custom-scrollbar max-h-[600px] p-4 space-y-3" id="service-log-container">
-                    {% for log in service_record.history_logs %}
-                    <div class="flex gap-4 group service-row" data-action="{{ log.action }}">
-                        <!-- Time -->
-                        <div class="w-16 pt-1 text-right flex-shrink-0">
-                            <div class="text-xs font-bold text-slate-400">{{ log.timestamp|date:"M d" }}</div>
-                            <div class="text-[10px] text-slate-600 font-mono">{{ log.timestamp|date:"H:i" }}</div>
-                        </div>
-
-                        <!-- Connector -->
-                        <div class="flex flex-col items-center relative">
-                            <div class="w-2 h-2 rounded-full mt-1.5
-                                {% if log.action == 'x_up' %}bg-brand-500
-                                {% elif log.action == 'esi_join' %}bg-green-500
-                                {% elif log.action == 'invited' %}bg-green-400
-                                {% elif log.action == 'left_fleet' %}bg-red-500
-                                {% elif log.action == 'ship_change' %}bg-blue-500
-                                {% else %}bg-slate-600{% endif %} z-10"></div>
-                            {% if not forloop.last %}
-                            <div class="w-px bg-white/5 flex-grow h-full absolute top-2 bottom-0"></div>
-                            {% endif %}
-                        </div>
-
-                        <!-- Content -->
-                        <div class="flex-grow pb-2">
-                            <div class="flex items-center gap-2">
-                                <span class="text-xs font-bold text-slate-200">
-                                    {% if log.action == 'x_up' %}Waitlist Request
-                                    {% elif log.action == 'esi_join' %}Fleet Join
-                                    {% elif log.action == 'invited' %}Fleet Invite
-                                    {% elif log.action == 'left_fleet' %}Fleet Departure
-                                    {% elif log.action == 'ship_change' %}Ship Swap
-                                    {% else %}{{ log.get_action_display }}{% endif %}
-                                </span>
-                                <span class="text-[10px] bg-white/5 px-1.5 py-0.5 rounded text-slate-500 border border-white/5">{{ log.fleet.name }}</span>
-                            </div>
-                            <div class="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
-                                {% if log.ship_name %}
-                                <span class="flex items-center gap-1 text-slate-400">
-                                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                                    {{ log.ship_name }}
-                                </span>
-                                {% endif %}
-                                {% if log.details %}
-                                <span class="opacity-50">|</span>
-                                <span class="italic">{{ log.details }}</span>
-                                {% endif %}
-
-                                <!-- VIEW FIT BUTTON (For Invites) -->
-                                {% if log.action == 'invited' and log.fit_eft %}
-                                <span class="opacity-50">|</span>
-                                <button onclick="openHistoryFit({{ log.id }})" class="text-brand-400 hover:text-brand-300 underline font-bold flex items-center gap-1">
-                                    <span>🔍</span> View Fit
-                                </button>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-                    {% empty %}
-                    <div class="text-center py-12 text-slate-500 italic">No fleet history found.</div>
-                    {% endfor %}
-                </div>
-            </div>
-
         </div>
     </div>
 
@@ -666,8 +676,6 @@
     }
 
     // --- SERVICE RECORD FILTER LOGIC ---
-    // Scoped variable to prevent collision with other tabs if needed
-    // Using a closure or unique names helps
     let activeServiceFilters = new Set();
 
     function toggleServiceFilter(action) {
