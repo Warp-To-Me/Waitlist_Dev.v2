@@ -1,0 +1,70 @@
+﻿<!-- FIT INSPECTION MODAL -->
+<div id="entry-modal" class="fixed inset-0 z-50 hidden" onclick="closeEntryModal()">
+    <div class="fixed inset-0 bg-dark-950/80 backdrop-blur-sm transition-opacity"></div>
+    <div class="fixed inset-0 z-10 overflow-y-auto flex items-center justify-center p-4">
+        <!-- Modal Panel -->
+        <div class="relative transform rounded-xl bg-slate-900 border border-white/10 shadow-2xl sm:w-full sm:max-w-5xl max-h-[90vh] flex flex-col transition-all" onclick="event.stopPropagation()">
+
+            <!-- Header -->
+            <div class="glass-header px-6 py-4 flex justify-between items-center shrink-0">
+                <div class="flex items-center gap-4">
+                    <img id="entry-icon" src="" class="w-14 h-14 rounded-lg border border-white/10 bg-dark-900 shadow-lg">
+                    <div>
+                        <h3 class="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+                            <span id="entry-pilot" class="text-brand-500">Pilot</span>
+                            <span class="text-slate-600 text-lg">vs.</span>
+                            <span id="entry-doctrine-name" class="text-slate-300">Doctrine</span>
+                        </h3>
+                        <p class="text-sm text-slate-400 font-mono mt-0.5" id="entry-ship"></p>
+                    </div>
+                </div>
+                <button onclick="closeEntryModal()" class="text-slate-400 hover:text-white transition p-2 hover:bg-white/5 rounded-full">
+                    <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+
+            <!-- Content Grid -->
+            <div class="px-6 py-6 grid grid-cols-1 md:grid-cols-3 gap-8 overflow-hidden h-full bg-dark-950">
+
+                <!-- Left: Raw EFT & Actions -->
+                <div class="md:col-span-1 flex flex-col h-full overflow-hidden">
+                    <div class="glass-panel p-4 mb-4 flex-grow overflow-y-auto custom-scrollbar bg-black/30 border-white/5">
+                        <pre id="entry-eft" class="text-[10px] text-slate-400 font-mono whitespace-pre-wrap break-all select-all"></pre>
+                    </div>
+
+                    <div class="space-y-3 shrink-0">
+                        <button onclick="copyEntryEft()" id="btn-copy-eft" class="btn-secondary w-full text-xs py-2">
+                            <span>📋</span> Copy to Clipboard
+                        </button>
+
+                        <!-- FC Controls -->
+                        <div id="entry-actions" class="grid grid-cols-2 gap-3 hidden pt-4 border-t border-white/5">
+                            <button onclick="modalAction('approve')" class="btn-success text-xs justify-center shadow-green-500/20">
+                                <span>✔</span> Approve
+                            </button>
+                            <button onclick="modalAction('deny')" class="btn-danger text-xs justify-center shadow-red-500/20">
+                                <span>✖</span> Reject
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Smart Analysis -->
+                <div class="md:col-span-2 glass-panel p-0 overflow-hidden flex flex-col border-white/5 bg-slate-900/50">
+                    <div class="p-4 bg-white/5 border-b border-white/5 flex justify-between items-center">
+                        <h4 class="label-text mb-0 text-white">Analysis Result</h4>
+                        <div class="flex gap-4 text-[10px] uppercase font-bold text-slate-500">
+                            <span class="flex items-center gap-1"><span class="w-2 h-2 bg-green-500 rounded-full"></span> Match/Upgrade</span>
+                            <span class="flex items-center gap-1"><span class="w-2 h-2 bg-amber-500 rounded-full"></span> Downgrade</span>
+                        </div>
+                    </div>
+
+                    <div class="p-4 overflow-y-auto custom-scrollbar flex-grow space-y-4" id="entry-slots">
+                        <!-- Dynamic Content Loaded via JS -->
+                        <div class="flex items-center justify-center h-full text-slate-500 animate-pulse">Running analysis...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,74 @@
+﻿<!-- UPDATED X-UP MODAL -->
+<div id="xup-modal" class="fixed inset-0 z-50 hidden" onclick="closeXUpModal()">
+    <div class="fixed inset-0 bg-dark-950/80 backdrop-blur-sm"></div>
+    <div class="fixed inset-0 z-10 overflow-y-auto flex items-center justify-center p-4">
+        <div class="relative rounded-xl bg-slate-900 border border-white/10 shadow-2xl w-full max-w-4xl flex flex-col max-h-[85vh]" onclick="event.stopPropagation()">
+            <!-- Header -->
+            <div class="glass-header px-6 py-4 flex justify-between items-center shrink-0">
+                <h3 class="font-bold text-white text-lg">Join Waitlist</h3>
+                <button onclick="closeXUpModal()" class="text-slate-400 hover:text-white">✕</button>
+            </div>
+
+            <!-- Content -->
+            <form id="xup-form" action="{% url 'x_up_submit' fleet.join_token %}" method="POST" class="flex flex-col md:flex-row flex-grow overflow-hidden">
+                {% csrf_token %}
+
+                <!-- LEFT: Fitting Paste -->
+                <div class="p-6 md:w-1/2 flex flex-col border-b md:border-b-0 md:border-r border-white/5">
+                    <label class="label-text mb-2">Paste Fit(s)</label>
+                    <div class="flex-grow relative">
+                        <textarea name="eft_paste"
+                                  class="w-full h-full bg-black/30 border border-slate-700 rounded p-3 font-mono text-[10px] text-slate-300 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none resize-none custom-scrollbar leading-tight"
+                                  placeholder="[Hull, Fit Name]...&#10;&#10;Paste multiple fits to submit multiple entries at once."></textarea>
+                    </div>
+                    <div id="xup-error" class="hidden bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-3 rounded mt-4"></div>
+                </div>
+
+                <!-- RIGHT: Pilot Selection & Implants -->
+                <div class="p-6 md:w-1/2 bg-white/5 flex flex-col overflow-y-auto custom-scrollbar">
+                    <h4 class="label-text mb-4">Select Pilot(s)</h4>
+
+                    <div class="space-y-4">
+                        {% for char in user_chars %}
+                        <div class="bg-black/20 rounded border border-white/5 p-3 hover:border-white/20 transition group">
+                            <label class="flex items-start gap-3 cursor-pointer mb-2">
+                                <input type="checkbox" name="character_id" value="{{ char.character_id }}" class="mt-1 w-4 h-4 rounded border-slate-600 bg-slate-800 text-brand-500 focus:ring-0 focus:ring-offset-0 shrink-0">
+                                <div class="flex-grow min-w-0">
+                                    <div class="flex items-center gap-2">
+                                        <img src="https://images.evetech.net/characters/{{ char.character_id }}/portrait?size=32" class="w-5 h-5 rounded-full border border-white/10" alt="">
+                                        <span class="text-sm font-bold text-slate-200 group-hover:text-white truncate">{{ char.character_name }}</span>
+                                        {% if char.is_main %}<span class="text-[9px] text-brand-500 bg-brand-900/20 px-1 rounded border border-brand-500/20 ml-auto">MAIN</span>{% endif %}
+                                    </div>
+                                </div>
+                            </label>
+
+                            <!-- Implants Grid -->
+                            <div class="pl-7">
+                                {% if char.active_implants %}
+                                <div class="grid grid-cols-2 gap-1">
+                                    {% for imp in char.active_implants %}
+                                    <div class="flex items-center gap-1.5 bg-white/5 px-1.5 py-0.5 rounded border border-white/5 overflow-hidden" title="{{ imp.name }}">
+                                        <img src="https://images.evetech.net/types/{{ imp.id }}/icon?size=32" class="w-3 h-3 rounded-sm opacity-80 flex-shrink-0">
+                                        <span class="text-[9px] text-slate-400 truncate leading-none">{{ imp.name }}</span>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                {% else %}
+                                <span class="text-[9px] text-slate-600 italic">No implants detected</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </form>
+
+            <!-- Footer -->
+            <div class="p-4 border-t border-white/5 bg-slate-900 flex justify-end shrink-0">
+                <button type="submit" form="xup-form" class="btn-primary py-2 px-8 shadow-lg shadow-brand-500/20">
+                    Submit Fit(s)
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

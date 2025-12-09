@@ -1,0 +1,27 @@
+﻿<!-- UPDATE FIT MODAL -->
+<div id="update-modal" class="fixed inset-0 z-50 hidden" onclick="closeUpdateModal()">
+    <div class="fixed inset-0 bg-dark-950/80 backdrop-blur-sm"></div>
+    <div class="fixed inset-0 z-10 overflow-y-auto flex items-center justify-center p-4">
+        <div class="relative rounded-xl bg-slate-900 border border-white/10 shadow-2xl w-full max-w-lg" onclick="event.stopPropagation()">
+            <div class="glass-header px-6 py-4 flex justify-between items-center">
+                <h3 class="font-bold text-white text-lg">Update Fit</h3>
+                <button onclick="closeUpdateModal()" class="text-slate-400 hover:text-white">✕</button>
+            </div>
+            <form id="update-form" method="POST" class="p-6 space-y-6">
+                {% csrf_token %}
+                <input type="hidden" id="update-entry-id" name="entry_id">
+
+                <div class="bg-blue-900/20 border border-blue-500/30 p-3 rounded text-xs text-blue-200">
+                    ℹ️ Updating your fit will reset your status to <span class="font-bold text-white">Pending</span> and may trigger a re-scan.
+                </div>
+
+                <div>
+                    <label class="label-text">New Fit Paste</label>
+                    <textarea id="update-eft-paste" name="eft_paste" rows="8" class="input-field font-mono text-xs" placeholder="[Hull, Name]..."></textarea>
+                </div>
+                <div id="update-error" class="hidden bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-3 rounded"></div>
+                <button type="submit" class="btn-primary w-full">Update Fit</button>
+            </form>
+        </div>
+    </div>
+</div>

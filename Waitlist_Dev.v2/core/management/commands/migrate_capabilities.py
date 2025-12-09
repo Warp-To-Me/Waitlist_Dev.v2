@@ -40,7 +40,8 @@ class Command(BaseCommand):
             if "Inspect Pilots" in cap_data['name']: slug = "inspect_pilots"
             if "Manage Doctrines" in cap_data['name']: slug = "manage_doctrines"
             if "Promote/Demote Users" in cap_data['name']: slug = "promote_demote_users"
-            if "Manage Analysis Rules" in cap_data['name']: slug = "manage_analysis_rules" # NEW SLUG
+            if "Manage Analysis Rules" in cap_data['name']: slug = "manage_analysis_rules"
+            if "View Sensitive Data" in cap_data['name']: slug = "view_sensitive_data" # NEW SLUG
 
             capability, created = Capability.objects.get_or_create(
                 slug=slug,

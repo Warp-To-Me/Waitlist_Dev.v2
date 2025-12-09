@@ -33,8 +33,12 @@
     <Compile Include="core\management\commands\__init__.py" />
     <Compile Include="core\management\__init__.py" />
     <Compile Include="core\models.py" />
+    <Compile Include="core\permissions.py" />
     <Compile Include="core\routing.py" />
     <Compile Include="core\utils.py" />
+    <Compile Include="core\views_management.py" />
+    <Compile Include="core\views_profile.py" />
+    <Compile Include="core\views_rules.py" />
     <Compile Include="core\__init__.py" />
     <Compile Include="esi_auth\apps.py" />
     <Compile Include="esi_calls\apps.py" />
@@ -112,6 +116,10 @@
     <Content Include="templates\waitlist\column.html" />
     <Content Include="templates\waitlist\dashboard.html" />
     <Content Include="templates\waitlist\entry_card.html" />
+    <Content Include="templates\waitlist\partials\dashboard_scripts.html" />
+    <Content Include="templates\waitlist\partials\entry_modal.html" />
+    <Content Include="templates\waitlist\partials\update_modal.html" />
+    <Content Include="templates\waitlist\partials\xup_modal.html" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="core\" />
@@ -132,6 +140,7 @@
     <Folder Include="templates\doctrines\" />
     <Folder Include="templates\partials\" />
     <Folder Include="templates\waitlist\" />
+    <Folder Include="templates\waitlist\partials\" />
     <Folder Include="waitlist_project\" />
     <Folder Include="templates\" />
     <Folder Include="waitlist_data\" />

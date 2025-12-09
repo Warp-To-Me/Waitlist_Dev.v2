@@ -5,24 +5,16 @@
 {% block content %}
 <div class="absolute inset-0 overflow-y-auto custom-scrollbar">
     <div class="container mx-auto p-8 flex flex-col items-center justify-center text-center min-h-[80vh]">
-
-        <!-- REMOVED: animate-fade-in from here -->
         <div class="mb-12 relative">
             <div class="absolute -inset-10 bg-brand-500/20 blur-[100px] rounded-full pointer-events-none"></div>
-            <h1 class="heading-1 mb-4 relative z-10">
-                Warp To Me
-            </h1>
-            <p class="text-lg text-slate-400 max-w-xl mx-auto leading-relaxed relative z-10">
-                Coordinate fleets, manage doctrines, and organize your pilots with next-generation fleet tools.
-            </p>
+
         </div>
 
         {% if user.is_authenticated %}
-        <!-- REMOVED: animate-fade-in from here -->
         <div class="w-full max-w-4xl space-y-6 relative z-10">
             <div class="flex items-center justify-between border-b border-white/10 pb-4 mb-6">
                 <h2 class="text-xl font-bold text-white flex items-center gap-2">
-                    <span class="text-brand-500">📡</span> Active Signal Sources
+                    <span class="text-brand-500">📡</span> Fleets
                 </h2>
                 <span class="badge badge-brand">{{ active_fleets|length }} Detected</span>
             </div>
@@ -32,8 +24,6 @@
                 {% for fleet in active_fleets %}
                 <a href="{% url 'fleet_dashboard' fleet.join_token %}"
                    class="glass-panel p-6 group hover:border-brand-500/50 transition duration-300 relative overflow-hidden">
-
-                    <!-- Hover Glow -->
                     <div class="absolute inset-0 bg-brand-500/0 group-hover:bg-brand-500/5 transition duration-500"></div>
 
                     <div class="flex justify-between items-start mb-4 relative z-10">
@@ -60,12 +50,11 @@
             <div class="glass-panel p-12 flex flex-col items-center justify-center text-slate-500 border-dashed border-2 border-slate-800 bg-transparent">
                 <div class="text-5xl mb-4 grayscale opacity-30">🛸</div>
                 <h3 class="text-xl font-bold text-slate-400">No Fleets Active</h3>
-                <p class="mt-2 text-sm">Stand by for pings or create a new fleet in Management.</p>
+                <p class="mt-2 text-sm">Stand by for pings on Discord.</p>
             </div>
             {% endif %}
         </div>
         {% else %}
-        <!-- REMOVED: animate-fade-in from here -->
         <div class="max-w-xl mx-auto space-y-8 relative z-10">
             <div class="glass-panel p-8 border-brand-500/20">
                 <p class="text-slate-300 mb-8 leading-relaxed">

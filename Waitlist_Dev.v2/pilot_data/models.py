@@ -8,6 +8,9 @@ class EveCharacter(models.Model):
     character_name = models.CharField(max_length=255)
     is_main = models.BooleanField(default=False)
     
+    # New Field: Controls visibility in the X-Up Modal
+    x_up_visible = models.BooleanField(default=True)
+    
     corporation_id = models.BigIntegerField(default=0)
     corporation_name = models.CharField(max_length=255, blank=True, default="")
     alliance_id = models.BigIntegerField(null=True, blank=True)

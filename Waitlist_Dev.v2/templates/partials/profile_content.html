@@ -47,7 +47,6 @@
                         </a>
 
                         <!-- UNLINK BUTTON (Top Left - Red Cross) -->
-                        <!-- ADMINS ONLY: Either inspecting OR managing own account -->
                         {% if not char.is_main and is_admin_user or not char.is_main and is_inspection_mode %}
                         <button onclick="unlinkAlt({{ char.character_id }}, '{{ char.character_name|escapejs }}')"
                                 class="absolute -top-2 -left-2 bg-slate-800 hover:bg-red-600 text-slate-400 hover:text-white rounded-full p-1 border border-slate-600 opacity-0 group-hover:opacity-100 transition text-[10px] w-6 h-6 flex items-center justify-center shadow-md z-20"
@@ -56,8 +55,24 @@
                         </button>
                         {% endif %}
 
+                        <!-- VISIBILITY TOGGLE (Bottom Right - Eye) -->
+                        {% if not is_inspection_mode %}
+                        <button onclick="toggleVisibility({{ char.character_id }})"
+                                id="vis-btn-{{ char.character_id }}"
+                                class="absolute -bottom-2 -right-2 rounded-full p-1.5 border opacity-0 group-hover:opacity-100 transition shadow-md z-20 flex items-center justify-center
+                            {% if char.x_up_visible %}bg-green-600 text-white border-green-500 hover:bg-green-500{% else %}bg-slate-700 text-slate-400 border-slate-600 hover:bg-slate-600 hover:text-white{% endif %}"
+                                title="Toggle X-Up Visibility">
+                            {% if char.x_up_visible %}
+                            <!-- Eye Open -->
+                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                            {% else %}
+                            <!-- Eye Slashed -->
+                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                            {% endif %}
+                        </button>
+                        {% endif %}
+
                         <!-- PROMOTE BUTTON (Top Right - Star) -->
-                        <!-- OWNER OR ADMIN: Anyone can set their own Main, Admins can set others -->
                         {% if not char.is_main %}
                         {% if not is_inspection_mode or is_admin_user %}
                         <button onclick="promoteAlt({{ char.character_id }}, '{{ char.character_name|escapejs }}')"
@@ -125,7 +140,7 @@
 
 <!-- WARNING BANNERS -->
 {% if token_missing and not is_inspection_mode %}
-<!-- TOKEN MISSING WARNING -->
+<!-- TOKEN MISSING WARNING (BLOCKING) -->
 <div class="glass-panel p-12 text-center border-red-500/20 shadow-red-900/10 mb-8">
     <div class="inline-block p-4 bg-red-900/20 rounded-full mb-4 border border-red-900/50">
         <span class="text-4xl">⚠️</span>
@@ -140,26 +155,8 @@
     </a>
 </div>
 
-{% elif scopes_missing and not is_inspection_mode %}
-<!-- PERMISSIONS UPDATE REQUIRED (FC) -->
-<div class="glass-panel p-6 mb-8 border-l-4 border-amber-500 bg-amber-900/10 flex flex-col md:flex-row items-center justify-between gap-4">
-    <div class="flex items-start gap-4">
-        <div class="bg-amber-900/40 p-3 rounded-full text-2xl border border-amber-500/30">🛡️</div>
-        <div>
-            <h3 class="text-lg font-bold text-white mb-1">Additional Permissions Required</h3>
-            <p class="text-slate-300 text-sm leading-relaxed max-w-xl">
-                Your pilot rank has been updated to <strong>Fleet Command</strong>.
-                You must re-authorize your character to grant the required EVE Online fleet management scopes.
-            </p>
-        </div>
-    </div>
-    <a href="{% url 'add_alt' %}" data-no-spa class="btn-primary bg-amber-600 hover:bg-amber-500 border-amber-500 shadow-amber-900/20 whitespace-nowrap">
-        <span>🔐</span> Update Permissions
-    </a>
-</div>
-
 {% else %}
-<!-- NORMAL PROFILE VIEW -->
+<!-- NORMAL PROFILE VIEW (NON-BLOCKING) -->
 <div class="glass-panel mb-8 relative overflow-hidden flex flex-col lg:flex-row">
     <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-brand-500 via-brand-400 to-brand-600"></div>
 
@@ -178,7 +175,16 @@
                 <img src="https://images.evetech.net/characters/{{ active_char.character_id }}/portrait?size=128"
                      class="w-28 h-28 rounded-lg border-2 border-white/10 shadow-2xl mb-2" alt="">
                 <h1 class="text-xl font-bold text-white text-center md:text-left leading-tight">{{ active_char.character_name }}</h1>
-                <div class="text-[10px] text-slate-500 mt-1">Updated: <span id="last-updated-time">{{ active_char.last_updated|date:"H:i" }}</span></div>
+                <div class="text-[10px] text-slate-500 mt-1 mb-2">Updated: <span id="last-updated-time">{{ active_char.last_updated|date:"H:i" }}</span></div>
+
+                <!-- NEW: NON-BLOCKING FC SCOPE BUTTON -->
+                {% if scopes_missing and not is_inspection_mode %}
+                <a href="{% url 'add_alt' %}" data-no-spa
+                   class="flex items-center gap-1 text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-1 rounded hover:bg-amber-500/20 transition cursor-pointer font-bold"
+                   title="Fleet Command scopes are missing. Click to add them.">
+                    <span>⚠️</span> Add FC Scopes
+                </a>
+                {% endif %}
             </div>
 
             <!-- Stacked Stats Grid (Modernized) -->
@@ -481,5 +487,33 @@
             alert("Network error.");
             if (btn) btn.disabled = false;
         });
+    }
+
+    function toggleVisibility(charId) {
+        const btn = document.getElementById(`vis-btn-${charId}`);
+        if(btn) btn.classList.add('animate-pulse');
+
+        fetch("{% url 'api_toggle_xup_visibility' %}", {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ character_id: charId })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                if (window.triggerRefresh) {
+                    // Reload to update UI icons correctly using template logic
+                    location.reload();
+                } else {
+                    location.reload();
+                }
+            } else {
+                alert("Error: " + data.error);
+            }
+        })
+        .catch(e => alert("Network error."));
     }
 </script>

@@ -7,29 +7,45 @@ from django.db.models import Count, Q
 from waitlist_project.celery import app as celery_app
 from django.contrib.auth.models import Group
 
-from pilot_data.models import EveCharacter, EsiHeaderCache
+from pilot_data.models import EveCharacter, EsiHeaderCache, ItemType, ItemGroup, SkillHistory
 
 # --- LEGACY / FALLBACK DEFAULTS ---
 ROLE_HIERARCHY_DEFAULT = [
-    'Admin', 'Leadership', 'Officer', 'Certified Trainer', 'Training CT',
-    'Fleet Commander', 'Training FC', 'Assault FC', 'Line Commander',
-    'Resident', 'Pilot', 'Public'
+    'Admin', 
+    'Leadership', 
+    'Officer', 
+    'Certified Trainer', 
+    'Training CT',
+    'Fleet Commander', 
+    'Training FC', 
+    'Assault FC', 
+    'Line Commander',
+    'Resident',
+    'Public'
 ]
 
 # ALIAS FOR BACKWARD COMPATIBILITY
 ROLE_HIERARCHY = ROLE_HIERARCHY_DEFAULT
 
 ROLES_ADMIN = ['Admin']
-ROLES_FC = ROLE_HIERARCHY_DEFAULT[:8]
-ROLES_MANAGEMENT = ROLE_HIERARCHY_DEFAULT[:10]
+
+# Define FCs explicitly to avoid accidental inclusion of new roles like Personnel Manager
+ROLES_FC = [
+    'Admin', 'Leadership', 'Officer', 'Certified Trainer', 'Training CT',
+    'Fleet Commander', 'Training FC', 'Assault FC'
+]
+
+ROLES_MANAGEMENT = ROLE_HIERARCHY_DEFAULT[:11] # Covers up to Resident
 
 # --- CAPABILITY REGISTRY ---
 SYSTEM_CAPABILITIES = [
     {"category": "System Administration", "name": "Full System Access", "desc": "Manage SDE, Roles, System Health, Unlink Alts.", "roles": ROLES_ADMIN},
     {"category": "System Administration", "name": "Manage Doctrines", "desc": "Create, Edit, and Delete Doctrine Fits.", "roles": ROLES_ADMIN},
     {"category": "System Administration", "name": "Promote/Demote Users", "desc": "Assign roles to users (up to own rank) and Unlink Alts.", "roles": ROLES_ADMIN},
-    # NEW CAPABILITY HERE:
     {"category": "System Administration", "name": "Manage Analysis Rules", "desc": "Configure item comparison logic (Higher/Lower is Better).", "roles": ROLES_ADMIN},
+    
+    # NEW CAPABILITY
+    {"category": "System Administration", "name": "View Sensitive Data", "desc": "View unobfuscated financial data in pilot profiles.", "roles": ['Admin']},
     
     {"category": "Fleet Operations", "name": "Fleet Command", "desc": "Create/Close Fleets, Take Command, FC Actions (Approve/Invite).", "roles": ROLES_FC},
     {"category": "Fleet Operations", "name": "Inspect Pilots", "desc": "View full pilot details (Skills, Assets) in User Search.", "roles": ROLES_FC},
@@ -248,3 +264,69 @@ def get_system_status():
         'queued_breakdown': queued_breakdown,     
         'delayed_breakdown': delayed_breakdown,   
     }
+
+# --- DATA BUILDER HELPER (Moved from views.py) ---
+def get_character_data(active_char):
+    esi_data = {'implants': [], 'queue': [], 'history': [], 'skill_history': []}
+    grouped_skills = {}
+    if not active_char: return esi_data, grouped_skills
+    implants = active_char.implants.all()
+    if implants.exists():
+        imp_ids = [i.type_id for i in implants]
+        known_items = ItemType.objects.filter(type_id__in=imp_ids).in_bulk(field_name='type_id')
+        for imp in implants:
+            item = known_items.get(imp.type_id)
+            esi_data['implants'].append({
+                'id': imp.type_id,
+                'name': item.type_name if item else f"Unknown ({imp.type_id})",
+                'icon_url': f"https://images.evetech.net/types/{{imp.type_id}}/icon?size=32"
+            })
+    queue = active_char.skill_queue.all().order_by('queue_position')
+    q_ids = [q.skill_id for q in queue]
+    q_types = ItemType.objects.filter(type_id__in=q_ids).in_bulk(field_name='type_id')
+    for q in queue:
+            item = q_types.get(q.skill_id)
+            esi_data['queue'].append({
+                'skill_id': q.skill_id,
+                'name': item.type_name if item else str(q.skill_id),
+                'finished_level': q.finished_level,
+                'finish_date': q.finish_date
+            })
+    esi_data['history'] = active_char.corp_history.all().order_by('-start_date')
+    try:
+        raw_history = active_char.skill_history.all().order_by('-logged_at')[:30]
+        if raw_history.exists():
+            h_ids = [h.skill_id for h in raw_history]
+            h_items = ItemType.objects.filter(type_id__in=h_ids).in_bulk(field_name='type_id')
+            for h in raw_history:
+                item = h_items.get(h.skill_id)
+                esi_data['skill_history'].append({
+                    'name': item.type_name if item else f"Unknown Skill {{h.skill_id}}",
+                    'old_level': h.old_level, 'new_level': h.new_level,
+                    'sp_diff': h.new_sp - h.old_sp, 'logged_at': h.logged_at
+                })
+    except Exception: pass
+    skills = active_char.skills.select_related().all()
+    if skills.exists():
+        s_ids = [s.skill_id for s in skills]
+        s_types = ItemType.objects.filter(type_id__in=s_ids).in_bulk(field_name='type_id')
+        group_ids = set(st.group_id for st in s_types.values())
+        skill_groups = ItemGroup.objects.filter(group_id__in=group_ids).in_bulk(field_name='group_id')
+        for s in skills:
+            item = s_types.get(s.skill_id)
+            if item:
+                group = skill_groups.get(item.group_id)
+                group_name = group.group_name if group else "Unknown"
+                if group_name not in grouped_skills: grouped_skills[group_name] = []
+                grouped_skills[group_name].append({
+                    'name': item.type_name, 'level': s.active_skill_level, 'sp': s.skillpoints_in_skill
+                })
+        for g in grouped_skills: grouped_skills[g].sort(key=lambda x: x['name'])
+        grouped_skills = dict(sorted(grouped_skills.items()))
+    if active_char.current_ship_type_id:
+            try:
+                ship_item = ItemType.objects.get(type_id=active_char.current_ship_type_id)
+                active_char.ship_type_name = ship_item.type_name
+            except ItemType.DoesNotExist:
+                active_char.ship_type_name = "Unknown Hull"
+    return esi_data, grouped_skills
