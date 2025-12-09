@@ -14,6 +14,7 @@ class EFTParser:
         self.fit_name = None
         self.items = [] # List of dicts: {'name': str, 'quantity': int, 'item_type': ItemType obj}
         self.error = None
+        self.hull_obj = None
 
     def parse(self):
         if not self.lines:
@@ -32,10 +33,6 @@ class EFTParser:
         self.fit_name = match.group(2).strip()
 
         # 2. Verify Hull exists in DB
-        # We try to find an ItemType that matches the Hull Name
-        # We filter by Category 6 (Ship) to avoid naming conflicts if possible
-        # but your ItemType model might not have category_id populated fully yet.
-        # We'll just search by name for now.
         try:
             # Try exact match first
             self.hull_obj = ItemType.objects.filter(type_name__iexact=self.hull_name).first()
@@ -57,7 +54,6 @@ class EFTParser:
                 continue
 
             # Handle Quantity: "Warrior II x5" or "Warrior II"
-            # Regex to find ' xN' at the end
             qty = 1
             item_name = line
             
@@ -66,6 +62,11 @@ class EFTParser:
             if qty_match:
                 qty = int(qty_match.group(1))
                 item_name = line[:qty_match.start()].strip()
+
+            # FIX: Handle loaded charges (e.g. "Neutron Blaster Cannon II, Void L")
+            # We split by comma and take the first part as the module name
+            if ',' in item_name:
+                item_name = item_name.split(',')[0].strip()
 
             # Lookup Item
             item_obj = ItemType.objects.filter(type_name__iexact=item_name).first()
@@ -78,8 +79,6 @@ class EFTParser:
                 })
             else:
                 # If item not found, we currently ignore it or could flag a warning.
-                # For now, we allow the parse to succeed but note the missing item?
-                # Let's just log it internally or skip.
                 print(f"Warning: Item '{item_name}' not found in SDE.")
 
         return True

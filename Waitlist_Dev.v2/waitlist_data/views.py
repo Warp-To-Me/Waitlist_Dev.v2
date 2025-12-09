@@ -92,11 +92,14 @@ def _process_category_icons(category):
     return unique_ships
 
 def _determine_slot(item_type):
+    """
+    Determines the slot layout (High/Mid/Low/Rig) based on Dogma Effects.
+    """
     effects = set(TypeEffect.objects.filter(item=item_type).values_list('effect_id', flat=True))
-    if 12 in effects: return 'high'
-    if 13 in effects: return 'mid'
-    if 11 in effects: return 'low'
-    if 2663 in effects: return 'rig'
+    if 12 in effects: return 'high'  # hiPower
+    if 13 in effects: return 'mid'   # medPower
+    if 11 in effects: return 'low'   # loPower
+    if 2663 in effects: return 'rig' # rigSlot
     try:
         if item_type.group:
             cat_id = item_type.group.category_id
@@ -927,8 +930,12 @@ def manage_doctrines(request):
                     fit = DoctrineFit.objects.create(name=parser.fit_name, category=category, ship_type=parser.hull_obj, eft_format=parser.raw_text, description=description)
                 if tag_ids: fit.tags.set(tag_ids)
                 else: fit.tags.clear()
+                
+                # FIXED: Correctly determine and assign slots when creating Doctrine Modules
                 for item in parser.items:
-                    FitModule.objects.create(fit=fit, item_type=item['obj'], quantity=item['quantity'])
+                    slot = _determine_slot(item['obj'])
+                    FitModule.objects.create(fit=fit, item_type=item['obj'], quantity=item['quantity'], slot=slot)
+                    
             return redirect('manage_doctrines')
     categories = DoctrineCategory.objects.all()
     fits = DoctrineFit.objects.select_related('category', 'ship_type').prefetch_related('tags').order_by('category__name', 'order')
