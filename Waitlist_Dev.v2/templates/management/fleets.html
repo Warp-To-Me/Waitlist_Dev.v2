@@ -6,10 +6,10 @@
     <!-- Header -->
     <div class="flex justify-between items-center border-b border-white/5 pb-6">
         <h1 class="heading-1">Active & Recent Fleets</h1>
-        <button onclick="document.getElementById('create-fleet-modal').classList.remove('hidden')"
-                class="btn-primary text-sm shadow-lg shadow-brand-500/20">
+
+        <a href="{% url 'fleet_setup' %}" class="btn-primary text-sm shadow-lg shadow-brand-500/20 flex items-center gap-2">
             <span>+</span> Create Fleet
-        </button>
+        </a>
     </div>
 
     <!-- Fleet List -->
@@ -34,16 +34,28 @@
                             <span class="badge badge-slate text-xs">CLOSED</span>
                             {% endif %}
                         </h3>
-                        <div class="text-sm text-slate-400 flex gap-4 mt-1 font-mono text-xs">
+                        <div class="text-sm text-slate-400 flex gap-4 mt-1 font-mono text-xs items-center">
                             <span>FC: <strong class="text-slate-200">{{ fleet.commander.username }}</strong></span>
                             <span class="opacity-50">|</span>
                             <span>{{ fleet.created_at|date:"M d, H:i" }}</span>
+                            {% if fleet.esi_fleet_id %}
+                            <span class="opacity-50">|</span>
+                            <span class="bg-black/30 px-1.5 py-0.5 rounded text-slate-500 border border-white/5">ID: {{ fleet.esi_fleet_id }}</span>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
 
                 <div class="flex items-center gap-3">
-                    <!-- HISTORY BUTTON (NEW) -->
+                    <!-- MANAGE BUTTON (NEW) -->
+                    {% if fleet.is_active %}
+                    <a href="{% url 'fleet_settings' fleet.join_token %}"
+                       class="btn-secondary py-1.5 px-3 text-xs inline-flex items-center gap-2 border-brand-500/30 text-brand-400 hover:bg-brand-500/10">
+                        <span>⚙️</span> Manage
+                    </a>
+                    {% endif %}
+
+                    <!-- HISTORY BUTTON -->
                     <a href="{% url 'fleet_history' fleet.join_token %}"
                        class="btn-secondary py-1.5 px-3 text-xs inline-flex items-center gap-2 border-slate-600 hover:border-white/50 text-slate-300 hover:text-white"
                        title="View Audit Log">
@@ -57,7 +69,6 @@
                         <span>↗</span> Open Board
                     </a>
 
-                    <!-- FIXED: Added class="contents" to align button properly in flex container -->
                     <form method="POST" onsubmit="return confirm('Are you sure you want to close this fleet?');" class="contents">
                         {% csrf_token %}
                         <input type="hidden" name="action" value="close">
@@ -69,7 +80,6 @@
                     {% else %}
 
                     {% if can_view_admin %}
-                    <!-- FIXED: Added class="contents" to align delete link with badge -->
                     <form method="POST" onsubmit="return confirm('DELETE this fleet record? This cannot be undone.');" class="contents">
                         {% csrf_token %}
                         <input type="hidden" name="action" value="delete">
@@ -89,46 +99,6 @@
             <p class="text-sm">Create a fleet to start a waitlist session.</p>
         </div>
         {% endif %}
-    </div>
-</div>
-
-<!-- CREATE MODAL -->
-<div id="create-fleet-modal" class="fixed inset-0 z-50 hidden bg-dark-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="relative transform overflow-hidden rounded-xl bg-slate-900 border border-white/10 text-left shadow-2xl transition-all w-full max-w-md" onclick="event.stopPropagation()">
-
-        <!-- Header -->
-        <div class="glass-header px-6 py-4 flex justify-between items-center">
-            <h3 class="font-bold text-white text-lg">Create New Fleet</h3>
-            <button onclick="document.getElementById('create-fleet-modal').classList.add('hidden')" class="text-slate-400 hover:text-white transition p-1 hover:bg-white/10 rounded-full">
-                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
-        </div>
-
-        <form method="POST" class="p-6 space-y-6">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="create">
-
-            <div>
-                <label class="label-text">Fleet Name</label>
-                <input type="text" name="name" required
-                       class="input-field"
-                       placeholder="e.g. Saturday Roam, Home Defense...">
-            </div>
-
-            <div class="bg-blue-500/10 p-4 rounded-lg border border-blue-500/20 text-xs text-blue-200 leading-relaxed">
-                <p><strong>Note:</strong> Creating a fleet opens a waitlist board immediately. You can link it to an in-game fleet ID later from the dashboard.</p>
-            </div>
-
-            <div class="flex justify-end gap-3 pt-2 border-t border-white/5">
-                <button type="button" onclick="document.getElementById('create-fleet-modal').classList.add('hidden')"
-                        class="btn-ghost text-sm">
-                    Cancel
-                </button>
-                <button type="submit" class="btn-primary py-2 px-6 text-sm font-bold shadow-lg shadow-blue-500/20">
-                    Launch Fleet
-                </button>
-            </div>
-        </form>
     </div>
 </div>
 {% endblock %}

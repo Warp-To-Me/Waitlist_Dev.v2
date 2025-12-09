@@ -120,6 +120,8 @@
     <Content Include="templates\waitlist\column.html" />
     <Content Include="templates\waitlist\dashboard.html" />
     <Content Include="templates\waitlist\entry_card.html" />
+    <Content Include="templates\waitlist\fleet_settings.html" />
+    <Content Include="templates\waitlist\fleet_setup.html" />
     <Content Include="templates\waitlist\history.html" />
     <Content Include="templates\waitlist\partials\dashboard_scripts.html" />
     <Content Include="templates\waitlist\partials\entry_modal.html" />

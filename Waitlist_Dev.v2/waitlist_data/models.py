@@ -17,6 +17,9 @@ class Fleet(models.Model):
     # used for URLs instead of the integer ID to prevent guessing
     join_token = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     
+    # NEW: Message of the Day
+    motd = models.TextField(blank=True, default="")
+    
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     end_time = models.DateTimeField(null=True, blank=True)
@@ -29,6 +32,41 @@ class Fleet(models.Model):
         from django.utils import timezone
         end = self.end_time or timezone.now()
         return end - self.created_at
+
+# --- FLEET STRUCTURE TEMPLATES ---
+
+class FleetStructureTemplate(models.Model):
+    """
+    Saves a preferred Wing/Squad layout for a specific FC Character.
+    """
+    character = models.ForeignKey(EveCharacter, on_delete=models.CASCADE, related_name='fleet_templates')
+    name = models.CharField(max_length=100, default="Default Setup")
+    description = models.TextField(blank=True)
+    
+    # NEW: Template MOTD
+    default_motd = models.TextField(blank=True, default="")
+    
+    is_default = models.BooleanField(default=False)
+    last_updated = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.character.character_name})"
+
+class StructureWing(models.Model):
+    template = models.ForeignKey(FleetStructureTemplate, on_delete=models.CASCADE, related_name='wings')
+    name = models.CharField(max_length=50) # e.g. "On Grid"
+    order = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ['order']
+
+class StructureSquad(models.Model):
+    wing = models.ForeignKey(StructureWing, on_delete=models.CASCADE, related_name='squads')
+    name = models.CharField(max_length=50) # e.g. "Logi"
+    order = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ['order']
 
 # --- DOCTRINE MODELS (Existing) ---
 
@@ -136,7 +174,7 @@ class WaitlistEntry(models.Model):
         diff = timezone.now() - self.created_at
         return int(diff.total_seconds() / 60)
 
-# --- HISTORY & AUDIT LOGS (New) ---
+# --- HISTORY & AUDIT LOGS ---
 
 class FleetActivity(models.Model):
     ACTION_TYPES = [
@@ -148,7 +186,7 @@ class FleetActivity(models.Model):
         ('left_waitlist', 'Left Waitlist'),
         ('left_fleet', 'Left Fleet (In-Game)'),
         ('fit_update', 'Updated Fit'),
-        ('ship_change', 'Changed Ship'), # NEW
+        ('ship_change', 'Changed Ship'),
         ('moved', 'Position Changed'),
         ('promoted', 'Promoted'),
         ('demoted', 'Demoted'),
@@ -158,20 +196,15 @@ class FleetActivity(models.Model):
     fleet = models.ForeignKey(Fleet, on_delete=models.CASCADE, related_name='activity_logs')
     character = models.ForeignKey(EveCharacter, on_delete=models.CASCADE, related_name='fleet_history')
     
-    # Who performed the action? (e.g. FC invited Pilot)
     actor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='actions_performed')
     
     action = models.CharField(max_length=20, choices=ACTION_TYPES)
     timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
     
-    # Snapshots for metrics
-    ship_name = models.CharField(max_length=100, blank=True) # Hull name e.g. "Megathron"
+    ship_name = models.CharField(max_length=100, blank=True)
     hull_id = models.IntegerField(null=True, blank=True)
     
-    # Store the RAW EFT for historical inspection
     fit_eft = models.TextField(blank=True, null=True)
-    
-    # JSON for extra details (e.g. fit name, specific slot changes)
     details = models.TextField(blank=True, null=True) 
 
     class Meta:

@@ -1,8 +1,10 @@
 import email.utils
 import requests
+import time
 from django.core.cache import cache
 from pilot_data.models import EveCharacter, ItemType, ItemGroup
-from esi_calls.esi_network import call_esi
+from esi_calls.esi_network import call_esi, get_esi_session
+from esi_calls.token_manager import check_token
 
 # Base ESI URL
 ESI_BASE = "https://esi.evetech.net/latest"
@@ -57,7 +59,6 @@ def resolve_unknown_names(char_ids):
     resolved = {}
     url = f"{ESI_BASE}/universe/names/"
     
-    # Chunking just in case, though fleet size usually fits in one request (limit 1000)
     chunk_size = 500
     for i in range(0, len(missing_ids), chunk_size):
         chunk = missing_ids[i:i + chunk_size]
@@ -75,22 +76,17 @@ def resolve_unknown_names(char_ids):
 def process_fleet_data(composite_data, external_names=None):
     """
     Transforms raw ESI data into Summary and Hierarchy.
-    external_names: Dictionary of {id: name} for pilots not in local DB.
     """
     if external_names is None: external_names = {}
     
     members = composite_data.get('members') or []
     wings_structure = composite_data.get('wings') or []
 
-    # Sort structure by ID to ensure consistent order
     wings_structure.sort(key=lambda x: x['id'])
 
     summary = {}
-    
-    # --- 1. Initialize Tree from Structure (Preserves Order) ---
     hierarchy_wings = []
     
-    # Lookups for O(1) access when placing members
     wing_lookup = {}
     squad_lookup = {}
 
@@ -104,7 +100,6 @@ def process_fleet_data(composite_data, external_names=None):
         hierarchy_wings.append(w_obj)
         wing_lookup[w['id']] = w_obj
         
-        # Sort squads within wing
         squads_list = w.get('squads', [])
         squads_list.sort(key=lambda x: x['id'])
         
@@ -123,7 +118,6 @@ def process_fleet_data(composite_data, external_names=None):
         'wings': hierarchy_wings
     }
 
-    # --- 2. Bulk Fetch Metadata ---
     if members:
         ship_ids = set(m['ship_type_id'] for m in members)
         char_ids = [m['character_id'] for m in members]
@@ -142,7 +136,6 @@ def process_fleet_data(composite_data, external_names=None):
         group_map = {}
         name_map = {}
 
-    # --- 3. Populate Members ---
     for m in members:
         ship_item = item_map.get(m['ship_type_id'])
         ship_name = ship_item.type_name if ship_item else "Unknown Ship"
@@ -150,7 +143,6 @@ def process_fleet_data(composite_data, external_names=None):
         if ship_item:
             group_name = group_map.get(ship_item.group_id, "Unknown Group")
             
-        # Try Local DB -> External Map -> Fallback
         char_name = name_map.get(m['character_id'])
         if not char_name:
             char_name = external_names.get(m['character_id'], f"Guest ({m['character_id']})")
@@ -168,17 +160,14 @@ def process_fleet_data(composite_data, external_names=None):
             'join_time': m['join_time']
         }
         
-        # Summary Stats
         if group_name not in summary: summary[group_name] = {}
         if ship_name not in summary[group_name]: summary[group_name][ship_name] = 0
         summary[group_name][ship_name] += 1
         
-        # Tree Placement
         if m['role'] == 'fleet_commander':
             hierarchy['commander'] = obj
             
         elif m['wing_id'] > 0:
-            # Dynamic Wing Creation (Safety Net for ghost wings)
             if m['wing_id'] not in wing_lookup:
                 w_obj = {
                     'id': m['wing_id'],
@@ -186,7 +175,6 @@ def process_fleet_data(composite_data, external_names=None):
                     'commander': None,
                     'squads': []
                 }
-                # If creating dynamically, just append to end
                 hierarchy['wings'].append(w_obj)
                 wing_lookup[m['wing_id']] = w_obj
 
@@ -194,7 +182,6 @@ def process_fleet_data(composite_data, external_names=None):
                 wing_lookup[m['wing_id']]['commander'] = obj
                 
             elif m['squad_id'] > 0:
-                # Dynamic Squad Creation (Safety Net)
                 if m['squad_id'] not in squad_lookup:
                     s_obj = {
                         'id': m['squad_id'],
@@ -213,9 +200,6 @@ def process_fleet_data(composite_data, external_names=None):
     return summary, hierarchy
 
 def invite_to_fleet(fleet_id, fc_character, target_character_id, role='squad_member', squad_id=None, wing_id=None):
-    from esi_calls.token_manager import check_token
-    
-    # 1. Token Check
     if not check_token(fc_character): 
         return False, "FC Token Expired"
     
@@ -227,12 +211,12 @@ def invite_to_fleet(fleet_id, fc_character, target_character_id, role='squad_mem
     elif wing_id: payload['wing_id'] = wing_id
     
     try:
-        resp = requests.post(url, headers=headers, json=payload, timeout=5)
+        session = get_esi_session()
+        resp = session.post(url, headers=headers, json=payload, timeout=5)
         
         if resp.status_code == 204:
             return True, "Invite Sent"
         
-        # Handle Errors
         error_msg = f"ESI {resp.status_code}"
         try:
             data = resp.json()
@@ -245,3 +229,177 @@ def invite_to_fleet(fleet_id, fc_character, target_character_id, role='squad_mem
         
     except Exception as e:
         return False, f"Network Error: {str(e)}"
+
+def update_fleet_settings(fleet_id, fc_character, motd=None, is_free_move=None):
+    if not check_token(fc_character):
+        return False, "FC Token Expired"
+
+    url = f"{ESI_BASE}/fleets/{fleet_id}/"
+    headers = {'Authorization': f'Bearer {fc_character.access_token}'}
+    
+    payload = {}
+    if motd is not None: payload['motd'] = motd
+    if is_free_move is not None: payload['is_free_move'] = is_free_move
+        
+    if not payload: return True, "No changes"
+
+    try:
+        session = get_esi_session()
+        resp = session.put(url, headers=headers, json=payload, timeout=5)
+        if resp.status_code == 204: return True, "Settings Updated"
+        error_msg = f"ESI {resp.status_code}"
+        try:
+            if 'error' in resp.json(): error_msg = resp.json()['error']
+        except: pass
+        return False, error_msg
+    except Exception as e:
+        return False, f"Network Error: {str(e)}"
+
+# --- FLEET STRUCTURE MANAGEMENT (Full Sync) ---
+
+def sync_fleet_structure(fleet_id, fc_character, desired_structure):
+    """
+    Synchronizes in-game structure to match desired structure exactly (Create/Rename/Delete).
+    """
+    if not check_token(fc_character):
+        return False, "FC Token Expired"
+
+    # 1. Fetch Current State
+    current_data, error = get_fleet_composition(fleet_id, fc_character)
+    if error: return False, error
+    
+    current_wings = current_data.get('wings', [])
+    # Sort by ID to ensure stable mapping
+    current_wings.sort(key=lambda x: x['id'])
+    
+    logs = []
+    
+    # 2. DELETE Extra Wings (Prune from end)
+    while len(current_wings) > len(desired_structure):
+        last_wing = current_wings.pop()
+        time.sleep(0.5)
+        if _delete_wing(fc_character, fleet_id, last_wing['id']):
+            logs.append(f"Deleted Wing {last_wing['name']}")
+    
+    # 3. Process remaining desired wings
+    for i, desired_wing in enumerate(desired_structure):
+        wing_id = None
+        
+        # A. Get or Create Wing
+        if i < len(current_wings):
+            # Existing
+            wing_data = current_wings[i]
+            wing_id = wing_data['id']
+            if wing_data['name'] != desired_wing['name']:
+                time.sleep(0.5)
+                if _rename_entity(fc_character, fleet_id, 'wings', wing_id, desired_wing['name']):
+                    logs.append(f"Renamed Wing {wing_id} -> {desired_wing['name']}")
+        else:
+            # New
+            time.sleep(0.5)
+            wing_id = _create_wing(fc_character, fleet_id)
+            if wing_id:
+                time.sleep(0.5)
+                _rename_entity(fc_character, fleet_id, 'wings', wing_id, desired_wing['name'])
+                logs.append(f"Created Wing {desired_wing['name']}")
+                current_wings.append({'id': wing_id, 'squads': []}) # Update local model
+            else:
+                logs.append(f"Failed to create wing {desired_wing['name']}")
+                continue
+
+        # B. Sync Squads
+        if wing_id:
+            # Determine current squads for this wing
+            # If it was existing, use fetched data. If new, it's empty.
+            current_squads = []
+            if i < len(current_wings):
+                # NOTE: current_wings[i] here refers to the snapshot we fetched/updated
+                current_squads = current_wings[i].get('squads', [])
+                current_squads.sort(key=lambda x: x['id'])
+
+            desired_squads = desired_wing.get('squads', [])
+
+            # DELETE Extra Squads
+            while len(current_squads) > len(desired_squads):
+                last_squad = current_squads.pop()
+                time.sleep(0.5)
+                if _delete_squad(fc_character, fleet_id, last_squad['id']):
+                    logs.append(f"Deleted Squad {last_squad['name']}")
+
+            # CREATE / RENAME Squads
+            for j, desired_squad_name in enumerate(desired_squads):
+                squad_id = None
+                
+                if j < len(current_squads):
+                    # Existing
+                    squad_data = current_squads[j]
+                    squad_id = squad_data['id']
+                    if squad_data['name'] != desired_squad_name:
+                        time.sleep(0.5)
+                        _rename_entity(fc_character, fleet_id, 'squads', squad_id, desired_squad_name, wing_id=wing_id)
+                else:
+                    # New
+                    time.sleep(0.5)
+                    squad_id = _create_squad(fc_character, fleet_id, wing_id)
+                    if squad_id:
+                        time.sleep(0.5)
+                        _rename_entity(fc_character, fleet_id, 'squads', squad_id, desired_squad_name, wing_id=wing_id)
+    
+    return True, logs
+
+def _create_wing(character, fleet_id):
+    url = f"{ESI_BASE}/fleets/{fleet_id}/wings/"
+    headers = {'Authorization': f'Bearer {character.access_token}'}
+    try:
+        session = get_esi_session()
+        resp = session.post(url, headers=headers)
+        if resp.status_code == 201: return resp.json()['wing_id']
+    except: pass
+    return None
+
+def _create_squad(character, fleet_id, wing_id):
+    url = f"{ESI_BASE}/fleets/{fleet_id}/wings/{wing_id}/squads/"
+    headers = {'Authorization': f'Bearer {character.access_token}'}
+    try:
+        session = get_esi_session()
+        resp = session.post(url, headers=headers)
+        if resp.status_code == 201: return resp.json()['squad_id']
+    except: pass
+    return None
+
+def _delete_wing(character, fleet_id, wing_id):
+    url = f"{ESI_BASE}/fleets/{fleet_id}/wings/{wing_id}/"
+    headers = {'Authorization': f'Bearer {character.access_token}'}
+    try:
+        session = get_esi_session()
+        resp = session.delete(url, headers=headers)
+        return resp.status_code == 204
+    except: return False
+
+def _delete_squad(character, fleet_id, squad_id):
+    # Squad delete URL is flat: /fleets/{fleet_id}/squads/{squad_id}/
+    url = f"{ESI_BASE}/fleets/{fleet_id}/squads/{squad_id}/"
+    headers = {'Authorization': f'Bearer {character.access_token}'}
+    try:
+        session = get_esi_session()
+        resp = session.delete(url, headers=headers)
+        return resp.status_code == 204
+    except: return False
+
+def _rename_entity(character, fleet_id, entity_type, entity_id, new_name, wing_id=None):
+    url = ""
+    if entity_type == 'wings':
+        url = f"{ESI_BASE}/fleets/{fleet_id}/wings/{entity_id}/"
+    elif entity_type == 'squads':
+        url = f"{ESI_BASE}/fleets/{fleet_id}/squads/{entity_id}/"
+    
+    headers = {'Authorization': f'Bearer {character.access_token}'}
+    payload = {'name': new_name}
+    
+    try:
+        session = get_esi_session()
+        resp = session.put(url, headers=headers, json=payload)
+        return resp.status_code in [200, 204]
+    except Exception as e:
+        print(f"Error renaming entity: {e}")
+        return False

@@ -1,0 +1,431 @@
+﻿{% extends 'management/base_management.html' %}
+
+{% block title %}Fleet Setup{% endblock %}
+
+{% block management_content %}
+<div class="flex flex-col h-[calc(100vh-8rem)] bg-dark-950 overflow-hidden relative rounded-xl border border-white/5 shadow-2xl">
+
+    <!-- HEADER -->
+    <div class="glass-header px-6 py-4 flex justify-between items-center shrink-0 bg-slate-900/90 z-20 border-b border-white/10">
+        <div>
+            <h1 class="heading-1 flex items-center gap-3">
+                <span class="text-3xl">🛸</span> Fleet Setup
+            </h1>
+            <p class="text-slate-400 text-sm mt-1">Initialize fleet structure and mappings.</p>
+        </div>
+        <div class="flex gap-3">
+            <!-- CANCEL BUTTON: Points to Fleets list, NOT Dashboard -->
+            <a href="{% url 'management_fleets' %}" class="btn-secondary text-xs">
+                Cancel
+            </a>
+            <button onclick="saveTemplate()" class="btn-secondary text-xs border-brand-500/30 text-brand-400 hover:bg-brand-500/10">
+                <span>💾</span> Save Template
+            </button>
+            <button onclick="launchFleet()" class="btn-primary py-2 px-6 shadow-lg shadow-brand-500/20">
+                <span>🚀</span> Launch Fleet
+            </button>
+        </div>
+    </div>
+
+    <!-- MAIN GRID -->
+    <div class="flex-grow grid grid-cols-1 lg:grid-cols-3 gap-0 overflow-hidden">
+
+        <!-- LEFT: CONFIGURATION -->
+        <div class="bg-dark-900/50 p-6 flex flex-col gap-6 overflow-y-auto custom-scrollbar border-r border-white/5">
+
+            <!-- Fleet Details -->
+            <div>
+                <h3 class="label-text mb-2">Fleet Details</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="text-xs text-slate-500 block mb-1">Fleet Name</label>
+                        <input type="text" id="fleet-name" class="input-field"
+                               placeholder="e.g. Saturday Roam"
+                               value="{% firstof navbar_char.character_name request.user.first_name request.user.username %}'s Fleet">
+                    </div>
+
+                    <div>
+                        <label class="text-xs text-slate-500 block mb-1">Fleet Commander</label>
+                        <select id="fc-select" class="select-field">
+                            {% for char in fc_chars %}
+                            <option value="{{ char.character_id }}" {% if char.is_main %}selected{% endif %}>{{ char.character_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <hr class="border-white/5">
+
+            <!-- MOTD Editor -->
+            <div>
+                <h3 class="label-text mb-2">Message of the Day</h3>
+                <div class="space-y-2">
+                    <!-- Toolbar -->
+                    <div class="flex gap-1 flex-wrap items-center">
+                        <button onclick="insertTag('b')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs font-bold text-slate-300 hover:text-white" title="Bold">B</button>
+                        <button onclick="insertTag('i')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs italic text-slate-300 hover:text-white" title="Italic">I</button>
+                        <button onclick="insertTag('u')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs underline text-slate-300 hover:text-white" title="Underline">U</button>
+                        <button onclick="insertTag('br')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs text-slate-300 hover:text-white" title="Line Break">&crarr;</button>
+
+                        <div class="w-px h-6 bg-white/10 mx-1"></div>
+
+                        <button onclick="insertColor('green')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs text-green-400 hover:text-green-300" title="Green Text">A</button>
+                        <button onclick="insertColor('red')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs text-red-400 hover:text-red-300" title="Red Text">A</button>
+                        <button onclick="insertColor('yellow')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs text-yellow-400 hover:text-yellow-300" title="Yellow Text">A</button>
+
+                        <div class="w-px h-6 bg-white/10 mx-1"></div>
+
+                        <!-- Full Color Picker -->
+                        <div class="relative group cursor-pointer" title="Custom Color">
+                            <button onclick="triggerColorPicker()" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs hover:bg-slate-700 flex items-center justify-center">
+                                <span class="text-lg leading-none">🎨</span>
+                            </button>
+                            <input type="color" id="color-picker" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full" onchange="insertColor(this.value)">
+                        </div>
+                    </div>
+                    <!-- FIXED: Added maxlength="4000" -->
+                    <textarea id="motd-input" maxlength="4000" class="input-field h-40 text-xs font-mono resize-none" placeholder="Enter MOTD here... Supports HTML-like tags: <b>, <i>, <font color=''>"></textarea>
+                    <div class="text-[10px] text-slate-500 text-right"><span id="char-count">0</span>/4000</div>
+                </div>
+            </div>
+
+            <hr class="border-white/5">
+
+            <!-- Templates -->
+            <div>
+                <div class="flex justify-between items-end mb-2">
+                    <h3 class="label-text mb-0">Saved Templates</h3>
+                </div>
+                <div class="space-y-2" id="templates-list">
+                    <button onclick="loadDefault()" class="w-full text-left p-3 rounded bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 transition group">
+                        <div class="font-bold text-sm text-slate-200 group-hover:text-white">Default Basic</div>
+                        <div class="text-[10px] text-slate-500">1 Wing, 2 Squads</div>
+                    </button>
+
+                    {% for t in templates %}
+                    <div class="relative group" id="template-card-{{ t.id }}">
+                        <button onclick="loadTemplate('{{ t.id }}')" class="w-full text-left p-3 rounded bg-white/5 hover:bg-white/10 border border-white/5 hover:border-brand-500/50 transition pr-8" id="tpl-btn-{{ t.id }}">
+                            <div class="font-bold text-sm text-slate-200 group-hover:text-brand-400">{{ t.name }}</div>
+                            <div class="text-[10px] text-slate-500">{{ t.wings.count }} Wings</div>
+
+                            <!-- Hidden Data for JS -->
+                            <div class="hidden tpl-data">
+                                {
+                                "wings": [
+                                {% for w in t.wings.all %}
+                                {
+                                "name": "{{ w.name|escapejs }}",
+                                "squads": [{% for s in w.squads.all %}"{{ s.name|escapejs }}"{% if not forloop.last %},{% endif %}{% endfor %}]
+                                }{% if not forloop.last %},{% endif %}
+                                {% endfor %}
+                                ],
+                                "motd": "{{ t.default_motd|escapejs }}"
+                                }
+                            </div>
+                        </button>
+                        <button onclick="deleteTemplate('{{ t.id }}', '{{ t.name|escapejs }}')"
+                                class="absolute top-2 right-2 p-1.5 text-slate-500 hover:text-red-400 hover:bg-white/5 rounded transition opacity-0 group-hover:opacity-100 z-10"
+                                title="Delete Template">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                        </button>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT: STRUCTURE BUILDER -->
+        <div class="lg:col-span-2 flex flex-col overflow-hidden bg-slate-900/50">
+            <div class="p-4 border-b border-white/5 bg-slate-900 flex justify-between items-center">
+                <h3 class="label-text mb-0 text-brand-500">Structure Preview</h3>
+                <button onclick="addWing()" class="btn-secondary py-1 px-3 text-xs bg-slate-800 border-slate-700 hover:border-white/30">
+                    + Add Wing
+                </button>
+            </div>
+
+            <div id="structure-container" class="flex-grow overflow-y-auto custom-scrollbar p-6 space-y-6 bg-black/20">
+                <!-- Wings injected here -->
+                <div class="text-center text-slate-500 py-12 italic">No structure defined. Load a template or add a wing.</div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    // --- STATE ---
+    var CSRF_TOKEN = '{{ csrf_token }}';
+    let structure = [];
+
+    // --- INITIALIZATION ---
+    document.addEventListener('DOMContentLoaded', () => {
+        loadDefault();
+
+        // Listen for FC Selection changes to update default fleet name
+        const fcSelect = document.getElementById('fc-select');
+        const nameInput = document.getElementById('fleet-name');
+
+        if (fcSelect && nameInput) {
+            fcSelect.addEventListener('change', function() {
+                const selectedText = this.options[this.selectedIndex].text;
+                if (nameInput.value.includes("'s Fleet")) {
+                    nameInput.value = `${selectedText}'s Fleet`;
+                }
+            });
+        }
+
+        // Char Counter
+        const motdInput = document.getElementById('motd-input');
+        motdInput.addEventListener('input', function() {
+            document.getElementById('char-count').innerText = this.value.length;
+        });
+    });
+
+    function loadDefault() {
+        structure = [
+            {
+                name: "Wing 1",
+                squads: ["Squad 1", "Squad 2"]
+            }
+        ];
+        document.getElementById('motd-input').value = "";
+        document.getElementById('char-count').innerText = "0";
+        renderStructure();
+    }
+
+    function loadTemplate(tplId) {
+        const btn = document.getElementById(`tpl-btn-${tplId}`);
+        const jsonText = btn.querySelector('.tpl-data').textContent;
+        try {
+            const data = JSON.parse(jsonText);
+            structure = data.wings;
+            const motd = data.motd || "";
+            document.getElementById('motd-input').value = motd;
+            document.getElementById('char-count').innerText = motd.length;
+            renderStructure();
+        } catch(e) {
+            alert("Error loading template data.");
+            console.error(e);
+        }
+    }
+
+    function deleteTemplate(tplId, name) {
+        if (!confirm(`Are you sure you want to delete template "${name}"?`)) return;
+
+        fetch("{% url 'api_delete_structure_template' %}", {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': CSRF_TOKEN,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ template_id: tplId })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                const el = document.getElementById(`template-card-${tplId}`);
+                if (el) el.remove();
+            } else {
+                alert("Error deleting template: " + data.error);
+            }
+        })
+        .catch(e => alert("Network Error"));
+    }
+
+    // --- COLOR PICKER HELPER ---
+    function triggerColorPicker() {
+        document.getElementById('color-picker').click();
+    }
+
+    // --- MOTD HELPERS ---
+    function insertTag(tag) {
+        const input = document.getElementById('motd-input');
+        const start = input.selectionStart;
+        const end = input.selectionEnd;
+        const text = input.value;
+        const selected = text.substring(start, end);
+
+        let replace = "";
+        if (tag === 'br') replace = "<br>";
+        else replace = `<${tag}>${selected}</${tag}>`;
+
+        input.value = text.substring(0, start) + replace + text.substring(end);
+        input.focus();
+        input.selectionStart = start + replace.length;
+        input.selectionEnd = start + replace.length;
+
+        // Trigger input event to update counter
+        input.dispatchEvent(new Event('input'));
+    }
+
+    function insertColor(color) {
+        const input = document.getElementById('motd-input');
+        const start = input.selectionStart;
+        const end = input.selectionEnd;
+        const text = input.value;
+        const selected = text.substring(start, end);
+
+        let hex = color;
+        if(color === 'green') hex = "#00ff00";
+        if(color === 'red') hex = "#ff0000";
+        if(color === 'yellow') hex = "#ffff00";
+
+        const replace = `<font color="${hex}">${selected}</font>`;
+        input.value = text.substring(0, start) + replace + text.substring(end);
+        input.focus();
+        input.selectionStart = start + replace.length;
+        input.selectionEnd = start + replace.length;
+
+        input.dispatchEvent(new Event('input'));
+    }
+
+    // --- RENDERER ---
+    function renderStructure() {
+        const container = document.getElementById('structure-container');
+        container.innerHTML = '';
+
+        structure.forEach((wing, wIndex) => {
+            const wingEl = document.createElement('div');
+            wingEl.className = "bg-slate-800 rounded-lg border border-slate-700 overflow-hidden group/wing";
+
+            // Wing Header
+            let squadsHtml = '';
+            wing.squads.forEach((squad, sIndex) => {
+                squadsHtml += `
+                <div class="flex items-center gap-2 mb-2">
+                    <div class="w-6 border-l-2 border-b-2 border-slate-600 h-4 -mt-4 ml-2 rounded-bl"></div>
+                    <input type="text" value="${squad}"
+                           class="bg-dark-900 border border-slate-700 rounded px-2 py-1 text-xs text-white w-48 focus:border-brand-500 outline-none"
+                           onchange="updateSquad(${wIndex}, ${sIndex}, this.value)">
+                    <button onclick="removeSquad(${wIndex}, ${sIndex})" class="text-slate-600 hover:text-red-400">×</button>
+                </div>`;
+            });
+
+            wingEl.innerHTML = `
+                <div class="p-3 bg-slate-700/50 flex justify-between items-center border-b border-slate-700">
+                    <div class="flex items-center gap-2">
+                        <span class="text-slate-400 text-xs font-bold uppercase">Wing</span>
+                        <input type="text" value="${wing.name}"
+                               class="bg-transparent border-b border-transparent hover:border-slate-500 focus:border-brand-500 text-white font-bold text-sm outline-none w-48 transition px-1"
+                               onchange="updateWing(${wIndex}, this.value)">
+                    </div>
+                    <div class="flex gap-2 opacity-0 group-hover/wing:opacity-100 transition">
+                        <button onclick="addSquad(${wIndex})" class="text-xs bg-slate-600 hover:bg-slate-500 px-2 py-1 rounded text-white">+ Squad</button>
+                        <button onclick="removeWing(${wIndex})" class="text-xs bg-red-900/30 text-red-400 hover:bg-red-900/50 px-2 py-1 rounded border border-red-900/50">Delete</button>
+                    </div>
+                </div>
+                <div class="p-3 bg-dark-900/30">
+                    ${squadsHtml}
+                    ${wing.squads.length === 0 ? '<div class="text-[10px] text-slate-600 italic pl-8">No squads</div>' : ''}
+                </div>
+            `;
+            container.appendChild(wingEl);
+        });
+    }
+
+    // --- MUTATORS ---
+    function addWing() {
+        structure.push({ name: `Wing ${structure.length + 1}`, squads: [] });
+        renderStructure();
+    }
+
+    function removeWing(index) {
+        structure.splice(index, 1);
+        renderStructure();
+    }
+
+    function updateWing(index, val) {
+        structure[index].name = val;
+    }
+
+    function addSquad(wIndex) {
+        const count = structure[wIndex].squads.length + 1;
+        structure[wIndex].squads.push(`Squad ${count}`);
+        renderStructure();
+    }
+
+    function removeSquad(wIndex, sIndex) {
+        structure[wIndex].squads.splice(sIndex, 1);
+        renderStructure();
+    }
+
+    function updateSquad(wIndex, sIndex, val) {
+        structure[wIndex].squads[sIndex] = val;
+    }
+
+    // --- ACTIONS ---
+    function saveTemplate() {
+        const name = prompt("Enter a name for this template:", "My Fleet Setup");
+        if (!name) return;
+
+        const charId = document.getElementById('fc-select').value;
+        const motd = document.getElementById('motd-input').value;
+
+        fetch("{% url 'api_save_structure_template' %}", {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': CSRF_TOKEN,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                character_id: charId,
+                template_name: name,
+                structure: structure,
+                motd: motd
+            })
+        })
+        .then(r => r.json())
+        .then(d => {
+            if(d.success) {
+                alert("Template saved!");
+                location.reload();
+            } else {
+                alert("Error: " + d.error);
+            }
+        });
+    }
+
+    function launchFleet() {
+        const btn = document.querySelector('button[onclick="launchFleet()"]');
+        const orig = btn.innerHTML;
+        btn.textContent = "Launching...";
+        btn.disabled = true;
+
+        const fleetName = document.getElementById('fleet-name').value;
+        const charId = document.getElementById('fc-select').value;
+        const motd = document.getElementById('motd-input').value;
+
+        fetch("{% url 'api_create_fleet_with_structure' %}", {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                fleet_name: fleetName,
+                character_id: charId,
+                structure: structure,
+                motd: motd
+            })
+        })
+        .then(r => r.json())
+        .then(d => {
+            if(d.success) {
+                window.location.href = d.redirect_url;
+            } else {
+                alert("Launch Failed: " + d.error);
+                btn.innerHTML = orig;
+                btn.disabled = false;
+            }
+        })
+        .catch(e => {
+            alert("Network Error");
+            btn.innerHTML = orig;
+            btn.disabled = false;
+        });
+    }
+</script>
+{% endblock %}

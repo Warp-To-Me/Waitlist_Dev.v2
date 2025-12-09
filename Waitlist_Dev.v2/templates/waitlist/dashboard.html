@@ -12,9 +12,14 @@
 
         <!-- LEFT ACTIONS -->
         {% if is_fc %}
-        <div class="absolute left-4 top-1/2 -translate-y-1/2 hidden md:block">
+        <div class="absolute left-4 top-1/2 -translate-y-1/2 hidden md:flex items-center gap-2">
             <a href="{% url 'fleet_history' fleet.join_token %}" class="btn-secondary py-1.5 px-3 text-xs gap-2 shadow-lg">
                 <span>📜</span> History Log
+            </a>
+
+            <!-- NEW: MANAGE FLEET BUTTON -->
+            <a href="{% url 'fleet_settings' fleet.join_token %}" class="btn-secondary py-1.5 px-3 text-xs gap-2 shadow-lg border-brand-500/30 text-brand-400 hover:bg-brand-500/10">
+                <span>⚙️</span> Manage Fleet
             </a>
         </div>
         {% endif %}
@@ -28,8 +33,16 @@
                 <p class="text-xs text-slate-400 mt-2 flex justify-center items-center gap-3 font-mono">
                     <span class="label-text mb-0 text-[10px]">FC</span>
                     <span class="text-white font-bold">{{ fc_name }}</span>
+
+                    {% if fleet.esi_fleet_id %}
+                    <span class="text-slate-600">|</span>
+                    <span class="label-text mb-0 text-[10px]">ID</span>
+                    <span class="text-brand-400 font-bold cursor-copy" title="Copy Fleet ID" onclick="navigator.clipboard.writeText('{{ fleet.esi_fleet_id }}')">{{ fleet.esi_fleet_id }}</span>
+                    {% endif %}
+
                     <!-- STATUS INDICATOR -->
                     <span id="connection-status" class="w-2.5 h-2.5 rounded-full bg-slate-600 transition-all duration-500" title="Initializing..."></span>
+
                     {% if is_fc and not is_commander %}
                     <a href="{% url 'take_fleet_command' fleet.join_token %}" class="btn-danger py-0.5 px-2 text-[10px] uppercase font-bold tracking-wider">
                         Take Command

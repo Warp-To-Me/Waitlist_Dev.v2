@@ -8,6 +8,7 @@ from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 import requests 
 from collections import defaultdict
+import json
 import re
 
 # Core Imports
@@ -26,16 +27,23 @@ from core.permissions import (
 
 # Model Imports
 from pilot_data.models import EveCharacter, TypeEffect, ItemGroup, CharacterImplant, ItemType
-from .models import DoctrineCategory, DoctrineFit, FitModule, DoctrineTag, Fleet, WaitlistEntry, FleetActivity
+from .models import (
+    DoctrineCategory, DoctrineFit, FitModule, DoctrineTag, 
+    Fleet, WaitlistEntry, FleetActivity, 
+    FleetStructureTemplate, StructureWing, StructureSquad
+)
 
 # ESI Services
-from esi_calls.fleet_service import get_fleet_composition, process_fleet_data, invite_to_fleet, ESI_BASE
+from esi_calls.fleet_service import (
+    get_fleet_composition, process_fleet_data, invite_to_fleet, 
+    sync_fleet_structure, update_fleet_settings, ESI_BASE
+)
 from esi_calls.token_manager import check_token
 
 # Fitting Service
 from .fitting_service import SmartFitMatcher, FitComparator, ComparisonStatus
 
-# NEW: Stats Service
+# Stats Service
 from .stats import batch_calculate_pilot_stats, calculate_pilot_stats
 
 # --- HELPERS ---
@@ -108,14 +116,10 @@ def broadcast_update(fleet_id, action, entry, target_col=None):
         'entry_id': entry.id
     }
     if action in ['add', 'move']:
-        # --- NEW: Inject Real Stats into Entry for Template Render ---
         stats = calculate_pilot_stats(entry.character)
-        
-        # Calculate specific hull hours (Use stored hull)
         hull_name = entry.hull.type_name if entry.hull else "Unknown"
         hull_seconds = stats['hull_breakdown'].get(hull_name, 0)
         
-        # Attach to entry object temporarily for the template
         entry.display_stats = {
             'total_hours': stats['total_hours'],
             'hull_hours': round(hull_seconds / 3600, 1)
@@ -207,7 +211,256 @@ def doctrine_detail_api(request, fit_id):
     return JsonResponse(data)
 
 
-# --- FLEET / WAITLIST VIEWS ---
+# --- FLEET SETUP FLOW ---
+
+@login_required
+@user_passes_test(is_fleet_command)
+def fleet_setup(request):
+    """
+    Renders the Fleet Setup Wizard.
+    """
+    # 1. Get FC Characters
+    fc_chars = request.user.characters.all()
+    
+    # 2. Get Saved Templates
+    templates = FleetStructureTemplate.objects.filter(character__in=fc_chars).prefetch_related('wings', 'wings__squads')
+    
+    context = {
+        'fc_chars': fc_chars,
+        'templates': templates,
+        'base_template': get_template_base(request)
+    }
+    context.update(get_mgmt_context(request.user))
+    return render(request, 'waitlist/fleet_setup.html', context)
+
+@login_required
+@user_passes_test(is_fleet_command)
+@require_POST
+def api_save_structure_template(request):
+    try:
+        data = json.loads(request.body)
+        char_id = data.get('character_id')
+        name = data.get('template_name', 'My Template')
+        wings_data = data.get('structure', [])
+        motd = data.get('motd', '') 
+    except json.JSONDecodeError: return JsonResponse({'success': False, 'error': 'Invalid JSON'})
+
+    character = get_object_or_404(EveCharacter, character_id=char_id, user=request.user)
+    
+    # Create Template
+    template = FleetStructureTemplate.objects.create(
+        character=character,
+        name=name,
+        default_motd=motd
+    )
+    
+    # Create Structure
+    for i, w_data in enumerate(wings_data):
+        wing = StructureWing.objects.create(
+            template=template,
+            name=w_data['name'],
+            order=i
+        )
+        for j, s_name in enumerate(w_data.get('squads', [])):
+            StructureSquad.objects.create(
+                wing=wing,
+                name=s_name,
+                order=j
+            )
+            
+    return JsonResponse({'success': True, 'template_id': template.id})
+
+# --- DELETE TEMPLATE ---
+@login_required
+@user_passes_test(is_fleet_command)
+@require_POST
+def api_delete_structure_template(request):
+    try:
+        data = json.loads(request.body)
+        template_id = data.get('template_id')
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'})
+
+    if not template_id:
+        return JsonResponse({'success': False, 'error': 'Template ID required'})
+
+    # Verify ownership (Template -> Character -> User)
+    template = get_object_or_404(FleetStructureTemplate, id=template_id)
+    if template.character.user != request.user:
+        return JsonResponse({'success': False, 'error': 'Permission denied: Not your template'}, status=403)
+
+    template.delete()
+    return JsonResponse({'success': True})
+
+@login_required
+@user_passes_test(is_fleet_command)
+@require_POST
+def api_create_fleet_with_structure(request):
+    """
+    1. Creates Django Fleet.
+    2. Checks ESI connection.
+    3. Applies structure if valid.
+    4. Sets MOTD if provided.
+    """
+    try:
+        data = json.loads(request.body)
+        fleet_name = data.get('fleet_name')
+        char_id = data.get('character_id')
+        structure = data.get('structure', []) 
+        motd = data.get('motd', '') 
+        
+        if not fleet_name or not char_id:
+            return JsonResponse({'success': False, 'error': 'Missing Name or FC Selection'})
+            
+        fc_char = get_object_or_404(EveCharacter, character_id=char_id, user=request.user)
+        
+        # 1. ESI Check
+        headers = {'Authorization': f'Bearer {fc_char.access_token}'}
+        esi_fleet_id = None
+        try:
+            if check_token(fc_char):
+                resp = requests.get(f"{ESI_BASE}/characters/{fc_char.character_id}/fleet/", headers=headers, timeout=5)
+                if resp.status_code == 200:
+                    esi_fleet_id = resp.json()['fleet_id']
+                elif resp.status_code == 404:
+                    return JsonResponse({'success': False, 'error': 'You are not in a fleet in-game. Please form fleet first.'})
+                else:
+                    return JsonResponse({'success': False, 'error': f'ESI Error {resp.status_code}'})
+            else:
+                return JsonResponse({'success': False, 'error': 'Token Expired'})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)})
+
+        # 2. Create Django Fleet
+        fleet = Fleet.objects.create(
+            name=fleet_name,
+            commander=request.user,
+            is_active=True,
+            esi_fleet_id=esi_fleet_id,
+            motd=motd
+        )
+        
+        # 3. Apply Structure
+        success, logs = sync_fleet_structure(esi_fleet_id, fc_char, structure)
+        
+        # 4. Apply MOTD
+        if motd:
+            success_motd, msg_motd = update_fleet_settings(esi_fleet_id, fc_char, motd=motd)
+            logs.append(f"MOTD Update: {msg_motd}")
+
+        # Log results
+        if logs:
+            for log in logs:
+                _log_fleet_action(fleet, fc_char, 'esi_join', details=log)
+
+        return JsonResponse({
+            'success': True, 
+            'redirect_url': f"/fleet/{fleet.join_token}/dashboard/",
+            'logs': logs
+        })
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+# --- ACTIVE FLEET SETTINGS VIEW ---
+
+@login_required
+@user_passes_test(is_fleet_command)
+def fleet_settings(request, token):
+    """
+    Manage an active fleet's MOTD and Structure.
+    """
+    fleet = get_object_or_404(Fleet, join_token=token)
+    if not fleet.is_active:
+        return redirect('fleet_history', token=token)
+        
+    fc_char = fleet.commander.characters.filter(is_main=True).first() or fleet.commander.characters.first()
+    
+    # PRE-FETCH CURRENT STRUCTURE
+    initial_structure = "[]"
+    if fleet.esi_fleet_id and check_token(fc_char):
+        comp, err = get_fleet_composition(fleet.esi_fleet_id, fc_char)
+        if comp:
+            # Sort wings by ID to keep order stable if not ordered by name
+            raw_wings = comp.get('wings', [])
+            raw_wings.sort(key=lambda x: x['id'])
+            
+            clean_struct = []
+            for w in raw_wings:
+                squads = [s['name'] for s in sorted(w.get('squads', []), key=lambda x: x['id'])]
+                clean_struct.append({
+                    'name': w['name'],
+                    'squads': squads
+                })
+            initial_structure = json.dumps(clean_struct)
+
+    context = {
+        'fleet': fleet,
+        'fc_char': fc_char,
+        'initial_structure': initial_structure,
+        'base_template': get_template_base(request)
+    }
+    context.update(get_mgmt_context(request.user))
+    return render(request, 'waitlist/fleet_settings.html', context)
+
+@login_required
+@user_passes_test(is_fleet_command)
+@require_POST
+def api_update_fleet_settings(request, token):
+    fleet = get_object_or_404(Fleet, join_token=token)
+    try:
+        data = json.loads(request.body)
+        motd = data.get('motd')
+        structure = data.get('structure') # List of Wings
+        
+        fc_char = fleet.commander.characters.filter(is_main=True).first() or fleet.commander.characters.first()
+        
+        if not fc_char: return JsonResponse({'success': False, 'error': 'No FC Character found'})
+        
+        messages = []
+        
+        # 1. Update MOTD
+        if motd is not None and motd != fleet.motd:
+            success, msg = update_fleet_settings(fleet.esi_fleet_id, fc_char, motd=motd)
+            if success:
+                fleet.motd = motd
+                fleet.save()
+                messages.append("MOTD updated")
+            else:
+                return JsonResponse({'success': False, 'error': msg})
+
+        # 2. Update Structure
+        if structure is not None:
+            success, logs = sync_fleet_structure(fleet.esi_fleet_id, fc_char, structure)
+            if success:
+                if logs: messages.append(f"Structure synced ({len(logs)} changes)")
+            else:
+                return JsonResponse({'success': False, 'error': f"Structure sync failed: {logs}"})
+
+        return JsonResponse({'success': True, 'message': ", ".join(messages) or "No changes"})
+            
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+# --- NEW: CLOSE FLEET API ---
+@login_required
+@user_passes_test(is_fleet_command)
+@require_POST
+def api_close_fleet(request, token):
+    fleet = get_object_or_404(Fleet, join_token=token)
+    
+    # Permission Check (Just in case, mostly handled by decorator)
+    if not request.user.is_superuser and fleet.commander != request.user:
+        return JsonResponse({'success': False, 'error': 'Permission denied.'}, status=403)
+        
+    fleet.is_active = False
+    fleet.end_time = timezone.now()
+    fleet.save()
+    
+    return JsonResponse({'success': True})
+
+
+# --- EXISTING FLEET VIEWS ---
 
 @login_required
 def fleet_dashboard(request, token):
@@ -223,16 +476,13 @@ def fleet_dashboard(request, token):
         'character', 'fit', 'fit__ship_type', 'fit__category', 'hull'
     ).order_by('created_at')
 
-    # --- NEW: Batch Stats Calculation ---
     char_ids = [e.character.character_id for e in entries]
     all_stats = batch_calculate_pilot_stats(char_ids)
     
     columns = {'pending': [], 'logi': [], 'dps': [], 'sniper': [], 'other': []}
     
     for entry in entries:
-        # Attach stats to entry for template
         stats = all_stats.get(entry.character.character_id, {})
-        # Fallback to stored hull, then fit's hull
         hull_name = entry.hull.type_name if entry.hull else "Unknown"
         hull_seconds = stats.get('hull_breakdown', {}).get(hull_name, 0)
         
@@ -251,10 +501,8 @@ def fleet_dashboard(request, token):
             elif 'dps' in tags or 'brawl' in tags: columns['dps'].append(entry)
             else: columns['other'].append(entry)
         else:
-            # No Doctrine Fit = Other
             columns['other'].append(entry)
 
-    # --- Fetch Characters & Implants (FILTERED) ---
     user_chars = request.user.characters.filter(x_up_visible=True).prefetch_related('implants')
     
     implant_type_ids = set()
@@ -351,38 +599,30 @@ def x_up_submit(request, token):
             parser = EFTParser(fit_text)
             if not parser.parse(): continue
             
-            # Use Hull Object from Parser
             hull_obj = parser.hull_obj
             
             matcher = SmartFitMatcher(parser)
             matched_fit, analysis = matcher.find_best_match()
             
-            # --- MODIFIED: Allow Null Fit ---
-            # If no match, matched_fit is None. We still create the entry.
             fit_name_for_log = matched_fit.name if matched_fit else "Custom Fit"
 
-            # UPDATED CHECK: Allow multiple entries per pilot, but block EXACT duplicates
-            # Previously this blocked 'character=char' globally for the fleet.
-            # Now we check 'raw_eft=fit_text' to allow different fits.
             if WaitlistEntry.objects.filter(
                 fleet=fleet, 
                 character=char, 
                 raw_eft=fit_text,
                 status__in=['pending', 'approved', 'invited']
             ).exists():
-                # Prevent duplicate active entries for same fit string
                 continue
 
             entry = WaitlistEntry.objects.create(
                 fleet=fleet, 
                 character=char, 
                 fit=matched_fit, 
-                hull=hull_obj, # Save Hull explicitly
+                hull=hull_obj, 
                 raw_eft=fit_text, 
                 status='pending'
             )
             
-            # --- LOGGING ---
             _log_fleet_action(
                 fleet, 
                 char, 
@@ -393,7 +633,6 @@ def x_up_submit(request, token):
                 eft_text=fit_text
             )
             
-            # --- RE-FETCH FOR BROADCAST (Fix for missing user_id in template) ---
             entry = WaitlistEntry.objects.select_related('character__user', 'fit', 'hull', 'fit__ship_type', 'fit__category').get(id=entry.id)
 
             broadcast_update(fleet.id, 'add', entry, target_col='pending')
@@ -418,7 +657,6 @@ def update_fit(request, entry_id):
     matcher = SmartFitMatcher(parser)
     matched_fit, analysis = matcher.find_best_match()
 
-    # --- MODIFIED: Allow Null Fit ---
     old_fit_name = entry.fit.name if entry.fit else "Custom Fit"
     new_fit_name = matched_fit.name if matched_fit else "Custom Fit"
 
@@ -428,10 +666,8 @@ def update_fit(request, entry_id):
     entry.status = 'pending' 
     entry.save()
 
-    # --- LOGGING ---
     _log_fleet_action(entry.fleet, entry.character, 'fit_update', actor=request.user, ship_type=parser.hull_obj, details=f"{old_fit_name} -> {new_fit_name}", eft_text=raw_eft)
 
-    # --- RE-FETCH FOR BROADCAST (Fix for missing user_id in template) ---
     entry = WaitlistEntry.objects.select_related('character__user', 'fit', 'hull', 'fit__ship_type', 'fit__category').get(id=entry.id)
 
     broadcast_update(entry.fleet.id, 'move', entry, target_col='pending')
@@ -446,7 +682,6 @@ def leave_fleet(request, entry_id):
     
     fleet_id = entry.fleet.id
     
-    # --- LOGGING ---
     _log_fleet_action(entry.fleet, entry.character, 'left_waitlist', actor=request.user, details="User initiated leave")
     
     entry.delete()
@@ -461,8 +696,6 @@ def api_entry_details(request, entry_id):
     
     if not is_owner and not can_inspect: return HttpResponse("Unauthorized", status=403)
 
-    # Use Common Helper to build JSON response
-    # PASS HULL EXPLICITLY in case fit is None
     data = _build_fit_analysis_response(entry.raw_eft, entry.fit, entry.hull, entry.character, can_inspect)
     data['status'] = entry.status
     data['id'] = entry.id
@@ -472,7 +705,6 @@ def api_entry_details(request, entry_id):
 @login_required
 def api_history_fit_details(request, log_id):
     log = get_object_or_404(FleetActivity, id=log_id)
-    # Allow Pilot to view their own history details too
     is_owner = log.character.user == request.user
     if not is_fleet_command(request.user) and not is_owner: return HttpResponse("Unauthorized", status=403)
     if not log.fit_eft: return JsonResponse({'error': 'No fit data.'}, status=404)
@@ -482,7 +714,6 @@ def api_history_fit_details(request, log_id):
     matcher = SmartFitMatcher(parser)
     matched_fit, _ = matcher.find_best_match()
     
-    # Even if not matched, we display what we parsed
     data = _build_fit_analysis_response(log.fit_eft, matched_fit, parser.hull_obj, log.character, True)
     return JsonResponse(data)
 
@@ -490,13 +721,10 @@ def _build_fit_analysis_response(raw_eft, fit_obj, hull_obj, character, is_fc):
     parser = EFTParser(raw_eft)
     parser.parse() 
     
-    # If hull_obj is None (e.g. historical log), try to use fit's hull, or parser's hull
     if not hull_obj and fit_obj: hull_obj = fit_obj.ship_type
     if not hull_obj: hull_obj = parser.hull_obj
 
-    # --- 1. ANALYSIS LOGIC ---
     if fit_obj:
-        # Doctrine Match: Perform comparison
         matcher = SmartFitMatcher(parser)
         _, analysis = matcher._score_fit(fit_obj)
         
@@ -517,11 +745,9 @@ def _build_fit_analysis_response(raw_eft, fit_obj, hull_obj, character, is_fc):
                 }
             aggregated[group_key]['quantity'] += 1
     else:
-        # No Doctrine: Just list items
         aggregated = {}
         for item in parser.items:
             item_obj = item['obj']
-            # Determine slot manually
             slot_key = _determine_slot(item_obj)
             
             key = (slot_key, item_obj.type_id)
@@ -537,21 +763,18 @@ def _build_fit_analysis_response(raw_eft, fit_obj, hull_obj, character, is_fc):
                 }
             aggregated[key]['quantity'] += item['quantity']
 
-    # --- 2. SLOT MAPPING ---
     slots_map = { 'high': [], 'mid': [], 'low': [], 'rig': [], 'subsystem': [], 'drone': [], 'cargo': [] }
     for data in aggregated.values():
         s = data['slot']
         if s not in slots_map: s = 'cargo'
         slots_map[s].append(data)
 
-    # --- 3. CALCULATE TOTALS ---
     if hull_obj:
         high_total = int(hull_obj.high_slots)
         mid_total = int(hull_obj.mid_slots)
         low_total = int(hull_obj.low_slots)
         rig_total = int(hull_obj.rig_slots)
         
-        # T3C Handling
         if hull_obj.group_id == 963:
             for item in parser.items:
                 attrs = {a.attribute_id: a.value for a in item['obj'].attributes.all()}
@@ -559,7 +782,6 @@ def _build_fit_analysis_response(raw_eft, fit_obj, hull_obj, character, is_fc):
                 if 13 in attrs: mid_total += int(attrs[13])
                 if 12 in attrs: low_total += int(attrs[12])
     else:
-        # Fallback if Hull is totally missing
         high_total = mid_total = low_total = rig_total = 0
 
     slot_config = [
@@ -627,11 +849,8 @@ def fc_action(request, entry_id, action):
     fleet = entry.fleet
     if action == 'approve':
         entry.status = 'approved'; entry.approved_at = timezone.now(); entry.save()
-        
         hull_for_log = entry.hull if entry.hull else entry.fit.ship_type if entry.fit else None
-        
         _log_fleet_action(fleet, entry.character, 'approved', actor=request.user, ship_type=hull_for_log)
-        
         col = 'other'
         if entry.fit:
             tags = [t.name.lower() for t in entry.fit.tags.all()]
@@ -639,7 +858,6 @@ def fc_action(request, entry_id, action):
             if 'logi' in tags or 'logistics' in cat_name: col = 'logi'
             elif 'sniper' in tags: col = 'sniper'
             elif 'dps' in tags or 'brawl' in tags: col = 'dps'
-            
         broadcast_update(fleet.id, 'move', entry, target_col=col)
     elif action == 'deny':
         hull_for_log = entry.hull if entry.hull else entry.fit.ship_type if entry.fit else None
@@ -652,9 +870,7 @@ def fc_action(request, entry_id, action):
         success, msg = invite_to_fleet(fleet.esi_fleet_id, fc_char, entry.character.character_id)
         if success:
             entry.status = 'invited'; entry.invited_at = timezone.now(); entry.save()
-            
             hull_for_log = entry.hull if entry.hull else entry.fit.ship_type if entry.fit else None
-            
             _log_fleet_action(
                 fleet, 
                 entry.character, 
@@ -664,7 +880,6 @@ def fc_action(request, entry_id, action):
                 details="ESI Invite Sent",
                 eft_text=entry.raw_eft
             )
-
             col = 'other'
             if entry.fit:
                 tags = [t.name.lower() for t in entry.fit.tags.all()]
@@ -672,7 +887,6 @@ def fc_action(request, entry_id, action):
                 if 'logi' in tags or 'logistics' in cat_name: col = 'logi'
                 elif 'sniper' in tags: col = 'sniper'
                 elif 'dps' in tags or 'brawl' in tags: col = 'dps'
-                
             broadcast_update(fleet.id, 'move', entry, target_col=col)
             return JsonResponse({'success': True})
         else: return JsonResponse({'success': False, 'error': f'Invite Failed: {msg}'})
