@@ -110,6 +110,31 @@ def _determine_slot(item_type):
         pass
     return 'cargo'
 
+# --- RECURSIVE COLUMN LOGIC ---
+def _resolve_column(category_id, category_map):
+    """
+    Starts at the child category (Leaf) and walks UP the tree.
+    Returns the first specific column assignment found.
+    This enables 'Child Overrides Parent' behavior.
+    """
+    current_id = category_id
+    
+    # Safety limit to prevent infinite loops (max depth 10)
+    for _ in range(10):
+        if not current_id: break
+        
+        cat_data = category_map.get(current_id)
+        if not cat_data: break
+        
+        # If explicit column found (and not inheriting), return it immediately
+        if cat_data['target'] != 'inherit':
+            return cat_data['target']
+            
+        # If 'inherit', move to parent and loop again
+        current_id = cat_data['parent_id']
+        
+    return 'other' # Default fallback if root is reached without a setting
+
 def broadcast_update(fleet_id, action, entry, target_col=None):
     channel_layer = get_channel_layer()
     group_name = f'fleet_{fleet_id}'
@@ -484,6 +509,15 @@ def fleet_dashboard(request, token):
     
     columns = {'pending': [], 'logi': [], 'dps': [], 'sniper': [], 'other': []}
     
+    # --- BUILD CATEGORY MAP FOR RECURSIVE LOOKUP ---
+    # Fetch all categories to build the inheritance tree in memory (O(1) lookups)
+    # This prevents N+1 queries during the recursive bubbling
+    all_cats = DoctrineCategory.objects.values('id', 'parent_id', 'target_column')
+    category_map = {
+        c['id']: {'parent_id': c['parent_id'], 'target': c['target_column']}
+        for c in all_cats
+    }
+
     for entry in entries:
         stats = all_stats.get(entry.character.character_id, {})
         hull_name = entry.hull.type_name if entry.hull else "Unknown"
@@ -497,12 +531,15 @@ def fleet_dashboard(request, token):
         if entry.status == 'pending':
             columns['pending'].append(entry)
         elif entry.fit:
-            tags = [t.name.lower() for t in entry.fit.tags.all()]
-            cat_name = entry.fit.category.name.lower()
-            if 'logi' in tags or 'logistics' in cat_name: columns['logi'].append(entry)
-            elif 'sniper' in tags: columns['sniper'].append(entry)
-            elif 'dps' in tags or 'brawl' in tags: columns['dps'].append(entry)
-            else: columns['other'].append(entry)
+            # --- RECURSIVE COLUMN RESOLUTION ---
+            # Start at Leaf (entry.fit.category) and check if it has a setting.
+            # If 'inherit', bubble up.
+            target = _resolve_column(entry.fit.category.id, category_map)
+            
+            if target in columns:
+                columns[target].append(entry)
+            else:
+                columns['other'].append(entry)
         else:
             columns['other'].append(entry)
 
@@ -790,7 +827,7 @@ def _build_fit_analysis_response(raw_eft, fit_obj, hull_obj, character, is_fc):
     slot_config = [
         ('High Slots', 'high', high_total), ('Mid Slots', 'mid', mid_total),
         ('Low Slots', 'low', low_total), ('Rigs', 'rig', rig_total),
-        ('Subsystems', 'subsystem', 5 if hull_obj and hull_obj.group_id == 963 else 0),
+        ('Subsystems', 'subsystem', 5 if hull.group_id == 963 else 0),
         ('Drone Bay', 'drone', 0), ('Cargo Hold', 'cargo', 0),
     ]
 
@@ -854,13 +891,19 @@ def fc_action(request, entry_id, action):
         entry.status = 'approved'; entry.approved_at = timezone.now(); entry.save()
         hull_for_log = entry.hull if entry.hull else entry.fit.ship_type if entry.fit else None
         _log_fleet_action(fleet, entry.character, 'approved', actor=request.user, ship_type=hull_for_log)
+        
+        # --- RECURSIVE SORTING ---
         col = 'other'
         if entry.fit:
-            tags = [t.name.lower() for t in entry.fit.tags.all()]
-            cat_name = entry.fit.category.name.lower()
-            if 'logi' in tags or 'logistics' in cat_name: col = 'logi'
-            elif 'sniper' in tags: col = 'sniper'
-            elif 'dps' in tags or 'brawl' in tags: col = 'dps'
+            # Re-used logic for FC action broadcast
+            curr_cat = entry.fit.category
+            for _ in range(10):
+                if not curr_cat: break
+                if curr_cat.target_column != 'inherit':
+                    col = curr_cat.target_column
+                    break
+                curr_cat = curr_cat.parent
+        
         broadcast_update(fleet.id, 'move', entry, target_col=col)
     elif action == 'deny':
         hull_for_log = entry.hull if entry.hull else entry.fit.ship_type if entry.fit else None
@@ -883,13 +926,18 @@ def fc_action(request, entry_id, action):
                 details="ESI Invite Sent",
                 eft_text=entry.raw_eft
             )
+            
+            # --- RECURSIVE SORTING ---
             col = 'other'
             if entry.fit:
-                tags = [t.name.lower() for t in entry.fit.tags.all()]
-                cat_name = entry.fit.category.name.lower()
-                if 'logi' in tags or 'logistics' in cat_name: col = 'logi'
-                elif 'sniper' in tags: col = 'sniper'
-                elif 'dps' in tags or 'brawl' in tags: col = 'dps'
+                curr_cat = entry.fit.category
+                for _ in range(10):
+                    if not curr_cat: break
+                    if curr_cat.target_column != 'inherit':
+                        col = curr_cat.target_column
+                        break
+                    curr_cat = curr_cat.parent
+                    
             broadcast_update(fleet.id, 'move', entry, target_col=col)
             return JsonResponse({'success': True})
         else: return JsonResponse({'success': False, 'error': f'Invite Failed: {msg}'})
@@ -930,12 +978,9 @@ def manage_doctrines(request):
                     fit = DoctrineFit.objects.create(name=parser.fit_name, category=category, ship_type=parser.hull_obj, eft_format=parser.raw_text, description=description)
                 if tag_ids: fit.tags.set(tag_ids)
                 else: fit.tags.clear()
-                
-                # FIXED: Correctly determine and assign slots when creating Doctrine Modules
                 for item in parser.items:
                     slot = _determine_slot(item['obj'])
                     FitModule.objects.create(fit=fit, item_type=item['obj'], quantity=item['quantity'], slot=slot)
-                    
             return redirect('manage_doctrines')
     categories = DoctrineCategory.objects.all()
     fits = DoctrineFit.objects.select_related('category', 'ship_type').prefetch_related('tags').order_by('category__name', 'order')

@@ -25,7 +25,6 @@ class FleetActivityAdmin(admin.ModelAdmin):
     autocomplete_fields = ['character', 'fleet', 'actor']
     readonly_fields = ('timestamp',)
     
-    # Organize fields for better readability
     fieldsets = (
         ('Event Details', {
             'fields': ('action', 'timestamp', 'fleet', 'character')
@@ -53,11 +52,12 @@ class FitModuleInline(admin.TabularInline):
 
 @admin.register(DoctrineCategory)
 class DoctrineCategoryAdmin(admin.ModelAdmin):
-    list_display = ('name', 'parent', 'order', 'slug')
-    list_editable = ('order',)
+    # Added target_column to list_editable for quick bulk updates
+    list_display = ('name', 'parent', 'target_column', 'order', 'slug')
+    list_editable = ('order', 'target_column')
     prepopulated_fields = {'slug': ('name',)}
     search_fields = ('name',)
-    list_filter = ('parent',)
+    list_filter = ('parent', 'target_column')
     ordering = ('parent__name', 'order', 'name')
 
 @admin.register(DoctrineFit)

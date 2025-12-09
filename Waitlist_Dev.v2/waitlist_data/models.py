@@ -4,22 +4,11 @@ from django.contrib.auth.models import User
 from pilot_data.models import ItemType, EveCharacter
 
 class Fleet(models.Model):
-    """
-    Represents an active fleet session.
-    """
     name = models.CharField(max_length=100)
     commander = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='commanded_fleets')
-    
-    # ESI Fleet ID (For tracking in-game status)
     esi_fleet_id = models.BigIntegerField(null=True, blank=True)
-    
-    # PUBLIC JOIN TOKEN (UUID)
-    # used for URLs instead of the integer ID to prevent guessing
     join_token = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
-    
-    # NEW: Message of the Day
     motd = models.TextField(blank=True, default="")
-    
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     end_time = models.DateTimeField(null=True, blank=True)
@@ -36,16 +25,10 @@ class Fleet(models.Model):
 # --- FLEET STRUCTURE TEMPLATES ---
 
 class FleetStructureTemplate(models.Model):
-    """
-    Saves a preferred Wing/Squad layout for a specific FC Character.
-    """
     character = models.ForeignKey(EveCharacter, on_delete=models.CASCADE, related_name='fleet_templates')
     name = models.CharField(max_length=100, default="Default Setup")
     description = models.TextField(blank=True)
-    
-    # NEW: Template MOTD
     default_motd = models.TextField(blank=True, default="")
-    
     is_default = models.BooleanField(default=False)
     last_updated = models.DateTimeField(auto_now=True)
 
@@ -54,7 +37,7 @@ class FleetStructureTemplate(models.Model):
 
 class StructureWing(models.Model):
     template = models.ForeignKey(FleetStructureTemplate, on_delete=models.CASCADE, related_name='wings')
-    name = models.CharField(max_length=50) # e.g. "On Grid"
+    name = models.CharField(max_length=50)
     order = models.IntegerField(default=0)
 
     class Meta:
@@ -62,13 +45,13 @@ class StructureWing(models.Model):
 
 class StructureSquad(models.Model):
     wing = models.ForeignKey(StructureWing, on_delete=models.CASCADE, related_name='squads')
-    name = models.CharField(max_length=50) # e.g. "Logi"
+    name = models.CharField(max_length=50)
     order = models.IntegerField(default=0)
 
     class Meta:
         ordering = ['order']
 
-# --- DOCTRINE MODELS (Existing) ---
+# --- DOCTRINE MODELS ---
 
 class DoctrineTag(models.Model):
     name = models.CharField(max_length=50, unique=True)
@@ -82,10 +65,27 @@ class DoctrineTag(models.Model):
         return self.name
 
 class DoctrineCategory(models.Model):
+    # UPDATED CHOICES: Added 'inherit' as the first option
+    COLUMN_CHOICES = [
+        ('inherit', 'Inherit (Child Priority)'),
+        ('logi', 'Logistics'),
+        ('dps', 'DPS'),
+        ('sniper', 'Sniper'),
+        ('other', 'Other'),
+    ]
+
     name = models.CharField(max_length=100)
     slug = models.SlugField(unique=True)
     parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='subcategories')
     order = models.IntegerField(default=0)
+    
+    # Set default to 'inherit'
+    target_column = models.CharField(
+        max_length=20, 
+        choices=COLUMN_CHOICES, 
+        default='inherit', 
+        help_text="Where should ships in this category appear? 'Inherit' checks specific child settings first, then bubbles up to parent."
+    )
 
     class Meta:
         verbose_name_plural = "Doctrine Categories"
@@ -145,19 +145,11 @@ class WaitlistEntry(models.Model):
 
     fleet = models.ForeignKey(Fleet, on_delete=models.CASCADE, related_name='entries')
     character = models.ForeignKey(EveCharacter, on_delete=models.CASCADE, related_name='waitlist_entries')
-    
-    # Optional Doctrine Link
     fit = models.ForeignKey(DoctrineFit, on_delete=models.SET_NULL, null=True, blank=True, related_name='active_entries')
-    
-    # Explicit Hull Link (Required even if no fit matched)
     hull = models.ForeignKey(ItemType, on_delete=models.CASCADE, related_name='waitlist_entries_hull', null=True)
-    
-    # Store the actual paste the user provided
     raw_eft = models.TextField(blank=True, default="")
-    
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
-    
     approved_at = models.DateTimeField(null=True, blank=True)
     invited_at = models.DateTimeField(null=True, blank=True)
 
@@ -174,7 +166,7 @@ class WaitlistEntry(models.Model):
         diff = timezone.now() - self.created_at
         return int(diff.total_seconds() / 60)
 
-# --- HISTORY & AUDIT LOGS ---
+# --- HISTORY LOGS ---
 
 class FleetActivity(models.Model):
     ACTION_TYPES = [
@@ -195,15 +187,11 @@ class FleetActivity(models.Model):
 
     fleet = models.ForeignKey(Fleet, on_delete=models.CASCADE, related_name='activity_logs')
     character = models.ForeignKey(EveCharacter, on_delete=models.CASCADE, related_name='fleet_history')
-    
     actor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='actions_performed')
-    
     action = models.CharField(max_length=20, choices=ACTION_TYPES)
     timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
-    
     ship_name = models.CharField(max_length=100, blank=True)
     hull_id = models.IntegerField(null=True, blank=True)
-    
     fit_eft = models.TextField(blank=True, null=True)
     details = models.TextField(blank=True, null=True) 
 
