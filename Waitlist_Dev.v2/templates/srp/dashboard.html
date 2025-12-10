@@ -4,7 +4,8 @@
 {% block title %}Corp Wallet Monitor{% endblock %}
 
 {% block management_content %}
-<div class="flex flex-col gap-6 h-full animate-fade-in pb-6">
+<!-- REMOVED: h-full to prevent layout constraint issues on mobile -->
+<div class="flex flex-col gap-6 animate-fade-in pb-6">
 
     <!-- HEADER / FILTERS -->
     <div class="glass-panel p-4 flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-900/90 shrink-0">
@@ -65,24 +66,24 @@
     </div>
 
     <!-- CHARTS ROW 1 -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 h-80 shrink-0">
-        <div class="glass-panel p-4 flex flex-col">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 shrink-0">
+        <div class="glass-panel p-4 flex flex-col h-80">
             <h3 class="label-text mb-2">Monthly Cashflow</h3>
             <div class="flex-grow relative min-h-0"><canvas id="chart-monthly"></canvas></div>
         </div>
-        <div class="glass-panel p-4 flex flex-col">
+        <div class="glass-panel p-4 flex flex-col h-80">
             <h3 class="label-text mb-2">Category Breakdown (Income)</h3>
             <div class="flex-grow relative min-h-0"><canvas id="chart-cat"></canvas></div>
         </div>
     </div>
 
     <!-- CHARTS ROW 2 -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 h-80 shrink-0">
-        <div class="glass-panel p-4 flex flex-col">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 shrink-0">
+        <div class="glass-panel p-4 flex flex-col h-80">
             <h3 class="label-text mb-2">Top Payers (Count)</h3>
             <div class="flex-grow relative min-h-0"><canvas id="chart-payers-count"></canvas></div>
         </div>
-        <div class="glass-panel p-4 flex flex-col">
+        <div class="glass-panel p-4 flex flex-col h-80">
             <h3 class="label-text mb-2">Top Payers (ISK)</h3>
             <div class="flex-grow relative min-h-0"><canvas id="chart-payers-isk"></canvas></div>
         </div>
@@ -108,14 +109,45 @@
         <div class="overflow-auto custom-scrollbar flex-grow relative bg-slate-900/20">
             <table class="w-full text-left text-xs text-slate-400 border-collapse">
                 <thead class="bg-slate-900/95 text-[10px] uppercase font-bold sticky top-0 z-10 backdrop-blur-md shadow-sm">
+                    <!-- MAIN HEADER ROW -->
                     <tr>
-                        <th class="p-3 border-b border-white/5">Date</th>
-                        <th class="p-3 border-b border-white/5 text-center">Div</th>
-                        <th class="p-3 border-b border-white/5 text-right">Amount</th>
-                        <th class="p-3 border-b border-white/5">From</th>
-                        <th class="p-3 border-b border-white/5">To</th>
-                        <th class="p-3 border-b border-white/5">Category</th>
+                        <th class="p-3 border-b border-white/5 w-32">Date</th>
+                        <th class="p-3 border-b border-white/5 text-center w-16">Div</th>
+                        <th class="p-3 border-b border-white/5 text-right w-32">Amount</th>
+                        <th class="p-3 border-b border-white/5 w-48">From / To</th>
+                        <th class="p-3 border-b border-white/5 w-32">Type</th>
+                        <th class="p-3 border-b border-white/5 w-48">Category</th>
                         <th class="p-3 border-b border-white/5">Reason</th>
+                    </tr>
+                    <!-- FILTER ROW -->
+                    <tr class="bg-slate-900/90 border-b border-white/10">
+                        <td class="p-2"></td> <!-- Date placeholder -->
+                        <td class="p-2"></td> <!-- Div placeholder -->
+                        <td class="p-2">
+                            <input type="text" id="filter-amount" class="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-[10px] text-right text-slate-300 placeholder-slate-600 focus:border-brand-500 outline-none" placeholder="Min Amount..." onkeyup="debouncedLoad()">
+                        </td>
+                        <td class="p-2">
+                            <input type="text" id="filter-party" class="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-[10px] text-slate-300 placeholder-slate-600 focus:border-brand-500 outline-none" placeholder="Filter Name..." onkeyup="debouncedLoad()">
+                        </td>
+                        <td class="p-2">
+                            <input type="text" id="filter-type" class="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-[10px] text-slate-300 placeholder-slate-600 focus:border-brand-500 outline-none" placeholder="Filter Type..." onkeyup="debouncedLoad()">
+                        </td>
+                        <td class="p-2">
+                            <select id="filter-category" class="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-[10px] text-slate-300 focus:border-brand-500 outline-none" onchange="loadData(1)">
+                                <option value="">All Categories</option>
+                                <option value="srp_in">SRP In</option>
+                                <option value="srp_out">SRP Out</option>
+                                <option value="internal_transfer">Internal Transfer</option>
+                                <option value="giveaway">Giveaway</option>
+                                <option value="manual_change">Manual Change</option>
+                                <option value="manual_out">Manual Out</option>
+                                <option value="tax">Tax</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </td>
+                        <td class="p-2">
+                            <input type="text" id="filter-reason" class="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-[10px] text-slate-300 placeholder-slate-600 focus:border-brand-500 outline-none" placeholder="Reason... use [empty]" onkeyup="debouncedLoad()">
+                        </td>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-white/5" id="tx-body"></tbody>
@@ -141,50 +173,55 @@
 
 </div>
 
-<!-- CATEGORY EDIT MODAL -->
-<div id="category-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-dark-950/80 backdrop-blur-sm px-4">
-    <div class="bg-slate-900 border border-white/10 rounded-xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all scale-95 opacity-0" id="category-modal-panel">
-        <div class="glass-header px-6 py-4 border-b border-white/5 flex justify-between items-center">
-            <h3 class="font-bold text-white text-sm">Set Category</h3>
-            <button onclick="closeCategoryModal()" class="text-slate-400 hover:text-white">✕</button>
-        </div>
-        <div class="p-6 space-y-4">
-            <input type="hidden" id="edit-entry-id">
-            <p class="text-slate-400 text-xs">Assign a manual category for reporting.</p>
-
-            <div class="grid grid-cols-2 gap-2">
-                <button onclick="saveCategory('srp_in')" class="btn-category bg-emerald-900/30 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20">SRP In</button>
-                <button onclick="saveCategory('srp_out')" class="btn-category bg-red-900/30 text-red-400 border-red-500/30 hover:bg-red-500/20">SRP Out</button>
-                <button onclick="saveCategory('giveaway')" class="btn-category bg-purple-900/30 text-purple-400 border-purple-500/30 hover:bg-purple-500/20">Giveaway</button>
-                <button onclick="saveCategory('internal_transfer')" class="btn-category bg-blue-900/30 text-blue-400 border-blue-500/30 hover:bg-blue-500/20">Internal Transfer</button>
-                <button onclick="saveCategory('manual_change')" class="btn-category bg-slate-800 text-slate-300 border-slate-600 hover:bg-slate-700">Manual Change</button>
-                <button onclick="saveCategory('manual_out')" class="btn-category bg-orange-900/30 text-orange-400 border-orange-500/30 hover:bg-orange-500/20">Manual Out</button>
-                <button onclick="saveCategory('tax')" class="btn-category bg-yellow-900/30 text-yellow-400 border-yellow-500/30 hover:bg-yellow-500/20">Tax</button>
-                <button onclick="saveCategory('other')" class="btn-category bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700">Other</button>
-            </div>
-
-            <button onclick="saveCategory('')" class="w-full text-center text-xs text-slate-500 hover:text-white mt-2 underline">Reset to Default</button>
-        </div>
-    </div>
-</div>
+<!-- CATEGORY MODAL REMOVED -->
 
 <style>
-    .btn-category {
-        @apply px-3 py-2 rounded text-xs font-bold border transition text-center;
+    /* Styling for the dropdowns to match the screenshot vibe */
+    select.category-select {
+        background-position: right 0.5rem center;
+        background-repeat: no-repeat;
+        background-size: 1em 1em;
+        padding-right: 2rem; /* Space for arrow */
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
     }
+
+        /* Ensure options have dark background so text is readable when opened */
+        select.category-select option {
+            background-color: #1e293b; /* slate-800 */
+            color: white;
+        }
 </style>
 
 <script>
     // Use var to avoid re-declaration errors in SPA
     var srpCharts = {};
-    const CSRF_TOKEN = '{{ csrf_token }}';
+    var CSRF_TOKEN = '{{ csrf_token }}';
 
     // Pagination State
     var currentPage = 1;
     var totalPages = 1;
+    var searchTimer = null;
 
     // Cache for delayed rendering
     var cachedChartData = null;
+
+    // --- COLOR MAPPING (Solid Bar Style) ---
+    function getCategoryClass(key) {
+        const map = {
+            // Solid colors with white text for the selected state
+            'srp_in': 'bg-green-600 border-green-500 text-white',
+            'srp_out': 'bg-red-600 border-red-500 text-white',
+            'internal_transfer': 'bg-purple-600 border-purple-500 text-white',
+            'giveaway': 'bg-orange-600 border-orange-500 text-white',
+            'manual_change': 'bg-blue-600 border-blue-500 text-white',
+            'manual_out': 'bg-blue-600 border-blue-500 text-white',
+            'tax': 'bg-slate-600 border-slate-500 text-white',
+            'other': 'bg-slate-600 border-slate-500 text-white',
+            '': 'bg-slate-800 border-slate-700 text-slate-400' // Default/Empty
+        };
+        return map[key] || map['other'];
+    }
 
     function initSRPDashboard() {
         console.log("Initializing SRP Dashboard...");
@@ -195,15 +232,30 @@
         }
 
         const startEl = document.getElementById('start-date');
-        if (!startEl) return; // Guard clause in case DOM is gone
+        const endEl = document.getElementById('end-date');
+        if (!startEl || !endEl) return;
 
-        // Set default dates (Current Month)
-        const today = new Date();
-        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1); // 1st of Current Month
-        startEl.valueAsDate = firstDay;
-        document.getElementById('end-date').valueAsDate = today;
+        // Set default dates: Last day of previous month -> Last day of current month
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = now.getMonth();
+
+        const startDate = new Date(y, m, 0);
+        const endDate = new Date(y, m + 1, 0);
+
+        const fmt = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+
+        startEl.value = fmt(startDate);
+        endEl.value = fmt(endDate);
 
         loadData(1);
+    }
+
+    function debouncedLoad() {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => {
+            loadData(1);
+        }, 400);
     }
 
     function loadData(page = 1) {
@@ -213,6 +265,13 @@
         const limit = document.getElementById('limit-select').value;
         const divs = Array.from(document.querySelectorAll('input[name="div"]:checked')).map(cb => cb.value);
 
+        // Get Filter Values
+        const fAmount = document.getElementById('filter-amount').value;
+        const fParty = document.getElementById('filter-party').value;
+        const fType = document.getElementById('filter-type').value;
+        const fCat = document.getElementById('filter-category').value;
+        const fReason = document.getElementById('filter-reason').value;
+
         const params = new URLSearchParams();
         params.append('start_date', start);
         params.append('end_date', end);
@@ -220,7 +279,13 @@
         params.append('limit', limit);
         divs.forEach(d => params.append('divisions[]', d));
 
-        // Show loading state on table
+        // Append Filters
+        if(fAmount) params.append('f_amount', fAmount);
+        if(fParty) params.append('f_party', fParty);
+        if(fType) params.append('f_type', fType);
+        if(fCat) params.append('f_category', fCat);
+        if(fReason) params.append('f_reason', fReason);
+
         const tbody = document.getElementById('tx-body');
         if(tbody) tbody.style.opacity = '0.5';
 
@@ -392,20 +457,32 @@
         if (!body) return;
 
         if (txs.length === 0) {
-            body.innerHTML = '<tr><td colspan="7" class="p-8 text-center text-slate-500 italic">No transactions found for this period.</td></tr>';
+            body.innerHTML = '<tr><td colspan="8" class="p-8 text-center text-slate-500 italic">No transactions found for this period.</td></tr>';
             return;
         }
 
+        const options = [
+            { id: '', label: 'Select...' },
+            { id: 'srp_in', label: 'SRP In' },
+            { id: 'srp_out', label: 'SRP Out' },
+            { id: 'internal_transfer', label: 'Internal Transfer' },
+            { id: 'giveaway', label: 'Giveaway' },
+            { id: 'manual_change', label: 'Manual Change' },
+            { id: 'manual_out', label: 'Manual Out' },
+            { id: 'tax', label: 'Tax' },
+            { id: 'other', label: 'Other' }
+        ];
+
         body.innerHTML = txs.map(t => {
-            // Determine Category Badge
-            let catBadge = '';
-            if (t.custom_category) {
-                // Manually set category = Purple/Brand Badge
-                catBadge = `<span class="cursor-pointer badge badge-brand bg-purple-900/20 text-purple-400 border-purple-500/30 hover:border-purple-400 transition text-[9px]" onclick="openCategoryModal('${t.entry_id}')">★ ${t.custom_category.replace(/_/g, ' ').toUpperCase()}</span>`;
-            } else {
-                // Default EVE Type = Standard Badge
-                catBadge = `<span class="cursor-pointer badge badge-slate text-[9px] hover:text-white transition" onclick="openCategoryModal('${t.entry_id}')">${t.ref_type}</span>`;
-            }
+            // Use custom category if set, else fallback
+            const currentCat = t.custom_category || '';
+            const style = getCategoryClass(currentCat);
+            const refLabel = t.ref_type.replace(/_/g, ' ');
+
+            // Build Options
+            const optionsHtml = options.map(opt =>
+                `<option value="${opt.id}" ${opt.id === currentCat ? 'selected' : ''}>${opt.label}</option>`
+            ).join('');
 
             return `
             <tr class="hover:bg-white/5 transition group">
@@ -414,34 +491,28 @@
                 <td class="p-3 text-right font-mono font-bold ${t.amount > 0 ? 'text-green-400' : 'text-red-400'} text-xs">${formatISK(t.amount)}</td>
                 <td class="p-3 truncate max-w-[120px] text-slate-300" title="${t.first_party_name}">${t.first_party_name}</td>
                 <td class="p-3 truncate max-w-[120px] text-slate-300" title="${t.second_party_name}">${t.second_party_name}</td>
-                <td class="p-3">${catBadge}</td>
+
+                <!-- TYPE COLUMN -->
+                <td class="p-3"><span class="badge badge-slate text-[9px] text-slate-500">${refLabel}</span></td>
+
+                <!-- DROPDOWN CATEGORY COLUMN -->
+                <td class="p-3">
+                    <select class="category-select w-full ${style} rounded px-2 py-1 text-[10px] font-bold border outline-none appearance-none cursor-pointer transition-colors duration-300 focus:ring-1 focus:ring-white/50"
+                            onchange="saveCategory('${t.entry_id}', this.value, this)">
+                        ${optionsHtml}
+                    </select>
+                </td>
+
                 <td class="p-3 truncate max-w-[200px] italic text-slate-500 text-[10px]" title="${t.reason}">${t.reason}</td>
             </tr>
         `}).join('');
     }
 
-    // --- CATEGORY MODAL LOGIC ---
-    function openCategoryModal(entryId) {
-        document.getElementById('edit-entry-id').value = entryId;
-        const modal = document.getElementById('category-modal');
-        const panel = document.getElementById('category-modal-panel');
-        modal.classList.remove('hidden');
-        setTimeout(() => {
-            panel.classList.remove('scale-95', 'opacity-0');
-            panel.classList.add('scale-100', 'opacity-100');
-        }, 10);
-    }
-
-    function closeCategoryModal() {
-        const modal = document.getElementById('category-modal');
-        const panel = document.getElementById('category-modal-panel');
-        panel.classList.remove('scale-100', 'opacity-100');
-        panel.classList.add('scale-95', 'opacity-0');
-        setTimeout(() => { modal.classList.add('hidden'); }, 200);
-    }
-
-    function saveCategory(category) {
-        const entryId = document.getElementById('edit-entry-id').value;
+    function saveCategory(entryId, category, selectElement) {
+        if(selectElement) {
+            const newStyle = getCategoryClass(category);
+            selectElement.className = `category-select w-full ${newStyle} rounded px-2 py-1 text-[10px] font-bold border outline-none appearance-none cursor-pointer transition-colors duration-300 focus:ring-1 focus:ring-white/50`;
+        }
 
         fetch("{% url 'api_update_transaction_category' %}", {
             method: 'POST',
@@ -453,10 +524,7 @@
         })
         .then(r => r.json())
         .then(d => {
-            if(d.success) {
-                closeCategoryModal();
-                loadData(currentPage); // Reload table on current page
-            } else {
+            if(!d.success) {
                 alert("Error updating category: " + d.error);
             }
         });
@@ -475,7 +543,6 @@
                 timerEl.textContent = "Processing...";
                 timerEl.classList.add('animate-pulse', 'text-green-400');
                 timerEl.classList.remove('text-brand-400');
-                // Optional: Poll for completion or just wait
                 return;
             }
 

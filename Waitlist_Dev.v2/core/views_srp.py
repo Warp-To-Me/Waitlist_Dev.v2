@@ -3,7 +3,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
-from django.db.models import Sum
+from django.db.models import Sum, Q
 from django.core.paginator import Paginator
 from django.core.cache import cache # Import Cache
 from django.utils import timezone
@@ -181,11 +181,18 @@ def api_srp_data(request):
     config = SRPConfiguration.objects.first()
     if not config: return JsonResponse({'error': 'Not Configured'}, status=404)
 
-    # 1. Filters
+    # 1. Base Filters
     start_date_str = request.GET.get('start_date')
     end_date_str = request.GET.get('end_date')
     divisions = request.GET.getlist('divisions[]') # List of ints
     
+    # 2. Text/Search Filters (NEW)
+    f_amount = request.GET.get('f_amount', '').strip()
+    f_party = request.GET.get('f_party', '').strip()
+    f_type = request.GET.get('f_type', '').strip()
+    f_category = request.GET.get('f_category', '').strip()
+    f_reason = request.GET.get('f_reason', '').strip()
+
     # Pagination Params
     try:
         page_number = int(request.GET.get('page', 1))
@@ -199,16 +206,44 @@ def api_srp_data(request):
     
     qs = CorpWalletJournal.objects.filter(config=config)
     
+    # Apply Base Filters
     if start_date_str: qs = qs.filter(date__gte=parse(start_date_str))
     if end_date_str: qs = qs.filter(date__lte=parse(end_date_str))
     if divisions: qs = qs.filter(division__in=divisions)
 
-    # 2. Aggregates (Income/Outcome) - CALCULATED ON FULL SET
+    # Apply Column Search Filters
+    if f_amount:
+        if f_amount.startswith('>'):
+            try: qs = qs.filter(amount__gt=float(f_amount[1:]))
+            except: pass
+        elif f_amount.startswith('<'):
+            try: qs = qs.filter(amount__lt=float(f_amount[1:]))
+            except: pass
+        else:
+            qs = qs.filter(amount__icontains=f_amount) # String match fallback
+
+    if f_party:
+        qs = qs.filter(Q(first_party_name__icontains=f_party) | Q(second_party_name__icontains=f_party))
+    
+    if f_type:
+        qs = qs.filter(ref_type__icontains=f_type)
+        
+    if f_category:
+        qs = qs.filter(custom_category__iexact=f_category)
+        
+    if f_reason:
+        # Check for special 'empty' token
+        if f_reason.lower() == '[empty]':
+            qs = qs.filter(Q(reason__exact='') | Q(reason__isnull=True))
+        else:
+            qs = qs.filter(reason__icontains=f_reason)
+
+    # 3. Aggregates (Income/Outcome) - CALCULATED ON FULL SET (POST-FILTER)
     total_income = qs.filter(amount__gt=0).aggregate(s=Sum('amount'))['s'] or 0
     total_outcome = qs.filter(amount__lt=0).aggregate(s=Sum('amount'))['s'] or 0
     net_change = total_income + total_outcome
 
-    # 3. Process Data for Charts - CALCULATED ON FULL SET
+    # 4. Process Data for Charts - CALCULATED ON FULL SET (POST-FILTER)
     chart_data = qs.values('amount', 'date', 'ref_type', 'first_party_name', 'second_party_name', 'custom_category').order_by('date')
     
     monthly_stats = {}
@@ -249,7 +284,7 @@ def api_srp_data(request):
             if payer not in timeline_payers: timeline_payers[payer] = {}
             timeline_payers[payer][day_key] = timeline_payers[payer].get(day_key, 0) + amt
 
-    # 4. Transaction Table (Paginated)
+    # 5. Transaction Table (Paginated)
     full_qs = qs.order_by('-date')
     paginator = Paginator(full_qs, limit)
     page_obj = paginator.get_page(page_number)

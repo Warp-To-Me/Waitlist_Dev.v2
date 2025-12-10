@@ -8,6 +8,38 @@ from esi_calls.fleet_service import resolve_unknown_names
 
 ESI_BASE = "https://esi.evetech.net/latest"
 
+def determine_auto_category(amount, reason, first_party_id, second_party_id, corp_id):
+    """
+    Applies business rules to guess the category.
+    Shared by Sync and Backfill tools.
+    """
+    reason = str(reason or "").lower() # Normalize to lowercase string
+    
+    # 1. Internal Transfer (Corp to Corp)
+    if first_party_id == corp_id and second_party_id == corp_id:
+        return 'internal_transfer'
+
+    # 2. SRP In (Positive Amount)
+    if amount > 0:
+        if "srp" in reason:
+            return 'srp_in'
+        # Multiple of 20,000,000 (Insurance Payouts often look like this or user donations)
+        try:
+            # Use small epsilon for float comparison just in case
+            if abs(float(amount) % 20000000) < 0.1:
+                return 'srp_in'
+        except:
+            pass
+
+    # 3. SRP Out (Negative Amount)
+    if amount < 0:
+        if "srp" in reason:
+            return 'srp_out'
+        if "giveaway" in reason:
+            return 'giveaway'
+
+    return None
+
 def sync_corp_wallet(srp_config):
     """
     Fetches wallet journal for the configured corp/character.
@@ -21,8 +53,6 @@ def sync_corp_wallet(srp_config):
     if not corp_id:
         return False, "Character has no corporation"
 
-    # We assume Division 1 (Master) for now, but really we should loop all divisions
-    # EVE has 7 divisions. 
     total_new = 0
     errors = []
 
@@ -37,7 +67,7 @@ def sync_corp_wallet(srp_config):
             resp = call_esi(character, f'corp_wallet_{corp_id}_{division}_{page}', url, params={'page': page}, force_refresh=True)
             
             if resp['status'] != 200:
-                if resp['status'] != 404: # 404 just means no more pages usually
+                if resp['status'] != 404: 
                     errors.append(f"Div {division} Page {page}: {resp.get('error')}")
                 keep_fetching = False
                 continue
@@ -47,25 +77,20 @@ def sync_corp_wallet(srp_config):
                 keep_fetching = False
                 continue
 
-            # Check existing IDs in this batch
             batch_ids = [x['id'] for x in data]
             existing_ids = set(CorpWalletJournal.objects.filter(
                 config=srp_config, 
                 entry_id__in=batch_ids
             ).values_list('entry_id', flat=True))
 
-            # Logic Update: Only stop if the ENTIRE page is duplicates.
-            # This allows filling gaps if a previous sync failed partially.
             if len(existing_ids) == len(batch_ids):
                 consecutive_full_dupe_pages += 1
-                # If we hit 2 pages of pure duplicates, we are safely synced up.
                 if consecutive_full_dupe_pages >= 2:
                     keep_fetching = False
                     continue
             else:
                 consecutive_full_dupe_pages = 0
 
-            # Process Entries
             new_entries = []
             party_ids_to_resolve = set()
 
@@ -78,29 +103,36 @@ def sync_corp_wallet(srp_config):
 
                 new_entries.append(row)
 
-            # Resolve Names
             names_map = resolve_unknown_names(list(party_ids_to_resolve))
 
-            # Create Objects
             db_objects = []
             for row in new_entries:
+                amount = float(row.get('amount', 0))
+                reason = row.get('reason', '')
+                f_id = row.get('first_party_id')
+                s_id = row.get('second_party_id')
+
+                # Using shared logic
+                auto_cat = determine_auto_category(amount, reason, f_id, s_id, corp_id)
+
                 db_objects.append(CorpWalletJournal(
                     config=srp_config,
                     entry_id=row['id'],
-                    amount=row.get('amount', 0),
+                    amount=amount,
                     balance=row.get('balance', 0),
                     context_id=row.get('context_id'),
                     context_id_type=row.get('context_id_type'),
                     date=parse(row['date']),
                     description=row.get('description', ''),
-                    first_party_id=row.get('first_party_id'),
-                    second_party_id=row.get('second_party_id'),
-                    reason=row.get('reason', ''),
+                    first_party_id=f_id,
+                    second_party_id=s_id,
+                    reason=reason,
                     ref_type=row.get('ref_type', ''),
                     tax=row.get('tax'),
                     division=division,
-                    first_party_name=names_map.get(row.get('first_party_id'), ''),
-                    second_party_name=names_map.get(row.get('second_party_id'), '')
+                    first_party_name=names_map.get(f_id, ''),
+                    second_party_name=names_map.get(s_id, ''),
+                    custom_category=auto_cat
                 ))
 
             if db_objects:
@@ -108,7 +140,7 @@ def sync_corp_wallet(srp_config):
                 total_new += len(db_objects)
             
             page += 1
-            if page > 50: keep_fetching = False # Safety limit (approx 125,000 entries)
+            if page > 50: keep_fetching = False
 
     srp_config.last_sync = timezone.now()
     srp_config.save()
