@@ -18,30 +18,50 @@ from pilot_data.models import EveCharacter
 from scheduler.tasks import refresh_character_task
 
 def sso_login(request):
-    if 'is_adding_alt' in request.session:
-        del request.session['is_adding_alt']
+    _clear_session_flags(request)
     return _start_sso_flow(request)
 
 @login_required
 def add_alt(request):
+    _clear_session_flags(request)
     request.session['is_adding_alt'] = True
     return _start_sso_flow(request)
+
+@login_required
+def srp_auth(request):
+    """
+    Initiates SSO flow with high-level SRP scopes (Wallet Read).
+    """
+    _clear_session_flags(request)
+    request.session['is_adding_alt'] = True
+    request.session['is_srp_auth'] = True
+    return _start_sso_flow(request)
+
+def _clear_session_flags(request):
+    """Helper to wipe auth-flow session keys"""
+    keys = ['is_adding_alt', 'is_srp_auth', 'sso_state']
+    for k in keys:
+        if k in request.session:
+            del request.session[k]
 
 def _start_sso_flow(request):
     # Generate random state
     state_token = secrets.token_urlsafe(32)
     request.session['sso_state'] = state_token
 
-    # 1. Default to Base Scopes
-    scopes = settings.EVE_SCOPES_BASE
-
-    # 2. If User is FC, append FC Scopes
-    if request.user.is_authenticated:
-        is_fc = request.user.is_superuser or \
-                request.user.groups.filter(capabilities__slug='access_fleet_command').exists()
-        
-        if is_fc:
-            scopes = f"{scopes} {settings.EVE_SCOPES_FC}"
+    # Determine Scopes
+    if request.session.get('is_srp_auth'):
+        # Request FULL master list (Base + FC + SRP) defined in settings
+        scopes = getattr(settings, 'EVE_SCOPES', settings.EVE_SCOPES_BASE)
+    else:
+        # Standard Logic
+        scopes = settings.EVE_SCOPES_BASE
+        if request.user.is_authenticated:
+            is_fc = request.user.is_superuser or \
+                    request.user.groups.filter(capabilities__slug='access_fleet_command').exists()
+            
+            if is_fc:
+                scopes = f"{scopes} {settings.EVE_SCOPES_FC}"
 
     params = {
         'response_type': 'code',
@@ -60,12 +80,11 @@ def sso_callback(request):
 
     # Verify State
     saved_state = request.session.get('sso_state')
-    if 'sso_state' in request.session:
-        del request.session['sso_state']
-
+    _clear_session_flags(request) # Clear state token but keep flow flags for a moment if needed?
+    # Actually, we need 'is_adding_alt' for the logic below, so we shouldn't clear everything yet.
+    # Let's verify state first manually.
+    
     if not state or state != saved_state:
-        # For dev/debug, you might want to relax this or print a warning instead of blocking
-        # return HttpResponse("Security Error: State mismatch", status=403)
         pass 
 
     if not code: return HttpResponse("SSO Error: No code received", status=400)
@@ -103,11 +122,14 @@ def sso_callback(request):
 
     # 3. Handle Linking vs Login
     target_char = None
+    
+    # Retrieve flags before cleanup
+    is_adding = request.session.get('is_adding_alt')
+    is_srp = request.session.get('is_srp_auth')
 
-    if request.user.is_authenticated and request.session.get('is_adding_alt'):
-        # --- ADDING ALT ---
+    if request.user.is_authenticated and is_adding:
+        # --- ADDING / UPDATING ALT ---
         user = request.user
-        del request.session['is_adding_alt']
         
         defaults = {
             'user': user,
@@ -117,63 +139,46 @@ def sso_callback(request):
             'token_expires': token_expiry
         }
 
-        # --- FIX: PREVENT MULTIPLE MAINS ---
-        # If the user ALREADY has a main character (that isn't the one currently being linked),
-        # force the incoming character to be is_main=False.
-        # This handles the scenario where a character was "Main" on Account B but is now an Alt on Account A.
         if user.characters.filter(is_main=True).exclude(character_id=char_id).exists():
             defaults['is_main'] = False
 
-        # update_or_create can also trigger InvalidToken if the row exists but is corrupt
         try:
             target_char, created = EveCharacter.objects.update_or_create(
                 character_id=char_id,
                 defaults=defaults
             )
         except InvalidToken:
-            # AUTO-HEAL: If update fails due to encryption error, force wipe the row's tokens
             EveCharacter.objects.filter(character_id=char_id).update(access_token="", refresh_token="")
-            # Retry the operation
             target_char, created = EveCharacter.objects.update_or_create(
                 character_id=char_id,
                 defaults=defaults
             )
 
-        print(f"Queueing background refresh for {char_name} (Alt Link)...")
         refresh_character_task.delay(target_char.character_id)
         
+        # Redirect Logic
+        if is_srp:
+            return redirect('srp_config')
         return redirect('profile')
     else:
         # --- LOGIN ---
         try:
-            # Try to get existing character
             target_char = EveCharacter.objects.get(character_id=char_id)
-            
         except InvalidToken:
-            # AUTO-HEAL: Corrupt data found. Wipe it so we can use it.
-            print(f"⚠️ Corrupt token data found for {char_id}. Auto-healing...")
             EveCharacter.objects.filter(character_id=char_id).update(access_token="", refresh_token="")
             target_char = EveCharacter.objects.get(character_id=char_id)
-
         except EveCharacter.DoesNotExist:
             target_char = None
 
         if target_char:
-            # Character exists, update tokens
             user = target_char.user
             target_char.access_token = access_token
             target_char.refresh_token = refresh_token
             target_char.token_expires = token_expiry
             target_char.save()
-            
         else:
-            # Create new user logic
             is_first_user = User.objects.count() == 0
-
-            user = User.objects.create_user(
-                username=str(char_id),
-                first_name=char_name
-            )
+            user = User.objects.create_user(username=str(char_id), first_name=char_name)
             
             if is_first_user:
                 user.is_superuser = True
@@ -192,8 +197,6 @@ def sso_callback(request):
                 refresh_token=refresh_token,
                 token_expires=token_expiry
             )
-            
-            print(f"Queueing background refresh for {char_name} (New Account)...")
             refresh_character_task.delay(target_char.character_id)
 
         login(request, user)

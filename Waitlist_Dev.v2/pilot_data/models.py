@@ -8,7 +8,7 @@ class EveCharacter(models.Model):
     character_name = models.CharField(max_length=255)
     is_main = models.BooleanField(default=False)
     
-    # New Field: Controls visibility in the X-Up Modal
+    # Controls visibility in the X-Up Modal
     x_up_visible = models.BooleanField(default=True)
     
     corporation_id = models.BigIntegerField(default=0)
@@ -24,11 +24,11 @@ class EveCharacter(models.Model):
     wallet_balance = models.DecimalField(max_digits=20, decimal_places=2, default=0)
     concord_lp = models.IntegerField(default=0)
     
-    # --- ACTIVITY TRACKING (New) ---
+    # Activity Tracking
     is_online = models.BooleanField(default=False)
     last_login_at = models.DateTimeField(null=True, blank=True)
 
-    # --- ENCRYPTED FIELDS ---
+    # Encrypted Fields
     access_token = EncryptedTextField(blank=True, default="")
     refresh_token = EncryptedTextField(blank=True, default="")
     
@@ -45,8 +45,6 @@ class EsiHeaderCache(models.Model):
     character = models.ForeignKey(EveCharacter, on_delete=models.CASCADE, related_name='esi_headers')
     endpoint_name = models.CharField(max_length=100, db_index=True) 
     etag = models.CharField(max_length=255, blank=True, null=True)
-    
-    # Added db_index=True to 'expires' for high-performance scheduling queries
     expires = models.DateTimeField(null=True, blank=True, db_index=True)
     
     class Meta:
@@ -103,10 +101,7 @@ class ItemGroup(models.Model):
 
 class ItemType(models.Model):
     type_id = models.IntegerField(primary_key=True)
-    
-    # CHANGED: Added null=True to resolve migration conflict
     group = models.ForeignKey(ItemGroup, on_delete=models.CASCADE, related_name='types', db_column='group_id', null=True)
-    
     type_name = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
     mass = models.FloatField(default=0)
@@ -118,7 +113,6 @@ class ItemType(models.Model):
     def __str__(self):
         return self.type_name
 
-    # Helper to get attributes easily in templates/views
     def get_attribute(self, attr_id):
         try:
             return self.attributes.get(attribute_id=attr_id).value
@@ -142,23 +136,22 @@ class TypeAttribute(models.Model):
     Links an ItemType to a Dogma Attribute (e.g., Ship -> High Slot Count).
     """
     item = models.ForeignKey(ItemType, on_delete=models.CASCADE, related_name='attributes')
-    attribute_id = models.IntegerField(db_index=True) # ID from dgmAttributeTypes
+    attribute_id = models.IntegerField(db_index=True)
     value = models.FloatField()
 
     class Meta:
-        # Optimization: Combined index for fast lookups (Give me value of Attr X for Item Y)
         unique_together = ('item', 'attribute_id') 
         indexes = [
             models.Index(fields=['item', 'attribute_id']),
         ]
 
     def __str__(self):
-        return f"Item {self.item_id} - Attr {self.attribute_id}: {self.value}"
+        return f"Item {self.item.type_id} - Attr {self.attribute_id}: {self.value}"
 
 class TypeEffect(models.Model):
     """
     Links an ItemType to a Dogma Effect.
-    Crucial for determining if an item is High/Mid/Low slot (loPower, medPower, hiPower).
+    Crucial for determining if an item is High/Mid/Low slot.
     """
     item = models.ForeignKey(ItemType, on_delete=models.CASCADE, related_name='effects')
     effect_id = models.IntegerField(db_index=True)
@@ -171,19 +164,18 @@ class TypeEffect(models.Model):
         ]
 
     def __str__(self):
-        return f"Item {self.item_id} - Effect {self.effect_id}"
+        return f"Item {self.item.type_id} - Effect {self.effect_id}"
 
-# --- FIT ANALYSIS MODELS (New) ---
+# --- FIT ANALYSIS MODELS ---
 
 class AttributeDefinition(models.Model):
     """
     Stores human-readable names for SDE attributes (e.g. 50 -> 'CPU Usage').
-    We import these from dgmAttributeTypes.csv just like we do for TypeAttribute.
     """
     attribute_id = models.IntegerField(primary_key=True)
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
-    display_name = models.CharField(max_length=255, blank=True, null=True) # Customizable name
+    display_name = models.CharField(max_length=255, blank=True, null=True)
     unit_id = models.IntegerField(null=True, blank=True)
     published = models.BooleanField(default=True)
 
@@ -193,12 +185,10 @@ class AttributeDefinition(models.Model):
 class FitAnalysisRule(models.Model):
     """
     Defines which attributes matter for a specific Item Group.
-    Example: Group 'Shield Boosters' should compare 'Shield Bonus'.
     """
     group = models.ForeignKey(ItemGroup, on_delete=models.CASCADE, related_name='analysis_rules')
     attribute = models.ForeignKey(AttributeDefinition, on_delete=models.CASCADE)
     
-    # Logic Configuration
     priority = models.IntegerField(default=0, help_text="Order of importance (higher first)")
     comparison_logic = models.CharField(
         max_length=20, 
@@ -209,8 +199,6 @@ class FitAnalysisRule(models.Model):
         ],
         default='higher'
     )
-    
-    # Threshold for flagging warnings (e.g. 10% difference is acceptable)
     tolerance_percent = models.FloatField(default=0.0, help_text="Percentage difference allowed before flagging as downgrade")
 
     class Meta:
@@ -218,4 +206,47 @@ class FitAnalysisRule(models.Model):
         ordering = ['group', '-priority']
 
     def __str__(self):
-        return f"{self.group.group_name}: {self.attribute.name} ({self.comparison_logic})"
+        return f"{self.group.group_name}: {self.attribute.name}"
+
+# --- NEW SRP & WALLET MODELS ---
+
+class SRPConfiguration(models.Model):
+    """
+    Singleton-style model to store which character is the source of SRP data.
+    """
+    character = models.OneToOneField(EveCharacter, on_delete=models.CASCADE, related_name='srp_config')
+    last_sync = models.DateTimeField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self):
+        return f"SRP Source: {self.character.character_name}"
+
+class CorpWalletJournal(models.Model):
+    """
+    Cached journal entries for analytics.
+    """
+    config = models.ForeignKey(SRPConfiguration, on_delete=models.CASCADE, related_name='journal_entries')
+    entry_id = models.BigIntegerField(unique=True)
+    amount = models.DecimalField(max_digits=20, decimal_places=2)
+    balance = models.DecimalField(max_digits=20, decimal_places=2)
+    context_id = models.BigIntegerField(null=True, blank=True)
+    context_id_type = models.CharField(max_length=50, null=True, blank=True)
+    date = models.DateTimeField(db_index=True)
+    description = models.TextField()
+    first_party_id = models.IntegerField(null=True)
+    second_party_id = models.IntegerField(null=True)
+    reason = models.TextField(blank=True)
+    ref_type = models.CharField(max_length=50)
+    tax = models.DecimalField(max_digits=20, decimal_places=2, null=True)
+    division = models.IntegerField(default=1, db_index=True) # 1-7 master wallets
+
+    # Enriched Data (Resolved Names)
+    first_party_name = models.CharField(max_length=255, blank=True)
+    second_party_name = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        ordering = ['-date']
+        indexes = [
+            models.Index(fields=['date', 'division']),
+            models.Index(fields=['ref_type']),
+        ]

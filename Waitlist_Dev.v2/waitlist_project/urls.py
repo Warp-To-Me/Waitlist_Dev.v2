@@ -3,7 +3,7 @@ from django.urls import path, include
 
 # New Modular Imports
 from core import views as core_views
-from core import views_management, views_profile, views_rules
+from core import views_management, views_profile, views_rules, views_srp # Added views_srp
 
 urlpatterns = [
     # Django Admin
@@ -19,6 +19,15 @@ urlpatterns = [
     path('management/sde/', views_management.management_sde, name='management_sde'),
     path('management/system/', views_management.management_celery, name='management_celery'),
     path('management/permissions/', views_management.management_permissions, name='management_permissions'),
+
+    # --- SRP MANAGEMENT ---
+    path('management/srp/config/', views_srp.srp_config, name='srp_config'),
+    path('api/mgmt/srp/set_source/', views_srp.api_set_srp_source, name='api_set_srp_source'),
+    path('api/mgmt/srp/sync/', views_srp.api_sync_srp, name='api_sync_srp'),
+    
+    # --- SRP DASHBOARD ---
+    path('srp/dashboard/', views_srp.srp_dashboard, name='srp_dashboard'),
+    path('api/srp/data/', views_srp.api_srp_data, name='api_srp_data'),
     
     # Roles API
     path('management/roles/', views_management.management_roles, name='management_roles'),

@@ -1,0 +1,105 @@
+﻿{% extends 'management/base_management.html' %}
+
+{% block management_content %}
+<div class="flex flex-col gap-6">
+    <div class="border-b border-white/5 pb-6">
+        <h1 class="heading-1">SRP Configuration</h1>
+        <p class="text-slate-400 text-sm mt-1">Designate the character used to pull Corporation Wallet data.</p>
+    </div>
+
+    <!-- Active Config Card -->
+    <div class="glass-panel p-6">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="label-text mb-0">Current Source</h3>
+            {% if config.character %}
+            <span class="badge badge-green">Active</span>
+            {% else %}
+            <span class="badge badge-red">Not Configured</span>
+            {% endif %}
+        </div>
+
+        {% if config %}
+        <div class="flex items-center gap-4 mb-6">
+            <img src="https://images.evetech.net/characters/{{ config.character.character_id }}/portrait?size=128"
+                 class="w-16 h-16 rounded-lg border-2 border-brand-500 shadow-[0_0_15px_rgba(245,158,11,0.3)]">
+            <div>
+                <h2 class="text-xl font-bold text-white">{{ config.character.character_name }}</h2>
+                <p class="text-slate-400 text-xs">Last Sync: {{ config.last_sync|default:"Never" }}</p>
+                <div class="text-xs text-slate-500 mt-1">Corp ID: {{ config.character.corporation_id }}</div>
+            </div>
+        </div>
+
+        <div class="flex gap-2">
+            <button onclick="syncWallet()" id="btn-sync" class="btn-primary text-xs py-2 px-4 shadow-brand-500/20">
+                🔄 Force Sync Now
+            </button>
+            <!-- ADDED data-no-spa HERE -->
+            <a href="{% url 'srp_auth' %}" data-no-spa class="btn-secondary text-xs py-2 px-4 border-amber-500/30 text-amber-400 hover:bg-amber-500/10">
+                🔑 Update Token (Re-Auth)
+            </a>
+        </div>
+        {% else %}
+        <p class="text-slate-500 italic mb-4">No character selected.</p>
+        <div>
+            <!-- ADDED data-no-spa HERE TOO -->
+            <a href="{% url 'srp_auth' %}" data-no-spa class="btn-primary text-xs py-2 px-6 inline-flex">
+                Log In New Character with Wallet Scopes
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Selection Form -->
+    <div class="glass-panel p-6">
+        <h3 class="label-text mb-4">Change Source Character</h3>
+        <p class="text-xs text-slate-400 mb-4 bg-blue-900/20 p-3 rounded border border-blue-500/30">
+            ℹ️ The selected character MUST have the <strong>Accountant</strong> or <strong>Junior Accountant</strong> role in-game,
+            and must have logged in via the 'Update Token' button above to grant the <code>esi-wallet.read_corporation_wallets.v1</code> scope.
+        </p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {% for char in user_chars %}
+            <div onclick="selectSource({{ char.character_id }})"
+                 class="cursor-pointer bg-white/5 border border-white/5 hover:border-brand-500 hover:bg-white/10 p-3 rounded-lg flex items-center gap-3 transition group">
+                <img src="https://images.evetech.net/characters/{{ char.character_id }}/portrait?size=64" class="w-10 h-10 rounded border border-slate-600 group-hover:border-white">
+                <div>
+                    <div class="font-bold text-slate-300 group-hover:text-white">{{ char.character_name }}</div>
+                    <div class="text-[10px] text-slate-500">{{ char.corporation_name }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<script>
+    const CSRF_TOKEN = '{{ csrf_token }}';
+
+    function selectSource(charId) {
+        if(!confirm("Set this character as the global SRP source? This will effect all wallet data.")) return;
+
+        fetch("{% url 'api_set_srp_source' %}", {
+            method: 'POST',
+            headers: {'X-CSRFToken': CSRF_TOKEN, 'Content-Type': 'application/json'},
+            body: JSON.stringify({ character_id: charId })
+        }).then(r => r.json()).then(d => {
+            if(d.success) location.reload();
+            else alert("Error: " + d.error);
+        });
+    }
+
+    function syncWallet() {
+        const btn = document.getElementById('btn-sync');
+        btn.disabled = true;
+        btn.textContent = "Syncing (this may take a while)...";
+
+        fetch("{% url 'api_sync_srp' %}", {
+            method: 'POST',
+            headers: {'X-CSRFToken': CSRF_TOKEN}
+        }).then(r => r.json()).then(d => {
+            alert(d.message);
+            location.reload();
+        });
+    }
+</script>
+{% endblock %}

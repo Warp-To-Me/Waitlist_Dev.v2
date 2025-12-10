@@ -55,6 +55,27 @@
             </div>
             {% endif %}
 
+            <!-- FINANCE (NEW SRP SECTION) -->
+            {% if 'view_srp_dashboard' in user_perms or 'manage_srp_source' in user_perms %}
+            <div class="mb-4">
+                <span class="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-2">Finance</span>
+
+                {% if 'view_srp_dashboard' in user_perms %}
+                <a href="{% url 'srp_dashboard' %}"
+                   class="flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm font-medium {% if request.resolver_match.url_name == 'srp_dashboard' %}bg-brand-500/10 text-brand-400 border border-brand-500/20{% else %}text-slate-400 hover:text-white hover:bg-white/5{% endif %}">
+                    <span>💰</span> Wallet Monitor
+                </a>
+                {% endif %}
+
+                {% if 'manage_srp_source' in user_perms %}
+                <a href="{% url 'srp_config' %}"
+                   class="flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm font-medium {% if request.resolver_match.url_name == 'srp_config' %}bg-brand-500/10 text-brand-400 border border-brand-500/20{% else %}text-slate-400 hover:text-white hover:bg-white/5{% endif %}">
+                    <span>⚙️</span> SRP Config
+                </a>
+                {% endif %}
+            </div>
+            {% endif %}
+
             <!-- SYSTEM -->
             <!-- Granular checks -->
             {% if 'access_admin' in user_perms or 'manage_doctrines' in user_perms or 'manage_analysis_rules' in user_perms %}

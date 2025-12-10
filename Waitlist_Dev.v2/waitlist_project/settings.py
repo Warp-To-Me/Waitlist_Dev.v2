@@ -134,8 +134,13 @@ EVE_SCOPES_FC = (
     "esi-fleets.write_fleet.v1"
 )
 
-# 3. Combined Master List (For Auditing/Backwards Compatibility)
-EVE_SCOPES = f"{EVE_SCOPES_BASE} {EVE_SCOPES_FC}"
+# 3. SRP Manager Scopes (NEW)
+EVE_SCOPES_SRP = (
+    "esi-wallet.read_corporation_wallets.v1"
+)
+
+# 4. Combined Master List (For Auditing/Backwards Compatibility)
+EVE_SCOPES = f"{EVE_SCOPES_BASE} {EVE_SCOPES_FC} {EVE_SCOPES_SRP}"
 
 # CHANNEL LAYERS
 CHANNEL_LAYERS = {

@@ -44,10 +44,12 @@ SYSTEM_CAPABILITIES = [
     {"category": "System Administration", "name": "Manage Doctrines", "desc": "Create, Edit, and Delete Doctrine Fits.", "roles": ROLES_ADMIN},
     {"category": "System Administration", "name": "Promote/Demote Users", "desc": "Assign roles to users (up to own rank) and Unlink Alts.", "roles": ROLES_ADMIN},
     {"category": "System Administration", "name": "Manage Analysis Rules", "desc": "Configure item comparison logic (Higher/Lower is Better).", "roles": ROLES_ADMIN},
-    
-    # NEW CAPABILITY
     {"category": "System Administration", "name": "View Sensitive Data", "desc": "View unobfuscated financial data in pilot profiles.", "roles": ['Admin']},
     
+    # --- NEW SRP CAPABILITIES ---
+    {"category": "SRP & Finance", "name": "Manage SRP Source", "desc": "Configure the SRP data source character and settings.", "roles": ['Admin', 'Leadership']},
+    {"category": "SRP & Finance", "name": "View SRP Dashboard", "desc": "Access the SRP Wallet History and Analytics page.", "roles": ['Admin', 'Leadership', 'Officer']},
+
     {"category": "Fleet Operations", "name": "Fleet Command", "desc": "Create/Close Fleets, Take Command, FC Actions (Approve/Invite).", "roles": ROLES_FC},
     {"category": "Fleet Operations", "name": "Inspect Pilots", "desc": "View full pilot details (Skills, Assets) in User Search.", "roles": ROLES_FC},
     {"category": "Fleet Operations", "name": "View Fleet Overview", "desc": "See the live fleet composition sidebar on the dashboard.", "roles": ROLES_MANAGEMENT},

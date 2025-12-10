@@ -1,0 +1,269 @@
+{% extends 'management/base_management.html' %}
+{% load humanize %}
+
+{% block title %}Corp Wallet Monitor{% endblock %}
+
+{% block management_content %}
+<div class="flex flex-col gap-6 h-full animate-fade-in pb-6">
+
+    <!-- HEADER / FILTERS -->
+    <div class="glass-panel p-4 flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-900/90 shrink-0">
+        <div>
+            <h1 class="text-lg font-bold text-white tracking-tight">Corporation Wallet Monitor</h1>
+            <p class="text-xs text-slate-400">Last Sync: {{ config.last_sync|timesince }} ago</p>
+        </div>
+
+        <div class="flex gap-4 items-center flex-wrap">
+            <div class="flex items-center gap-2 bg-black/30 p-1.5 rounded border border-white/10">
+                <input type="date" id="start-date" class="bg-transparent text-xs text-white outline-none">
+                <span class="text-slate-500">-</span>
+                <input type="date" id="end-date" class="bg-transparent text-xs text-white outline-none">
+            </div>
+
+            <div class="flex gap-2 text-xs">
+                {% for i in "1234567" %}
+                <label class="flex items-center gap-1 cursor-pointer select-none">
+                    <input type="checkbox" name="div" value="{{ i }}" checked onchange="loadData()"
+                           class="rounded bg-slate-800 border-slate-600 text-brand-500 focus:ring-0 w-3 h-3">
+                    <span class="text-slate-300">Div {{ i }}</span>
+                </label>
+                {% endfor %}
+            </div>
+
+            <button onclick="loadData()" class="btn-primary py-1.5 px-4 text-xs shadow-brand-500/20">Apply</button>
+        </div>
+    </div>
+
+    <!-- SUMMARY CARDS -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
+        <div class="glass-panel p-4 text-center">
+            <div class="label-text mb-1">Total Income</div>
+            <div class="text-2xl font-mono font-bold text-green-400" id="val-income">...</div>
+        </div>
+        <div class="glass-panel p-4 text-center">
+            <div class="label-text mb-1">Total Outcome</div>
+            <div class="text-2xl font-mono font-bold text-red-400" id="val-outcome">...</div>
+        </div>
+        <div class="glass-panel p-4 text-center">
+            <div class="label-text mb-1">Net Change</div>
+            <div class="text-2xl font-mono font-bold text-white" id="val-net">...</div>
+        </div>
+    </div>
+
+    <!-- CHARTS ROW 1 -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 h-80 shrink-0">
+        <div class="glass-panel p-4 flex flex-col">
+            <h3 class="label-text mb-2">Monthly Cashflow</h3>
+            <div class="flex-grow relative min-h-0"><canvas id="chart-monthly"></canvas></div>
+        </div>
+        <div class="glass-panel p-4 flex flex-col">
+            <h3 class="label-text mb-2">Category Breakdown (Income)</h3>
+            <div class="flex-grow relative min-h-0"><canvas id="chart-cat"></canvas></div>
+        </div>
+    </div>
+
+    <!-- CHARTS ROW 2 -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 h-80 shrink-0">
+        <div class="glass-panel p-4 flex flex-col">
+            <h3 class="label-text mb-2">Top Payers (Count)</h3>
+            <div class="flex-grow relative min-h-0"><canvas id="chart-payers-count"></canvas></div>
+        </div>
+        <div class="glass-panel p-4 flex flex-col">
+            <h3 class="label-text mb-2">Top Payers (ISK)</h3>
+            <div class="flex-grow relative min-h-0"><canvas id="chart-payers-isk"></canvas></div>
+        </div>
+    </div>
+
+    <!-- TRANSACTIONS -->
+    <div class="glass-panel flex flex-col overflow-hidden min-h-[500px]">
+        <div class="p-4 border-b border-white/5 bg-slate-900/50 shrink-0">
+            <h3 class="label-text mb-0">Recent Transactions</h3>
+        </div>
+        <div class="overflow-auto custom-scrollbar flex-grow relative bg-slate-900/20">
+            <table class="w-full text-left text-xs text-slate-400 border-collapse">
+                <thead class="bg-slate-900/95 text-[10px] uppercase font-bold sticky top-0 z-10 backdrop-blur-md shadow-sm">
+                    <tr>
+                        <th class="p-3 border-b border-white/5">Date</th>
+                        <th class="p-3 border-b border-white/5 text-center">Div</th>
+                        <th class="p-3 border-b border-white/5 text-right">Amount</th>
+                        <th class="p-3 border-b border-white/5">From</th>
+                        <th class="p-3 border-b border-white/5">To</th>
+                        <th class="p-3 border-b border-white/5">Type</th>
+                        <th class="p-3 border-b border-white/5">Reason</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-white/5" id="tx-body"></tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // Use var to avoid re-declaration errors in SPA
+    var srpCharts = {};
+
+    function initSRPDashboard() {
+        console.log("Initializing SRP Dashboard...");
+
+        const startEl = document.getElementById('start-date');
+        if (!startEl) return; // Guard clause in case DOM is gone
+
+        // Set default dates (Current Year)
+        const today = new Date();
+        const firstDay = new Date(today.getFullYear(), 0, 1);
+        startEl.valueAsDate = firstDay;
+        document.getElementById('end-date').valueAsDate = today;
+
+        loadData();
+    }
+
+    function loadData() {
+        const start = document.getElementById('start-date').value;
+        const end = document.getElementById('end-date').value;
+        const divs = Array.from(document.querySelectorAll('input[name="div"]:checked')).map(cb => cb.value);
+
+        const params = new URLSearchParams();
+        params.append('start_date', start);
+        params.append('end_date', end);
+        divs.forEach(d => params.append('divisions[]', d));
+
+        fetch(`{% url 'api_srp_data' %}?${params.toString()}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    console.error("API Error:", data.error);
+                    return;
+                }
+                renderSummary(data.summary);
+                renderCharts(data);
+                renderTable(data.transactions);
+            })
+            .catch(err => console.error("Network Error:", err));
+    }
+
+    function renderSummary(sum) {
+        document.getElementById('val-income').textContent = formatISK(sum.income);
+        document.getElementById('val-outcome').textContent = formatISK(sum.outcome);
+        const netEl = document.getElementById('val-net');
+        netEl.textContent = formatISK(sum.net);
+        netEl.className = `text-2xl font-mono font-bold ${sum.net >= 0 ? 'text-green-400' : 'text-red-400'}`;
+    }
+
+    function formatISK(val) {
+        return parseFloat(val).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' ISK';
+    }
+
+    function renderCharts(data) {
+        // Ensure Chart is available
+        if (typeof Chart === 'undefined') return;
+
+        const ctxMonthly = document.getElementById('chart-monthly');
+        const ctxCat = document.getElementById('chart-cat');
+        const ctxPayerC = document.getElementById('chart-payers-count');
+        const ctxPayerI = document.getElementById('chart-payers-isk');
+
+        // 1. Monthly
+        const months = Object.keys(data.monthly).sort();
+        updateChart('monthly', ctxMonthly, 'bar', {
+            labels: months,
+            datasets: [
+                { label: 'In', data: months.map(m => data.monthly[m].in), backgroundColor: '#4ade80' },
+                { label: 'Out', data: months.map(m => data.monthly[m].out), backgroundColor: '#f87171' }
+            ]
+        });
+
+        // 2. Categories (Income)
+        const cats = Object.keys(data.categories.in);
+        updateChart('cat', ctxCat, 'doughnut', {
+            labels: cats,
+            datasets: [{
+                data: cats.map(c => data.categories.in[c]),
+                backgroundColor: ['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981', '#ec4899'],
+                borderWidth: 0
+            }]
+        });
+
+        // 3. Top Payers
+        const payers = Object.entries(data.top_payers).sort((a, b) => b[1].total - a[1].total).slice(0, 5);
+        const pLabels = payers.map(p => p[0]);
+
+        updateChart('payerC', ctxPayerC, 'bar', {
+            labels: pLabels,
+            datasets: [{ label: 'Count', data: payers.map(p => p[1].count), backgroundColor: '#38bdf8' }],
+            indexAxis: 'y'
+        });
+
+        updateChart('payerI', ctxPayerI, 'bar', {
+            labels: pLabels,
+            datasets: [{ label: 'Total ISK', data: payers.map(p => p[1].total), backgroundColor: '#facc15' }],
+            indexAxis: 'y'
+        });
+    }
+
+    function updateChart(key, ctx, type, data) {
+        if (!ctx) return;
+
+        if (srpCharts[key]) {
+            srpCharts[key].destroy();
+        }
+
+        srpCharts[key] = new Chart(ctx, {
+            type: type,
+            data: data,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: data.indexAxis,
+                plugins: {
+                    legend: {
+                        labels: { color: '#94a3b8', font: { size: 10 } },
+                        position: type === 'doughnut' ? 'right' : 'top'
+                    }
+                },
+                scales: type !== 'doughnut' ? {
+                    x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                    y: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } }
+                } : {
+                    x: { display: false },
+                    y: { display: false }
+                },
+                layout: { padding: 0 }
+            }
+        });
+    }
+
+    function renderTable(txs) {
+        const body = document.getElementById('tx-body');
+        if (!body) return;
+
+        if (txs.length === 0) {
+            body.innerHTML = '<tr><td colspan="7" class="p-8 text-center text-slate-500 italic">No transactions found for this period.</td></tr>';
+            return;
+        }
+
+        body.innerHTML = txs.map(t => `
+            <tr class="hover:bg-white/5 transition group">
+                <td class="p-3 font-mono text-[10px] whitespace-nowrap text-slate-500 group-hover:text-slate-300">${new Date(t.date).toLocaleDateString()} <span class="opacity-50">${new Date(t.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></td>
+                <td class="p-3 text-center"><span class="bg-white/5 px-1.5 py-0.5 rounded text-[10px] border border-white/5">${t.division}</span></td>
+                <td class="p-3 text-right font-mono font-bold ${t.amount > 0 ? 'text-green-400' : 'text-red-400'} text-xs">${formatISK(t.amount)}</td>
+                <td class="p-3 truncate max-w-[120px] text-slate-300" title="${t.first_party_name}">${t.first_party_name}</td>
+                <td class="p-3 truncate max-w-[120px] text-slate-300" title="${t.second_party_name}">${t.second_party_name}</td>
+                <td class="p-3"><span class="badge badge-slate text-[9px]">${t.ref_type}</span></td>
+                <td class="p-3 truncate max-w-[200px] italic text-slate-500 text-[10px]" title="${t.reason}">${t.reason}</td>
+            </tr>
+        `).join('');
+    }
+
+    // --- DEPENDENCY CHECK & START ---
+    if (typeof Chart === 'undefined') {
+        console.log("Fetching Chart.js...");
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/chart.js';
+        script.onload = initSRPDashboard;
+        document.head.appendChild(script);
+    } else {
+        initSRPDashboard();
+    }
+</script>
+{% endblock %}

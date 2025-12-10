@@ -35,6 +35,7 @@
     <Compile Include="core\models.py" />
     <Compile Include="core\permissions.py" />
     <Compile Include="core\routing.py" />
+    <Compile Include="core\views_srp.py" />
     <Compile Include="core\templatetags\core_filters.py" />
     <Compile Include="core\templatetags\__init__.py" />
     <Compile Include="core\utils.py" />
@@ -49,6 +50,7 @@
     <Compile Include="esi_calls\management\commands\__init__.py" />
     <Compile Include="esi_calls\management\__init__.py" />
     <Compile Include="esi_calls\token_manager.py" />
+    <Compile Include="esi_calls\wallet_service.py" />
     <Compile Include="pilot_data\admin.py" />
     <Compile Include="pilot_data\management\commands\audit_scopes.py" />
     <Compile Include="pilot_data\management\commands\refresh_all_characters.py" />
@@ -119,6 +121,8 @@
     <Content Include="templates\management\roles.html" />
     <Content Include="templates\management\rules_helper.html" />
     <Content Include="templates\management\sde.html" />
+    <Content Include="templates\management\srp_config.html" />
+    <Content Include="templates\srp\dashboard.html" />
     <Content Include="templates\management\users.html" />
     <Content Include="templates\partials\celery_content.html" />
     <Content Include="templates\partials\profile_content.html" />
@@ -153,6 +157,7 @@
     <Folder Include="templates\management\" />
     <Folder Include="templates\doctrines\" />
     <Folder Include="templates\partials\" />
+    <Folder Include="templates\srp\" />
     <Folder Include="templates\waitlist\" />
     <Folder Include="templates\waitlist\partials\" />
     <Folder Include="waitlist_data\views\" />

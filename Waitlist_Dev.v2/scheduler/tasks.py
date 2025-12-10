@@ -1,10 +1,13 @@
 from celery import shared_task
 from django.utils import timezone
 from datetime import timedelta
-from pilot_data.models import EveCharacter, EsiHeaderCache
-from esi_calls.token_manager import update_character_data
-import logging
 from django.db.models import Q
+import logging
+
+# Models
+from pilot_data.models import EveCharacter, EsiHeaderCache, SRPConfiguration
+from esi_calls.token_manager import update_character_data
+from esi_calls.wallet_service import sync_corp_wallet
 
 logger = logging.getLogger(__name__)
 
@@ -143,3 +146,33 @@ def refresh_character_task(char_id, target_endpoints=None, force_refresh=False):
         logger.error(f"[Worker] Character ID {char_id} not found.")
     except Exception as e:
         logger.error(f"[Worker] Crash on {char_id}: {e}")
+
+# --- NEW: SRP WALLET SYNC TASK ---
+@shared_task(bind=True, max_retries=3)
+def refresh_srp_wallet_task(self):
+    """
+    Background task to sync Corporation Wallet Journal.
+    Runs hourly via Beat or manually via Button.
+    """
+    try:
+        config = SRPConfiguration.objects.first()
+        if not config or not config.is_active:
+            logger.info("[SRP] No active configuration found. Skipping sync.")
+            return "No Config"
+
+        logger.info(f"[SRP] Starting Wallet Sync via {config.character.character_name}...")
+        
+        success, msg = sync_corp_wallet(config)
+        
+        if success:
+            logger.info(f"[SRP] Sync Complete: {msg}")
+            return f"Success: {msg}"
+        else:
+            logger.warning(f"[SRP] Sync Failed: {msg}")
+            # Optional: Retry on specific errors if needed
+            return f"Failed: {msg}"
+
+    except Exception as e:
+        logger.error(f"[SRP] Critical Error: {str(e)}")
+        # Raise to let Celery know it failed
+        raise e

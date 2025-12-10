@@ -43,6 +43,10 @@ class Command(BaseCommand):
             if "Manage Analysis Rules" in cap_data['name']: slug = "manage_analysis_rules"
             if "View Sensitive Data" in cap_data['name']: slug = "view_sensitive_data" # NEW SLUG
 
+            # --- NEW SRP SLUGS ---
+            if "Manage SRP Source" in cap_data['name']: slug = "manage_srp_source"
+            if "View SRP Dashboard" in cap_data['name']: slug = "view_srp_dashboard"
+
             capability, created = Capability.objects.get_or_create(
                 slug=slug,
                 defaults={
