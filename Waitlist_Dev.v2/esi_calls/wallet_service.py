@@ -11,7 +11,7 @@ ESI_BASE = "https://esi.evetech.net/latest"
 def sync_corp_wallet(srp_config):
     """
     Fetches wallet journal for the configured corp/character.
-    Iterates pages until existing data is found.
+    Designed to be APPEND-ONLY to preserve history beyond ESI's 30-day limit.
     """
     character = srp_config.character
     if not check_token(character):
@@ -30,6 +30,7 @@ def sync_corp_wallet(srp_config):
     for division in range(1, 8):
         page = 1
         keep_fetching = True
+        consecutive_full_dupe_pages = 0
         
         while keep_fetching:
             url = f"{ESI_BASE}/corporations/{corp_id}/wallets/{division}/journal/"
@@ -46,19 +47,30 @@ def sync_corp_wallet(srp_config):
                 keep_fetching = False
                 continue
 
+            # Check existing IDs in this batch
+            batch_ids = [x['id'] for x in data]
+            existing_ids = set(CorpWalletJournal.objects.filter(
+                config=srp_config, 
+                entry_id__in=batch_ids
+            ).values_list('entry_id', flat=True))
+
+            # Logic Update: Only stop if the ENTIRE page is duplicates.
+            # This allows filling gaps if a previous sync failed partially.
+            if len(existing_ids) == len(batch_ids):
+                consecutive_full_dupe_pages += 1
+                # If we hit 2 pages of pure duplicates, we are safely synced up.
+                if consecutive_full_dupe_pages >= 2:
+                    keep_fetching = False
+                    continue
+            else:
+                consecutive_full_dupe_pages = 0
+
             # Process Entries
             new_entries = []
             party_ids_to_resolve = set()
 
-            existing_ids = set(CorpWalletJournal.objects.filter(
-                config=srp_config, 
-                entry_id__in=[x['id'] for x in data]
-            ).values_list('entry_id', flat=True))
-
             for row in data:
                 if row['id'] in existing_ids:
-                    # If we hit existing data, we can stop fetching deeper pages for this division
-                    keep_fetching = False 
                     continue
 
                 if row.get('first_party_id'): party_ids_to_resolve.add(row['first_party_id'])
@@ -96,7 +108,7 @@ def sync_corp_wallet(srp_config):
                 total_new += len(db_objects)
             
             page += 1
-            if page > 20: keep_fetching = False # Safety break
+            if page > 50: keep_fetching = False # Safety limit (approx 125,000 entries)
 
     srp_config.last_sync = timezone.now()
     srp_config.save()

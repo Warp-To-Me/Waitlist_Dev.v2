@@ -367,3 +367,4 @@ FodyWeavers.xsd
 /Waitlist_Dev.v2/celerybeat-schedule.dat
 /Waitlist_Dev.v2/celerybeat-schedule.dir
 /Waitlist_Dev.v2/.env
+/Waitlist_Dev.v2/wallet.sql

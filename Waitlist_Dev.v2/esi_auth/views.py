@@ -7,7 +7,7 @@ from django.conf import settings
 from django.contrib.auth import login, logout
 from django.contrib.auth.models import User, Group
 from django.http import HttpResponse
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test  # Added user_passes_test
 from django.utils import timezone
 from datetime import timedelta
 
@@ -16,6 +16,12 @@ from cryptography.fernet import InvalidToken
 
 from pilot_data.models import EveCharacter
 from scheduler.tasks import refresh_character_task
+
+# --- PERMISSION HELPER ---
+def can_manage_srp(user):
+    # Matches logic in core.views_srp
+    if user.is_superuser: return True
+    return user.groups.filter(capabilities__slug='manage_srp_source').exists()
 
 def sso_login(request):
     _clear_session_flags(request)
@@ -28,9 +34,11 @@ def add_alt(request):
     return _start_sso_flow(request)
 
 @login_required
+@user_passes_test(can_manage_srp)  # <--- SECURITY FIX APPLIED
 def srp_auth(request):
     """
     Initiates SSO flow with high-level SRP scopes (Wallet Read).
+    Restricted to Admins/Leadership.
     """
     _clear_session_flags(request)
     request.session['is_adding_alt'] = True
@@ -185,7 +193,7 @@ def sso_callback(request):
                 user.is_staff = True
                 user.save()
 
-            default_group, _ = Group.objects.get_or_create(name='Pilot')
+            default_group, _ = Group.objects.get_or_create(name='Public')
             user.groups.add(default_group)
             
             target_char = EveCharacter.objects.create(

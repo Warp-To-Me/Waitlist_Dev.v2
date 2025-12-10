@@ -70,6 +70,32 @@ def api_sync_srp(request):
     
     return JsonResponse({'success': True, 'message': 'Sync started in background. Check back in a few minutes.'})
 
+@login_required
+@user_passes_test(can_manage_srp)
+@require_POST
+def api_update_transaction_category(request):
+    """
+    Updates the manual category for a specific wallet journal entry.
+    """
+    try:
+        data = json.loads(request.body)
+        entry_id = data.get('entry_id')
+        category = data.get('category')
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'})
+
+    if not entry_id:
+        return JsonResponse({'success': False, 'error': 'Entry ID required'})
+
+    # Get transaction (Using entry_id which is the unique ESI ID)
+    transaction = get_object_or_404(CorpWalletJournal, entry_id=entry_id)
+    
+    # Update
+    transaction.custom_category = category
+    transaction.save()
+    
+    return JsonResponse({'success': True})
+
 # --- DASHBOARD ---
 
 @login_required
@@ -109,7 +135,7 @@ def api_srp_data(request):
     net_change = total_income + total_outcome
 
     # 3. Process Data for Charts
-    chart_data = qs.values('amount', 'date', 'ref_type', 'first_party_name', 'second_party_name').order_by('date')
+    chart_data = qs.values('amount', 'date', 'ref_type', 'first_party_name', 'second_party_name', 'custom_category').order_by('date')
     
     monthly_stats = {}
     top_payers = {}
@@ -126,12 +152,17 @@ def api_srp_data(request):
         if amt > 0: monthly_stats[month_key]['in'] += amt
         else: monthly_stats[month_key]['out'] += abs(amt)
 
-        # Ref Types
-        r_type = row['ref_type'].replace('_', ' ').title()
-        if amt > 0:
-            ref_type_breakdown['in'][r_type] = ref_type_breakdown['in'].get(r_type, 0) + amt
+        # Ref Types (Prefer custom category if set)
+        category_label = row['custom_category']
+        if not category_label:
+            category_label = row['ref_type'].replace('_', ' ').title()
         else:
-            ref_type_breakdown['out'][r_type] = ref_type_breakdown['out'].get(r_type, 0) + abs(amt)
+            category_label = category_label.replace('_', ' ').title()
+
+        if amt > 0:
+            ref_type_breakdown['in'][category_label] = ref_type_breakdown['in'].get(category_label, 0) + amt
+        else:
+            ref_type_breakdown['out'][category_label] = ref_type_breakdown['out'].get(category_label, 0) + abs(amt)
 
         # Payers
         if row['ref_type'] == 'player_donation' and amt > 0:
@@ -145,8 +176,10 @@ def api_srp_data(request):
             timeline_payers[payer][day_key] = timeline_payers[payer].get(day_key, 0) + amt
 
     # 4. Transaction Table (Limit 500)
+    # Added entry_id and custom_category
     recent_transactions = list(qs.order_by('-date')[:500].values(
-        'date', 'division', 'amount', 'first_party_name', 'second_party_name', 'ref_type', 'reason'
+        'entry_id', 'date', 'division', 'amount', 'first_party_name', 
+        'second_party_name', 'ref_type', 'reason', 'custom_category'
     ))
 
     return JsonResponse({

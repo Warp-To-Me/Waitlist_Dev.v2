@@ -243,10 +243,14 @@ class CorpWalletJournal(models.Model):
     # Enriched Data (Resolved Names)
     first_party_name = models.CharField(max_length=255, blank=True)
     second_party_name = models.CharField(max_length=255, blank=True)
+    
+    # NEW: Custom Category for manual tracking / historical import (Index 17 in SQL)
+    custom_category = models.CharField(max_length=50, blank=True, null=True, db_index=True)
 
     class Meta:
         ordering = ['-date']
         indexes = [
             models.Index(fields=['date', 'division']),
             models.Index(fields=['ref_type']),
+            models.Index(fields=['custom_category']), # Index for analytics
         ]

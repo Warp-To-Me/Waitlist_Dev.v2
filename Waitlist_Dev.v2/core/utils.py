@@ -36,7 +36,7 @@ ROLES_FC = [
     'Fleet Commander', 'Training FC', 'Assault FC'
 ]
 
-ROLES_MANAGEMENT = ROLE_HIERARCHY_DEFAULT[:11] # Covers up to Resident
+ROLES_MANAGEMENT = ROLE_HIERARCHY_DEFAULT[:10] # Covers up to Resident
 
 # --- CAPABILITY REGISTRY ---
 SYSTEM_CAPABILITIES = [

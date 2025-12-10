@@ -37,10 +37,12 @@ class FleetConsumer(AsyncWebsocketConsumer):
             self.overview_task = asyncio.create_task(self.poll_fleet_overview())
 
     async def disconnect(self, close_code):
+        # FIX: Cancel the task immediately but do NOT await it.
+        # Awaiting a cancelled sync_to_async task can block the disconnect flow 
+        # if the underlying thread is busy with I/O (ESI calls), triggering 
+        # "Application instance took too long to shut down" warnings.
         if hasattr(self, 'overview_task'):
             self.overview_task.cancel()
-            try: await self.overview_task
-            except asyncio.CancelledError: pass
 
         await self.channel_layer.group_discard(
             self.room_group_name,

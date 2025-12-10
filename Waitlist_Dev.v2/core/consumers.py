@@ -23,10 +23,9 @@ class SystemMonitorConsumer(AsyncWebsocketConsumer):
         self.keep_running = False
         if hasattr(self, 'task'):
             self.task.cancel()
-            try:
-                await self.task
-            except asyncio.CancelledError:
-                pass
+            # FIX: Do not await task here. 
+            # try: await self.task
+            # except asyncio.CancelledError: pass
 
     async def send_status_updates(self):
         while self.keep_running:

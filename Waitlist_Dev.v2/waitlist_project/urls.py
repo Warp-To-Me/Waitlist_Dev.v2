@@ -24,6 +24,9 @@ urlpatterns = [
     path('management/srp/config/', views_srp.srp_config, name='srp_config'),
     path('api/mgmt/srp/set_source/', views_srp.api_set_srp_source, name='api_set_srp_source'),
     path('api/mgmt/srp/sync/', views_srp.api_sync_srp, name='api_sync_srp'),
+
+    # Update SRP Category Endpoint
+    path('api/mgmt/srp/update_category/', views_srp.api_update_transaction_category, name='api_update_transaction_category'),
     
     # --- SRP DASHBOARD ---
     path('srp/dashboard/', views_srp.srp_dashboard, name='srp_dashboard'),
