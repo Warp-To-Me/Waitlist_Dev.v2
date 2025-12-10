@@ -34,8 +34,9 @@
         </div>
     </div>
 
-    <!-- FILTER BAR (Fixed: Added shrink-0, relative, z-30, and opaque background) -->
-    <div class="px-6 py-3 border-b border-white/5 bg-slate-900 flex-shrink-0 flex flex-wrap gap-2 items-center relative z-30 overflow-x-auto no-scrollbar shadow-md">
+    <!-- FILTER BAR (Glassmorphic Update) -->
+    <!-- Changed bg-slate-900 -> bg-slate-900/80 backdrop-blur-md -->
+    <div class="px-6 py-3 border-b border-white/5 bg-slate-900/80 backdrop-blur-md flex-shrink-0 flex flex-wrap gap-2 items-center relative z-30 overflow-x-auto no-scrollbar shadow-md">
         <!-- Clear Filter -->
         <button onclick="clearHistoryFilters()" class="p-1.5 rounded-md border border-red-500/30 text-red-400 hover:bg-red-500/20 transition mr-2" title="Clear Filters">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -185,7 +186,7 @@
 
                 <!-- Right: Analysis -->
                 <div class="md:col-span-2 glass-panel p-4 overflow-y-auto custom-scrollbar border-white/5 bg-slate-900/50" id="hist-slots">
-                    <div class="flex items-center justify-center h-full text-slate-500 animate-pulse">Loading snapshot...</div>
+                    <div class="flex items-center justify-center h-full text-slate-500 animate-pulse">Retrieving archive...</div>
                 </div>
             </div>
         </div>

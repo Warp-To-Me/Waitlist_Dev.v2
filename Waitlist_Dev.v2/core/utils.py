@@ -6,6 +6,7 @@ from datetime import timedelta
 from django.db.models import Count, Q 
 from waitlist_project.celery import app as celery_app
 from django.contrib.auth.models import Group
+from django.core.cache import cache
 
 from pilot_data.models import EveCharacter, EsiHeaderCache, ItemType, ItemGroup, SkillHistory
 
@@ -52,6 +53,14 @@ SYSTEM_CAPABILITIES = [
     {"category": "Fleet Operations", "name": "View Fleet Overview", "desc": "See the live fleet composition sidebar on the dashboard.", "roles": ROLES_MANAGEMENT},
     {"category": "General", "name": "Management Access", "desc": "Access the Management Dashboard (limited view).", "roles": ROLES_MANAGEMENT},
     {"category": "General", "name": "Join Waitlists", "desc": "X-Up for fleets.", "roles": ROLE_HIERARCHY_DEFAULT}
+]
+
+# --- BACKGROUND TASK CONFIG ---
+# Only these endpoints are processed by the background scheduler.
+# We filter the status page to match this list so we don't show "Fleet" calls as queued.
+BACKGROUND_ENDPOINTS = [
+    'online', 'skills', 'queue', 'ship', 'wallet', 
+    'lp', 'implants', 'public_info', 'history'
 ]
 
 # --- DYNAMIC HIERARCHY HELPERS ---
@@ -140,12 +149,15 @@ def get_system_status():
         queue_length = 0
 
     # 2. Inspect Celery Workers
-    inspector = celery_app.control.inspect(timeout=0.5)
+    # FIX: Increased timeout from 0.5 to 1.0 to reduce "jumping" stats
+    inspector = celery_app.control.inspect(timeout=1.0)
     
     workers = {}
     active_tasks = {}
     reserved_tasks = {}
     stats = {}
+    
+    # Calculated below
     total_processed = 0
 
     try:
@@ -159,14 +171,64 @@ def get_system_status():
         if not redis_error:
             redis_error = f"Celery Inspect Error: {str(e)}"
 
+    # --- ENRICHMENT STEP: Resolve Character Names for Active Tasks ---
+    char_name_map = {}
+    
+    if active_tasks:
+        all_char_ids = set()
+        for worker_tasks in active_tasks.values():
+            for task in worker_tasks:
+                # Look for refresh_character_task or similar variants
+                if 'refresh_character' in task.get('name', ''):
+                    args = task.get('args', [])
+                    if args and len(args) > 0:
+                        try:
+                            # 1. Get Char ID
+                            char_id = int(args[0])
+                            all_char_ids.add(char_id)
+                            task['enriched_char_id'] = char_id
+                            
+                            # 2. Format Info (Endpoints)
+                            endpoints = args[1] if len(args) > 1 else None
+                            force = args[2] if len(args) > 2 else False
+                            
+                            info_str = ""
+                            if force: info_str += "[FORCED] "
+                            
+                            if endpoints is None:
+                                info_str += "Full Update"
+                            else:
+                                # Clean up list string: ['skills', 'wallet'] -> skills, wallet
+                                ep_str = str(endpoints).replace("'", "").replace("[", "").replace("]", "")
+                                info_str += f"Partial: {ep_str}"
+                                
+                            task['enriched_info'] = info_str
+                        except (ValueError, TypeError, IndexError):
+                            pass
+        
+        # Bulk Fetch Names
+        if all_char_ids:
+            found = EveCharacter.objects.filter(character_id__in=list(all_char_ids)).values('character_id', 'character_name')
+            for f in found:
+                char_name_map[f['character_id']] = f['character_name']
+
+    # --- WORKER DATA CONSTRUCTION ---
     worker_data = []
+    current_raw_processed = 0
+
     if workers:
         for worker_name, response in workers.items():
             w_active = active_tasks.get(worker_name, [])
             w_reserved = reserved_tasks.get(worker_name, [])
             w_stats = stats.get(worker_name, {})
             w_total = sum(w_stats.get('total', {}).values())
-            total_processed += w_total
+            
+            # Apply names to tasks
+            for task in w_active:
+                if 'enriched_char_id' in task:
+                    task['enriched_name'] = char_name_map.get(task['enriched_char_id'], 'Unknown Pilot')
+            
+            current_raw_processed += w_total
             
             worker_data.append({
                 'name': worker_name,
@@ -178,6 +240,22 @@ def get_system_status():
                 'pid': w_stats.get('pid', 'N/A'),
                 'processed': w_total
             })
+
+    # --- STABILIZATION FIX ---
+    # Use Cache to persist the 'Total Processed' count if inspection fails/timeouts.
+    # This prevents the UI card from flashing "0" during minor blips.
+    cache_key_proc = 'monitor_total_processed_stable'
+    cached_total = cache.get(cache_key_proc) or 0
+    
+    if workers:
+        # We have live data
+        total_processed = current_raw_processed
+        # Only update cache if we have a valid number
+        if total_processed > 0:
+            cache.set(cache_key_proc, total_processed, timeout=3600)
+    else:
+        # Inspection failed or returned empty - fallback to cache to hide the glitch
+        total_processed = cached_total
 
     # 3. ESI TOKEN HEALTH & USER STATS
     total_characters = EveCharacter.objects.count()
@@ -212,6 +290,7 @@ def get_system_status():
 
     # --- A. READY TO QUEUE (Active Queue) ---
     raw_queued = EsiHeaderCache.objects.filter(
+        endpoint_name__in=BACKGROUND_ENDPOINTS, # FILTER: Only show what workers actually process
         expires__lte=now
     ).filter(
         Q(endpoint_name='online') | 
@@ -237,6 +316,7 @@ def get_system_status():
 
     # --- B. DELAYED (Throttled) ---
     delayed_breakdown = EsiHeaderCache.objects.filter(
+        endpoint_name__in=BACKGROUND_ENDPOINTS, # FILTER: Only show what workers actually process
         expires__lte=now
     ).exclude(
         Q(endpoint_name='online') | 
@@ -245,6 +325,19 @@ def get_system_status():
     ).values('endpoint_name').annotate(
         pending_count=Count('id')
     ).order_by('-pending_count')
+
+    # NEW: Fetch ESI Status
+    from esi_calls.token_manager import check_esi_status
+    esi_status_bool = check_esi_status()
+
+    # --- NEW: VISUAL LOAD CALCULATION ---
+    # Treats 100 tasks as 100% capacity for visual scaling
+    system_load_percent = min(int(queue_length), 100) 
+    
+    # Calculate HSL Hue: 120 (Green) -> 0 (Red)
+    # Formula: 120 - (percent * 1.2)
+    load_hue = int(120 - (system_load_percent * 1.2))
+    if load_hue < 0: load_hue = 0
 
     return {
         'redis_status': redis_status,
@@ -259,10 +352,13 @@ def get_system_status():
         'stale_count': stale_count,
         'invalid_token_count': invalid_token_count,
         'users_online_count': users_online_count,
-        'active_30d_count': active_30d_count, # NEW
+        'active_30d_count': active_30d_count, 
         'esi_health_percent': esi_health_percent,
         'queued_breakdown': queued_breakdown,     
         'delayed_breakdown': delayed_breakdown,   
+        'esi_server_status': esi_status_bool,
+        'system_load_percent': system_load_percent, # PASSED TO TEMPLATE
+        'load_hue': load_hue # PASSED TO TEMPLATE
     }
 
 # --- DATA BUILDER HELPER (Moved from views.py) ---

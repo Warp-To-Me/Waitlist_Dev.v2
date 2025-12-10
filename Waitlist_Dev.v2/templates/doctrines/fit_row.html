@@ -1,5 +1,5 @@
-<!-- FIXED: Replaced hover:border-amber-500 with hover:border-brand-500 -->
-<div class="fit-row group flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-slate-800/80 border-l-4 border-transparent hover:border-brand-500 hover:bg-slate-800 rounded transition cursor-pointer shadow-sm hover:shadow-lg mb-1"
+<!-- Glassmorphic Fit Row -->
+<div class="fit-row group flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-slate-900/40 backdrop-blur-sm border border-white/5 border-l-4 border-l-transparent hover:border-l-brand-500 hover:bg-slate-800/50 rounded-lg transition cursor-pointer shadow-sm hover:shadow-lg mb-1"
      onclick="openFit({{ fit.id }})"
      data-search="{{ fit.ship_type.type_name }} {{ fit.name }} {{ fit.description }} {% for tag in fit.tags.all %}{{ tag.name }} {% endfor %}">
 

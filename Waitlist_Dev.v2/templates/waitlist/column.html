@@ -1,11 +1,11 @@
-﻿<div class="w-72 flex flex-col bg-slate-800/50 rounded-lg border border-slate-700/50 shadow-lg h-full flex-shrink-0">
+﻿<div class="w-72 flex flex-col bg-slate-900/40 backdrop-blur-md rounded-xl border border-white/10 shadow-2xl h-full flex-shrink-0">
     <!-- Header -->
-    <!-- FIXED: Mapped 'amber' to 'brand' classes for consistent theming -->
-    <div class="p-3 border-b border-slate-700 flex justify-between items-center bg-slate-800 rounded-t-lg
+    <!-- Maintained amber/brand logic, updated base bg to slate-900/60 for contrast -->
+    <div class="p-3 border-b border-white/10 flex justify-between items-center bg-slate-900/60 rounded-t-xl
         {% if color == 'amber' %}border-b-brand-500{% else %}border-b-green-500{% endif %} border-b-2">
         <h3 class="font-bold text-white uppercase text-sm tracking-wider">{{ title }}</h3>
-        <!-- Counter ID for JS updates (e.g., count-pending) -->
-        <span id="count-{{ id }}" class="bg-slate-700 text-slate-300 text-xs font-mono px-2 py-0.5 rounded">{{ entries|length }}</span>
+        <!-- Counter ID for JS updates -->
+        <span id="count-{{ id }}" class="bg-white/10 text-slate-300 text-xs font-mono px-2 py-0.5 rounded border border-white/5">{{ entries|length }}</span>
     </div>
 
     <!-- Cards Container -->

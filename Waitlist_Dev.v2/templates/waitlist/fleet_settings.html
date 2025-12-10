@@ -3,6 +3,18 @@
 {% block title %}Manage Fleet{% endblock %}
 
 {% block management_content %}
+<!-- CSS OVERRIDE: Fixes EVE <font size="X"> tags rendering as huge in browser -->
+<style>
+    #motd-preview font[size] {
+        font-size: inherit !important;
+    }
+
+    #motd-preview h1, #motd-preview h2, #motd-preview h3 {
+        font-size: 1.1em !important;
+        line-height: 1.2;
+    }
+</style>
+
 <div class="flex flex-col h-[calc(100vh-8rem)] bg-dark-950 overflow-hidden relative rounded-xl border border-white/5 shadow-2xl">
 
     <!-- HEADER -->
@@ -38,51 +50,60 @@
     <div class="flex-grow grid grid-cols-1 lg:grid-cols-2 gap-6 p-6 overflow-hidden">
 
         <!-- LEFT: MOTD EDITOR -->
-        <div class="glass-panel p-6 flex flex-col gap-4 overflow-y-auto custom-scrollbar">
-            <h3 class="label-text">Message of the Day (MOTD)</h3>
+        <div class="glass-panel p-6 flex flex-col h-full overflow-hidden">
 
-            <!-- Toolbar -->
-            <div class="flex gap-1 bg-black/20 p-2 rounded border border-white/5 items-center flex-wrap">
-                <button onclick="insertTag('b')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs font-bold text-slate-300 hover:text-white" title="Bold">B</button>
-                <button onclick="insertTag('i')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs italic text-slate-300 hover:text-white" title="Italic">I</button>
-                <button onclick="insertTag('u')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs underline text-slate-300 hover:text-white" title="Underline">U</button>
-                <button onclick="insertTag('br')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs text-slate-300 hover:text-white" title="Line Break">&crarr;</button>
+            <!-- Controls (Fixed Top) -->
+            <div class="shrink-0 space-y-4 mb-2">
+                <h3 class="label-text">Message of the Day (MOTD)</h3>
 
-                <div class="w-px h-6 bg-white/10 mx-1"></div>
+                <!-- Toolbar -->
+                <div class="flex gap-1 bg-black/20 p-2 rounded border border-white/5 items-center flex-wrap">
+                    <button onclick="insertTag('b')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs font-bold text-slate-300 hover:text-white" title="Bold">B</button>
+                    <button onclick="insertTag('i')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs italic text-slate-300 hover:text-white" title="Italic">I</button>
+                    <button onclick="insertTag('u')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs underline text-slate-300 hover:text-white" title="Underline">U</button>
+                    <button onclick="insertTag('br')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs text-slate-300 hover:text-white" title="Line Break">&crarr;</button>
 
-                <!-- Fixed Colors -->
-                <button onclick="insertColor('green')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs text-green-400 hover:text-green-300" title="Green">A</button>
-                <button onclick="insertColor('red')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs text-red-400 hover:text-red-300" title="Red">A</button>
-                <button onclick="insertColor('yellow')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs text-yellow-400 hover:text-yellow-300" title="Yellow">A</button>
-                <button onclick="insertColor('blue')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs text-blue-400 hover:text-blue-300" title="Blue">A</button>
-                <button onclick="insertColor('#b2b2b2')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs text-slate-400 hover:text-white" title="Grey">A</button>
+                    <div class="w-px h-6 bg-white/10 mx-1"></div>
 
-                <div class="w-px h-6 bg-white/10 mx-1"></div>
+                    <!-- Fixed Colors -->
+                    <button onclick="insertColor('green')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs text-green-400 hover:text-green-300" title="Green">A</button>
+                    <button onclick="insertColor('red')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs text-red-400 hover:text-red-300" title="Red">A</button>
+                    <button onclick="insertColor('yellow')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs text-yellow-400 hover:text-yellow-300" title="Yellow">A</button>
+                    <button onclick="insertColor('blue')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs text-blue-400 hover:text-blue-300" title="Blue">A</button>
+                    <button onclick="insertColor('#b2b2b2')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs text-slate-400 hover:text-white" title="Grey">A</button>
 
-                <!-- Full Color Picker -->
-                <div class="relative group cursor-pointer" title="Custom Color">
-                    <button onclick="triggerColorPicker()" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs hover:bg-slate-700 flex items-center justify-center">
-                        <span class="text-lg leading-none">🎨</span>
-                    </button>
-                    <input type="color" id="color-picker" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full" onchange="insertColor(this.value)">
+                    <div class="w-px h-6 bg-white/10 mx-1"></div>
+
+                    <!-- Full Color Picker -->
+                    <div class="relative group cursor-pointer" title="Custom Color">
+                        <button onclick="triggerColorPicker()" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs hover:bg-slate-700 flex items-center justify-center">
+                            <span class="text-lg leading-none">🎨</span>
+                        </button>
+                        <input type="color" id="color-picker" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full" onchange="insertColor(this.value)">
+                    </div>
                 </div>
             </div>
 
-            <!-- Editor -->
-            <textarea id="motd-input" maxlength="4000" class="input-field flex-grow font-mono text-xs leading-relaxed resize-none p-4" placeholder="Enter fleet MOTD...">{{ fleet.motd }}</textarea>
+            <!-- Split Area (50/50) -->
+            <div class="flex-grow flex flex-col gap-4 min-h-0">
+                <!-- Editor (Top Half) -->
+                <div class="flex-1 flex flex-col min-h-0">
+                    <textarea id="motd-input" maxlength="4000" class="input-field flex-grow h-full font-mono text-[11px] leading-normal resize-none p-4" placeholder="Enter fleet MOTD...">{{ fleet.motd }}</textarea>
+                    <div class="flex justify-between items-center text-[10px] text-slate-500 mt-1 shrink-0">
+                        <span class="italic">Changes are pushed to EVE immediately.</span>
+                        <span><span id="char-count">{{ fleet.motd|length }}</span>/4000</span>
+                    </div>
+                </div>
 
-            <div class="flex justify-between items-center text-[10px] text-slate-500">
-                <span class="italic">Changes are pushed to EVE immediately.</span>
-                <span><span id="char-count">{{ fleet.motd|length }}</span>/4000</span>
-            </div>
-
-            <!-- NEW: Preview Box (Scaled Down) -->
-            <div class="mt-2 pt-2 border-t border-white/5">
-                <h4 class="label-text mb-1 flex items-center gap-2 text-[10px]">
-                    <span class="text-sm">👁️</span> Live Preview
-                </h4>
-                <!-- FIXED: Used inline style to guarantee font sizing -->
-                <div id="motd-preview" style="font-size: 10px; line-height: 1.5;" class="bg-black/40 border border-white/10 rounded p-2 text-slate-300 font-sans whitespace-pre-wrap min-h-[60px] overflow-y-auto max-h-40 shadow-inner"></div>
+                <!-- Preview (Bottom Half) -->
+                <div class="flex-1 flex flex-col min-h-0 border-t border-white/5 pt-2">
+                    <h4 class="label-text mb-1 flex items-center gap-2 text-[13px] shrink-0">
+                        <span class="text-sm">👁️</span> Live Preview
+                    </h4>
+                    <!-- Fixed Height / Split Area -->
+                    <!-- UPDATED: Changed text-[9px] to text-[10px] -->
+                    <div id="motd-preview" class="flex-grow h-full bg-black/40 border border-white/10 rounded p-2 text-slate-300 font-sans whitespace-pre-wrap overflow-y-auto shadow-inner text-[13px] leading-tight"></div>
+                </div>
             </div>
         </div>
 
@@ -108,8 +129,9 @@
 </div>
 
 <script>
+    // FIX: Changed 'let' to 'var' to prevent "Identifier 'structure' has already been declared" errors in SPA navigation
     var CSRF_TOKEN = '{{ csrf_token }}';
-    let structure = [];
+    var structure = [];
 
     // --- INITIALIZATION (Updated for SPA) ---
     function initSettings() {
@@ -184,7 +206,63 @@
         input.focus();
         input.selectionStart = start + replace.length;
         input.selectionEnd = start + replace.length;
+
         input.dispatchEvent(new Event('input')); // Triggers preview update
+    }
+
+    // --- TEMPLATE LOGIC (New) ---
+    function loadDefault() {
+        if(!confirm("Load default structure? This will replace your current configuration.")) return;
+        structure = [
+            {
+                name: "Wing 1",
+                squads: ["Squad 1", "Squad 2"]
+            }
+        ];
+        renderStructure();
+    }
+
+    function loadTemplate(tplId) {
+        if(!confirm("Apply template? This will replace your current structure and MOTD in this editor.")) return;
+        const btn = document.getElementById(`tpl-btn-${tplId}`);
+        const jsonText = btn.querySelector('.tpl-data').textContent;
+        try {
+            const data = JSON.parse(jsonText);
+            structure = data.wings;
+            const motd = data.motd || "";
+            const input = document.getElementById('motd-input');
+            if(input) {
+                input.value = motd;
+                input.dispatchEvent(new Event('input')); // Update preview/counter
+            }
+            renderStructure();
+        } catch(e) {
+            alert("Error loading template data.");
+            console.error(e);
+        }
+    }
+
+    function deleteTemplate(tplId, name) {
+        if (!confirm(`Are you sure you want to delete template "${name}"?`)) return;
+
+        fetch("{% url 'api_delete_structure_template' %}", {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': CSRF_TOKEN,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ template_id: tplId })
+        })
+        .then(r => r.json())
+        .then(d => {
+            if (d.success) {
+                const el = document.getElementById(`template-card-${tplId}`);
+                if (el) el.remove();
+            } else {
+                alert("Error deleting template: " + d.error);
+            }
+        })
+        .catch(e => alert("Network Error"));
     }
 
     // --- STRUCTURE LOGIC ---

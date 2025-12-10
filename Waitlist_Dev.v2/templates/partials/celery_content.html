@@ -1,5 +1,7 @@
-﻿<!-- ESI HEALTH STATUS -->
-<div class="glass-panel p-6 relative overflow-hidden group">
+﻿{% load humanize %}
+
+<!-- ESI HEALTH STATUS (Top Section) -->
+<div class="glass-panel p-6 relative overflow-hidden group mb-6">
     <div class="absolute -right-10 -top-10 w-40 h-40 bg-brand-500/10 rounded-full blur-3xl group-hover:bg-brand-500/20 transition duration-1000"></div>
 
     <div class="flex items-start justify-between relative z-10">
@@ -39,203 +41,272 @@
                 <span class="{% if invalid_token_count > 0 %}text-red-500{% else %}text-slate-500{% endif %} font-bold text-xl leading-none font-mono">{{ invalid_token_count }}</span>
             </div>
 
-            <!-- 3. Online (Current) -->
-            <div class="bg-white/5 p-3 rounded-lg border border-white/5 flex flex-col justify-center items-center text-center relative overflow-hidden group/item">
-                <div class="absolute inset-0 bg-green-500/0 group-hover/item:bg-green-500/10 transition duration-300"></div>
-                <span class="text-green-400 text-[10px] uppercase font-bold relative z-10">Online Now</span>
-                <span class="text-white font-bold text-xl leading-none mt-1 relative z-10 font-mono">{{ users_online_count }}</span>
+            <!-- 3. Online -->
+            <div class="bg-white/5 p-3 rounded-lg border border-white/5 flex flex-col justify-center items-center text-center">
+                <span class="label-text mb-1 text-green-400">Online Now</span>
+                <span class="text-white font-bold text-xl leading-none font-mono">{{ users_online_count }}</span>
             </div>
 
-            <!-- 4. Active (30 Days) -->
-            <div class="bg-white/5 p-3 rounded-lg border border-white/5 flex flex-col justify-center items-center text-center relative overflow-hidden group/item">
-                <div class="absolute inset-0 bg-blue-500/0 group-hover/item:bg-blue-500/10 transition duration-300"></div>
-                <span class="text-blue-400 text-[10px] uppercase font-bold relative z-10">Active (30d)</span>
-                <span class="text-white font-bold text-xl leading-none mt-1 relative z-10 font-mono">{{ active_30d_count }}</span>
+            <!-- 4. Active -->
+            <div class="bg-white/5 p-3 rounded-lg border border-white/5 flex flex-col justify-center items-center text-center">
+                <span class="label-text mb-1 text-blue-400">Active (30d)</span>
+                <span class="text-white font-bold text-xl leading-none font-mono">{{ active_30d_count }}</span>
             </div>
 
-            <!-- 5. Total Registered -->
-            <div class="bg-white/5 p-3 rounded-lg border border-white/5 flex flex-col justify-center items-center text-center relative overflow-hidden group/item">
-                <div class="absolute inset-0 bg-purple-500/0 group-hover/item:bg-purple-500/10 transition duration-300"></div>
-                <span class="text-purple-400 text-[10px] uppercase font-bold relative z-10">Total Pilots</span>
-                <span class="text-white font-bold text-xl leading-none mt-1 relative z-10 font-mono">{{ total_characters }}</span>
+            <!-- 5. Total -->
+            <div class="bg-white/5 p-3 rounded-lg border border-white/5 flex flex-col justify-center items-center text-center">
+                <span class="label-text mb-1 text-purple-400">Total Pilots</span>
+                <span class="text-white font-bold text-xl leading-none font-mono">{{ total_characters }}</span>
             </div>
-        </div>
 
-        <!-- BREAKDOWN: ACTIVE QUEUE -->
-        {% if queued_breakdown %}
-        <div class="mt-8 pt-4 border-t border-white/5">
-            <h4 class="text-blue-400 text-xs font-bold uppercase mb-4 flex items-center gap-2">
-                <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.8)]"></span>
-                Processing / In Queue
-            </h4>
-            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                {% for stat in queued_breakdown %}
-                <div class="bg-blue-500/10 p-2 rounded border border-blue-500/20 flex flex-col items-center justify-center text-center hover:bg-blue-500/20 transition">
-                    <span class="text-[10px] text-blue-300 uppercase font-mono tracking-tight mb-1">{{ stat.endpoint_name }}</span>
-                    <span class="text-lg font-bold text-white font-mono">{{ stat.pending_count }}</span>
-                </div>
-                {% endfor %}
+            <!-- 6. ESI Status -->
+            <div class="bg-white/5 p-3 rounded-lg border border-white/5 flex flex-col justify-center items-center text-center">
+                <span class="label-text mb-1">ESI Status</span>
+                {% if esi_server_status %}
+                <span class="text-green-400 font-bold text-xl leading-none font-mono flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> ONLINE
+                </span>
+                {% else %}
+                <span class="text-red-500 font-bold text-xl leading-none font-mono flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span> DOWN
+                </span>
+                {% endif %}
             </div>
         </div>
-        {% endif %}
-
-        <!-- BREAKDOWN: DELAYED (Throttled) -->
-        {% if delayed_breakdown %}
-        <div class="mt-6">
-            <h4 class="text-slate-500 text-xs font-bold uppercase mb-4 flex items-center gap-2">
-                <span class="w-2 h-2 rounded-full bg-slate-600"></span>
-                Throttled (Reduced Updates)
-            </h4>
-            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                {% for stat in delayed_breakdown %}
-                <div class="bg-white/5 p-2 rounded border border-white/5 flex flex-col items-center justify-center text-center opacity-60 hover:opacity-100 transition">
-                    <span class="text-[10px] text-slate-400 uppercase font-mono tracking-tight mb-1">{{ stat.endpoint_name }}</span>
-                    <span class="text-lg font-bold text-slate-300 font-mono">{{ stat.pending_count }}</span>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
-
-        {% if not queued_breakdown and not delayed_breakdown %}
-        <div class="mt-8 border-t border-white/5 pt-4 text-center">
-            <p class="text-slate-500 text-sm italic flex items-center justify-center gap-2">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
-                All systems synced. No pending actions.
-            </p>
-        </div>
-        {% endif %}
     </div>
 </div>
 
-<!-- REDIS STATUS GRID -->
-<div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-    <!-- Redis Card -->
-    <div class="glass-panel p-6 relative overflow-hidden group">
+<!-- INFRASTRUCTURE METRICS -->
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">
+    <!-- Redis -->
+    <div class="glass-panel p-6">
         <h2 class="label-text mb-2">Redis Broker</h2>
-        <div class="flex items-center gap-3 mb-4">
-            {% if redis_status == "ONLINE" %}
-            <span class="w-3 h-3 bg-green-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.5)]"></span>
-            <span class="text-xl font-bold text-green-400">ONLINE</span>
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                {% if redis_status == "ONLINE" %}
+                <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-lg shadow-green-500/50"></span>
+                <span class="text-lg font-bold text-green-400">ONLINE</span>
+                {% else %}
+                <span class="w-2 h-2 bg-red-600 rounded-full animate-pulse"></span>
+                <span class="text-lg font-bold text-red-400">OFFLINE</span>
+                {% endif %}
+            </div>
+            <div class="text-[10px] text-slate-500 font-mono bg-white/5 px-2 py-1 rounded">
+                {{ redis_latency|default:"<1" }}ms
+            </div>
+        </div>
+    </div>
+
+    <!-- Workers -->
+    <div class="glass-panel p-6">
+        <h2 class="label-text mb-2">Worker Nodes</h2>
+        <div class="flex items-baseline gap-2">
+            <span class="text-3xl font-bold text-white font-mono">{{ worker_count }}</span>
+            <span class="text-xs text-slate-500 uppercase tracking-wide">Active</span>
+        </div>
+    </div>
+
+    <!-- Throughput -->
+    <div class="glass-panel p-6">
+        <h2 class="label-text mb-2">Total Processed</h2>
+        <div class="flex items-baseline gap-2">
+            <span class="text-3xl font-bold text-white font-mono">{{ total_processed|intword }}</span>
+            <span class="text-xs text-slate-500 uppercase tracking-wide">Tasks</span>
+        </div>
+    </div>
+
+    <!-- Load (Derived from Queue) - NOW DYNAMIC -->
+    <div class="glass-panel p-6">
+        <h2 class="label-text mb-2">System Load</h2>
+        <div class="flex items-baseline gap-2">
+            <!-- Inline style uses HSL for smooth Green -> Red gradient -->
+            <span class="text-3xl font-bold font-mono transition-colors duration-500"
+                  style="color: hsl({{ load_hue }}, 80%, 50%)">
+                {{ system_load_percent }}%
+            </span>
+            <span class="text-xs text-slate-500 uppercase tracking-wide">Load</span>
+        </div>
+        <!-- Progress Bar -->
+        <div class="w-full bg-dark-900/50 h-1.5 mt-4 rounded-full overflow-hidden border border-white/5">
+            <div class="h-full rounded-full transition-all duration-500 shadow-[0_0_10px_currentColor]"
+                 style="width: {{ system_load_percent }}%; background-color: hsl({{ load_hue }}, 80%, 50%)"></div>
+        </div>
+    </div>
+</div>
+
+<!-- QUEUE & WORKER DASHBOARD (SPLIT LAYOUT) -->
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">
+
+    <!-- 1. ACTIVE QUEUE -->
+    <div class="glass-panel p-0 overflow-hidden flex flex-col h-fit">
+        <div class="p-4 bg-white/5 border-b border-white/5 flex justify-between items-center">
+            <h3 class="font-bold text-white flex items-center gap-2 text-sm">
+                <span class="text-lg text-blue-400">⚡</span> Active Queue
+            </h3>
+            <span class="badge badge-slate border-blue-500/30 text-blue-300">{{ queue_length }}</span>
+        </div>
+
+        <div class="overflow-y-auto custom-scrollbar max-h-96">
+            {% if queued_breakdown %}
+            <table class="w-full text-left text-xs">
+                <thead class="text-[9px] text-slate-500 font-bold uppercase bg-black/20">
+                    <tr>
+                        <th class="px-4 py-2">Task Type</th>
+                        <th class="px-4 py-2 text-right">Count</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-white/5">
+                    {% for stat in queued_breakdown %}
+                    <tr class="hover:bg-white/5 transition group">
+                        <td class="px-4 py-2.5 font-medium text-blue-200 group-hover:text-white transition">{{ stat.endpoint_name|title }}</td>
+                        <td class="px-4 py-2.5 text-right font-mono text-white">{{ stat.pending_count }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
             {% else %}
-            <span class="w-3 h-3 bg-red-600 rounded-full animate-pulse"></span>
-            <span class="text-xl font-bold text-red-400">OFFLINE</span>
+            <div class="p-8 text-center text-slate-500 text-xs italic">
+                Active queue is empty.
+            </div>
             {% endif %}
         </div>
-        <div class="text-[10px] text-slate-500 font-mono bg-dark-900/50 px-2 py-1 rounded inline-block border border-white/5">
-            Lat: <span class="text-slate-300">{{ redis_latency|default:"<1" }}ms</span>
+    </div>
+
+    <!-- 2. DELAYED / THROTTLED -->
+    <div class="glass-panel p-0 overflow-hidden flex flex-col h-fit border-slate-700/50">
+        <div class="p-4 bg-slate-900/50 border-b border-white/5 flex justify-between items-center">
+            <h3 class="font-bold text-slate-300 flex items-center gap-2 text-sm">
+                <span class="text-lg text-amber-500">⏳</span> Throttled
+            </h3>
+        </div>
+
+        <div class="overflow-y-auto custom-scrollbar max-h-96">
+            {% if delayed_breakdown %}
+            <table class="w-full text-left text-xs">
+                <thead class="text-[9px] text-slate-500 font-bold uppercase bg-black/20">
+                    <tr>
+                        <th class="px-4 py-2">Task Type</th>
+                        <th class="px-4 py-2 text-right">Count</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-white/5">
+                    {% for stat in delayed_breakdown %}
+                    <tr class="hover:bg-white/5 transition group">
+                        <td class="px-4 py-2.5 font-medium text-slate-400 group-hover:text-slate-200 transition">{{ stat.endpoint_name|title }}</td>
+                        <td class="px-4 py-2.5 text-right font-mono text-slate-300">{{ stat.pending_count }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="p-8 text-center text-slate-600 text-xs italic">
+                No delayed tasks.
+            </div>
+            {% endif %}
         </div>
     </div>
 
-    <!-- Queue Depth Card -->
-    <div class="glass-panel p-6 relative overflow-hidden group">
-        <h2 class="label-text mb-2">Queue Depth</h2>
-        <div class="flex items-baseline gap-2">
-            <span class="text-4xl font-bold font-mono {% if queue_length|default:0 > 100 %}text-red-500{% elif queue_length|default:0 > 20 %}text-brand-500{% else %}text-white{% endif %}">
-                {{ queue_length|default:"0" }}
-            </span>
-            <span class="text-xs text-slate-500 font-bold uppercase">Tasks</span>
-        </div>
-        <div class="w-full bg-dark-900/50 h-1 mt-4 rounded-full overflow-hidden">
-            <div class="bg-brand-500 h-full transition-all duration-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]" style="width: {% widthratio queue_length|default:0 100 100 %}%"></div>
-        </div>
-    </div>
-
-    <!-- Worker Count Card -->
-    <div class="glass-panel p-6 relative overflow-hidden group">
-        <h2 class="label-text mb-2">Active Workers</h2>
-        <div class="text-4xl font-bold text-white font-mono">{{ worker_count }}</div>
-        <p class="text-slate-500 text-[10px] mt-1 uppercase font-bold tracking-wide">Nodes Detected</p>
-    </div>
-
-    <!-- Total Processed Card -->
-    <div class="glass-panel p-6 relative overflow-hidden group">
-        <h2 class="label-text mb-2">Processed Total</h2>
-        <div class="text-4xl font-bold text-white font-mono">{{ total_processed }}</div>
-        <p class="text-slate-500 text-[10px] mt-1 uppercase font-bold tracking-wide">Since Restart</p>
-    </div>
-</div>
-
-<!-- WORKER NODES -->
-<div class="pt-2">
-    <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-3">
-        <span>Worker Nodes</span>
-        <span class="text-[10px] font-bold text-slate-500 bg-white/5 px-2 py-1 rounded border border-white/5 uppercase tracking-wide">Auto-refresh (1s)</span>
-    </h2>
-
-    {% if workers %}
-    <div class="grid grid-cols-1 gap-4 animate-fade-in">
+    <!-- 3. WORKER NODES (Spanning 2 columns) -->
+    <div class="lg:col-span-2 space-y-4">
+        {% if workers %}
         {% for worker in workers %}
-        <div class="glass-panel overflow-hidden hover:border-brand-500/30 transition duration-300">
-            <div class="bg-white/5 p-4 border-b border-white/5 flex flex-col md:flex-row justify-between md:items-center gap-4">
-                <div class="flex items-center gap-4">
-                    <div class="bg-dark-900 p-2.5 rounded-lg border border-white/10 text-xl">
-                        🤖
-                    </div>
-                    <div>
-                        <h3 class="font-bold text-lg text-white font-mono leading-none tracking-tight">{{ worker.name }}</h3>
-                        <div class="text-xs text-slate-500 flex gap-3 mt-1.5 font-mono items-center">
-                            <span class="bg-white/5 px-1.5 py-0.5 rounded">PID: {{ worker.pid }}</span>
-                            <span class="text-slate-700">|</span>
-                            <span>Conc: <span class="text-slate-300">{{ worker.concurrency }}</span></span>
-                            <span class="text-slate-700">|</span>
-                            <span class="text-blue-400">Processed: {{ worker.processed }}</span>
-                        </div>
-                    </div>
+        <div class="glass-panel overflow-hidden border border-white/5">
+            <!-- Worker Header -->
+            <div class="bg-slate-800/50 px-4 py-3 border-b border-white/5 flex justify-between items-center">
+                <div class="flex items-center gap-3">
+                    <div class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]"></div>
+                    <span class="font-bold text-slate-200 text-sm font-mono">{{ worker.name }}</span>
+                    <span class="text-xs text-slate-500 font-mono ml-2 opacity-50">PID: {{ worker.pid }}</span>
                 </div>
-                <span class="badge badge-green self-start md:self-center">
-                    {{ worker.status }}
-                </span>
+                <div class="flex gap-4 text-xs font-mono text-slate-400">
+                    <span>Concurrency: <span class="text-white">{{ worker.concurrency }}</span></span>
+                </div>
             </div>
 
-            <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-8 bg-dark-900/30">
-                <!-- Active Tasks -->
-                <div>
-                    <h4 class="label-text mb-3 flex items-center gap-2">
-                        <span class="w-2 h-2 bg-brand-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.8)]"></span> Active Tasks ({{ worker.active_count }})
+            <div class="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-white/5">
+
+                <!-- ACTIVE TASKS COLUMN -->
+                <div class="p-4 bg-dark-900/30 min-h-[120px]">
+                    <h4 class="text-[10px] uppercase font-bold text-slate-500 mb-3 flex items-center justify-between">
+                        <span>Active Processing</span>
+                        <span class="bg-brand-500/10 text-brand-400 px-1.5 py-0.5 rounded border border-brand-500/20 font-mono">{{ worker.active_count }}</span>
                     </h4>
+
                     {% if worker.active_tasks %}
-                    <ul class="space-y-2">
+                    <div class="space-y-2">
                         {% for task in worker.active_tasks %}
-                        <li class="bg-dark-900 p-3 rounded border-l-2 border-brand-500 text-sm shadow-lg border-t border-r border-b border-white/5">
-                            <div class="flex justify-between text-slate-200 font-bold mb-1">
-                                <span class="truncate pr-2 font-mono text-xs">{{ task.name }}</span>
-                                <span class="text-[10px] text-slate-500 whitespace-nowrap bg-white/5 px-1.5 py-0.5 rounded">{{ task.time_start|date:"H:i:s" }}</span>
+                        <div class="bg-slate-800/80 p-2.5 rounded border border-white/5 text-xs shadow-sm hover:border-brand-500/30 transition">
+
+                            {% if task.enriched_name %}
+                            <!-- CHAR REFRESH TASK LAYOUT (Rich Display) -->
+                            <div class="flex flex-col gap-1">
+                                <div class="flex justify-between items-start">
+                                    <span class="font-bold text-white truncate text-sm">
+                                        {{ task.enriched_name }}
+                                    </span>
+                                    <span class="font-mono text-brand-400 text-[10px] bg-brand-900/10 px-1 rounded border border-brand-500/10 whitespace-nowrap">
+                                        {{ task.time_start|date:"H:i:s" }}
+                                    </span>
+                                </div>
+                                <div class="flex justify-between items-center text-[10px]">
+                                    <span class="text-slate-400 font-mono">ID: {{ task.enriched_char_id }}</span>
+                                </div>
+                                <div class="text-[10px] text-blue-300 font-mono truncate border-t border-white/5 pt-1 mt-0.5">
+                                    <span class="text-slate-500">▶</span> {{ task.enriched_info }}
+                                </div>
                             </div>
-                            <div class="text-[10px] text-slate-500 font-mono truncate opacity-70">ID: {{ task.id }}</div>
-                            <div class="text-[10px] text-brand-400/80 font-mono mt-2 bg-black/40 p-1.5 rounded truncate border border-white/5">Args: {{ task.args }}</div>
-                        </li>
+
+                            {% else %}
+                            <!-- GENERIC TASK LAYOUT (Fallback) -->
+                            <div class="flex justify-between items-start mb-1">
+                                <span class="font-bold text-white truncate max-w-[140px]" title="{{ task.name }}">
+                                    {{ task.name|cut:"scheduler.tasks."|cut:"waitlist_project." }}
+                                </span>
+                                <span class="font-mono text-brand-400 text-[10px] bg-brand-900/10 px-1 rounded border border-brand-500/10">{{ task.time_start|date:"H:i:s" }}</span>
+                            </div>
+                            <div class="font-mono text-[10px] text-slate-500 truncate mt-1 bg-black/20 p-1 rounded border border-white/5" title="Args: {{ task.args }}">
+                                Args: {{ task.args|default:"[]" }}
+                            </div>
+                            {% endif %}
+
+                        </div>
                         {% endfor %}
-                    </ul>
+                    </div>
                     {% else %}
-                    <div class="text-slate-600 text-xs italic border-l-2 border-slate-800 pl-3 py-2">Idle. Waiting for work...</div>
+                    <div class="text-center py-4 text-slate-600 text-xs italic flex flex-col items-center gap-2 mt-4">
+                        <span class="text-xl opacity-20">💤</span>
+                        Worker is idle
+                    </div>
                     {% endif %}
                 </div>
 
-                <!-- Scheduled Tasks -->
-                <div>
-                    <h4 class="label-text mb-3 flex items-center gap-2">
-                        <span class="w-2 h-2 bg-blue-500 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.8)]"></span> Reserved / Prefetched ({{ worker.reserved_count }})
+                <!-- RESERVED TASKS COLUMN -->
+                <div class="p-4 bg-dark-900/30 min-h-[120px]">
+                    <h4 class="text-[10px] uppercase font-bold text-slate-500 mb-3 flex items-center justify-between">
+                        <span>Prefetched / Reserved</span>
+                        <span class="bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded border border-blue-500/20 font-mono">{{ worker.reserved_count }}</span>
                     </h4>
+
                     {% if worker.reserved_count > 0 %}
-                    <div class="text-sm text-slate-300 bg-blue-500/10 p-4 rounded border border-blue-500/20">
-                        <p class="font-bold text-blue-400 text-2xl mb-1 font-mono">{{ worker.reserved_count }}</p>
-                        <p class="text-xs text-blue-200/70 uppercase font-bold tracking-wide">Tasks buffered in memory</p>
+                    <div class="p-4 bg-blue-900/5 rounded border border-blue-500/10 text-center mt-2">
+                        <span class="text-3xl font-bold text-blue-400 font-mono block">{{ worker.reserved_count }}</span>
+                        <span class="text-[9px] text-blue-300/60 uppercase font-bold tracking-wide">Tasks Buffered</span>
                     </div>
                     {% else %}
-                    <div class="text-slate-600 text-xs italic border-l-2 border-slate-800 pl-3 py-2">No reserved tasks.</div>
+                    <div class="text-center py-4 text-slate-600 text-xs italic flex flex-col items-center gap-2 mt-4">
+                        <span class="text-xl opacity-20">📥</span>
+                        Buffer empty
+                    </div>
                     {% endif %}
                 </div>
+
             </div>
         </div>
         {% endfor %}
+        {% else %}
+        <div class="p-8 text-center border-2 border-dashed border-slate-800 rounded-xl">
+            <span class="text-slate-600 font-bold">No Workers Detected</span>
+        </div>
+        {% endif %}
     </div>
-    {% else %}
-    <div class="glass-panel border-dashed border-2 border-slate-700 p-12 text-center text-slate-500 animate-pulse bg-transparent">
-        <div class="text-4xl mb-4 grayscale opacity-30">💤</div>
-        <p class="font-bold text-lg text-slate-400">No Active Workers</p>
-        <p class="text-sm mt-2 mb-6">Start a worker to process the queue.</p>
-        <code class="bg-black/50 px-4 py-3 rounded text-brand-500 font-mono text-xs border border-brand-500/30 shadow-lg shadow-brand-900/20">celery -A waitlist_project worker -l info -P gevent</code>
-    </div>
-    {% endif %}
 </div>

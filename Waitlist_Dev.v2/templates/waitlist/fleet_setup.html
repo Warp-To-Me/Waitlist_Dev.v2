@@ -3,6 +3,18 @@
 {% block title %}Fleet Setup{% endblock %}
 
 {% block management_content %}
+<!-- CSS OVERRIDE: Fixes EVE <font size="X"> tags rendering as huge in browser -->
+<style>
+    #motd-preview font[size] {
+        font-size: inherit !important;
+    }
+
+    #motd-preview h1, #motd-preview h2, #motd-preview h3 {
+        font-size: 1.1em !important;
+        line-height: 1.2;
+    }
+</style>
+
 <div class="flex flex-col h-[calc(100vh-8rem)] bg-dark-950 overflow-hidden relative rounded-xl border border-white/5 shadow-2xl">
 
     <!-- HEADER -->
@@ -95,15 +107,16 @@
                             <input type="color" id="color-picker" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full" onchange="insertColor(this.value)">
                         </div>
                     </div>
-                    <!-- FIXED: Added maxlength="4000" -->
-                    <textarea id="motd-input" maxlength="4000" class="input-field h-40 text-xs font-mono resize-none" placeholder="Enter MOTD here... Supports HTML-like tags: <b>, <i>, <font color=''>"></textarea>
+
+                    <!-- FIXED: Reduced height to h-32 (8rem) -->
+                    <textarea id="motd-input" maxlength="4000" class="input-field h-32 text-xs font-mono resize-none" placeholder="Enter MOTD here... Supports HTML-like tags: <b>, <i>, <font color=''>"></textarea>
                     <div class="text-[10px] text-slate-500 text-right"><span id="char-count">0</span>/4000</div>
 
-                    <!-- NEW: Preview Box (Scaled Down) -->
+                    <!-- NEW: Preview Box (Matched Height h-32) -->
                     <div class="mt-2 pt-2 border-t border-white/5">
-                        <label class="label-text mb-1 text-[9px]">Preview</label>
-                        <!-- FIXED: Used inline style to guarantee font sizing -->
-                        <div id="motd-preview" style="font-size: 10px; line-height: 1.2;" class="bg-black/40 border border-white/10 rounded p-2 text-slate-300 font-sans whitespace-pre-wrap min-h-[60px] max-h-32 overflow-y-auto"></div>
+                        <label class="label-text mb-1 text-[13px]">Preview</label>
+                        <!-- FIXED: Font size 9px, Fixed height h-32, tight leading -->
+                        <div id="motd-preview" class="bg-black/40 border border-white/10 rounded p-2 text-slate-300 font-sans whitespace-pre-wrap h-32 overflow-y-auto text-[13px] leading-tight"></div>
                     </div>
                 </div>
             </div>
@@ -329,29 +342,30 @@
             let squadsHtml = '';
             wing.squads.forEach((squad, sIndex) => {
                 squadsHtml += `
-                <div class="flex items-center gap-2 mb-2">
-                    <div class="w-6 border-l-2 border-b-2 border-slate-600 h-4 -mt-4 ml-2 rounded-bl"></div>
+                <div class="flex items-center gap-2 mb-2 pl-4 relative">
+                    <div class="absolute left-2 top-0 bottom-1/2 border-l-2 border-slate-600 w-2 h-full rounded-bl"></div>
+                    <div class="w-2 border-b-2 border-slate-600 h-0 mr-1"></div>
                     <input type="text" value="${squad}"
-                           class="bg-dark-900 border border-slate-700 rounded px-2 py-1 text-xs text-white w-48 focus:border-brand-500 outline-none"
+                           class="bg-dark-900 border border-slate-700 rounded px-2 py-1 text-xs text-white w-full focus:border-brand-500 outline-none"
                            onchange="updateSquad(${wIndex}, ${sIndex}, this.value)">
-                    <button onclick="removeSquad(${wIndex}, ${sIndex})" class="text-slate-600 hover:text-red-400">×</button>
+                    <button onclick="removeSquad(${wIndex}, ${sIndex})" class="text-slate-600 hover:text-red-400 px-1">×</button>
                 </div>`;
             });
 
             wingEl.innerHTML = `
-                <div class="p-3 bg-slate-700/50 flex justify-between items-center border-b border-slate-700">
-                    <div class="flex items-center gap-2">
-                        <span class="text-slate-400 text-xs font-bold uppercase">Wing</span>
+                <div class="p-2 bg-slate-700/50 flex justify-between items-center border-b border-slate-700">
+                    <div class="flex items-center gap-2 w-full">
+                        <span class="text-slate-400 text-[10px] font-bold uppercase w-8">Wing</span>
                         <input type="text" value="${wing.name}"
-                               class="bg-transparent border-b border-transparent hover:border-slate-500 focus:border-brand-500 text-white font-bold text-sm outline-none w-48 transition px-1"
+                               class="bg-transparent border-b border-transparent hover:border-slate-500 focus:border-brand-500 text-white font-bold text-sm outline-none w-full transition px-1"
                                onchange="updateWing(${wIndex}, this.value)">
                     </div>
-                    <div class="flex gap-2 opacity-0 group-hover/wing:opacity-100 transition">
-                        <button onclick="addSquad(${wIndex})" class="text-xs bg-slate-600 hover:bg-slate-500 px-2 py-1 rounded text-white">+ Squad</button>
-                        <button onclick="removeWing(${wIndex})" class="text-xs bg-red-900/30 text-red-400 hover:bg-red-900/50 px-2 py-1 rounded border border-red-900/50">Delete</button>
+                    <div class="flex gap-1 opacity-0 group-hover/wing:opacity-100 transition shrink-0 ml-2">
+                        <button onclick="addSquad(${wIndex})" class="text-[10px] bg-slate-600 hover:bg-slate-500 px-1.5 py-0.5 rounded text-white border border-slate-500/50">+Sq</button>
+                        <button onclick="removeWing(${wIndex})" class="text-[10px] bg-red-900/30 text-red-400 hover:bg-red-900/50 px-1.5 py-0.5 rounded border border-red-900/50">Del</button>
                     </div>
                 </div>
-                <div class="p-3 bg-dark-900/30">
+                <div class="p-2 bg-dark-900/30">
                     ${squadsHtml}
                     ${wing.squads.length === 0 ? '<div class="text-[10px] text-slate-600 italic pl-8">No squads</div>' : ''}
                 </div>

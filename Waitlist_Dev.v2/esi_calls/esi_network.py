@@ -160,7 +160,17 @@ def call_esi(character, endpoint_name, url, method='GET', params=None, body=None
 
         # Handle Server Errors
         if response.status_code >= 500:
+            error_body = "No content"
+            try:
+                # Attempt to parse JSON error message if available
+                error_body = response.json()
+            except:
+                # Fallback to raw text if JSON parse fails
+                error_body = response.text or "Empty Body"
+
             print(f"  -> [{response.status_code}] ESI Server Error")
+            print(f"     Details: {error_body}")
+            
             return {'status': response.status_code, 'error': 'Server Error'}
 
         response.raise_for_status()

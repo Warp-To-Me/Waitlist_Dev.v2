@@ -3,6 +3,7 @@ import base64
 import os
 from django.utils import timezone
 from django.conf import settings
+from django.core.cache import cache
 from datetime import timedelta
 from pilot_data.models import EveCharacter, ItemType, CharacterSkill, CharacterQueue, CharacterImplant, CharacterHistory, SkillHistory, EsiHeaderCache
 from esi_calls.esi_network import call_esi
@@ -25,6 +26,43 @@ ALL_ENDPOINTS = [
 
 # List of endpoints that are pointless to check if the user is offline
 SKIP_IF_OFFLINE = [ENDPOINT_SHIP, ENDPOINT_IMPLANTS]
+
+def check_esi_status():
+    """
+    Checks EVE Online server status via ESI.
+    Returns True if online and accepting requests.
+    Caches result for 60 seconds to prevent spamming the status endpoint.
+    """
+    # 1. Check Cache
+    status = cache.get('esi_status_flag')
+    if status is not None:
+        return status
+
+    # 2. Check Endpoint
+    url = "https://esi.evetech.net/latest/status/"
+    try:
+        # Use standard requests (no auth needed) with short timeout
+        resp = requests.get(url, timeout=3)
+        
+        if resp.status_code == 200:
+            data = resp.json()
+            # If VIP is True, the server is in restricted mode (usually dev only or startup)
+            if data.get('vip') is True:
+                print("  [ESI Status] VIP Mode Enabled. Halting calls.")
+                is_healthy = False
+            else:
+                is_healthy = True
+        else:
+            print(f"  [ESI Status] Endpoint returned {resp.status_code}. Halting calls.")
+            is_healthy = False
+            
+    except Exception as e:
+        print(f"  [ESI Status] Connection failed: {e}")
+        is_healthy = False
+
+    # 3. Set Cache (Short TTL)
+    cache.set('esi_status_flag', is_healthy, timeout=60)
+    return is_healthy
 
 def check_token(character):
     if not character.refresh_token: return False
@@ -67,6 +105,10 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
     """
     Updates character data from ESI.
     """
+    # 1. Global Circuit Breaker (Check Status First)
+    if not check_esi_status():
+        return False
+
     if not check_token(character): return False
     base_url = "https://esi.evetech.net/latest/characters/{char_id}"
     char_id = character.character_id

@@ -7,7 +7,7 @@ from django.views.decorators.http import require_POST
 from django.utils import timezone
 
 from core.permissions import is_fleet_command, get_template_base, get_mgmt_context
-from waitlist_data.models import Fleet
+from waitlist_data.models import Fleet, FleetStructureTemplate
 from esi_calls.fleet_service import get_fleet_composition, sync_fleet_structure, update_fleet_settings, ESI_BASE
 from esi_calls.token_manager import check_token
 
@@ -41,10 +41,15 @@ def fleet_settings(request, token):
                 })
             initial_structure = json.dumps(clean_struct)
 
+    # NEW: Fetch Saved Templates for the Sidebar
+    fc_chars = request.user.characters.all()
+    templates = FleetStructureTemplate.objects.filter(character__in=fc_chars).prefetch_related('wings', 'wings__squads')
+
     context = {
         'fleet': fleet,
         'fc_char': fc_char,
         'initial_structure': initial_structure,
+        'templates': templates,
         'base_template': get_template_base(request)
     }
     context.update(get_mgmt_context(request.user))
