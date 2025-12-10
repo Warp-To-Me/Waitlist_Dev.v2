@@ -96,9 +96,9 @@ def api_delete_structure_template(request):
 def api_create_fleet_with_structure(request):
     """
     1. Creates Django Fleet.
-    2. Checks ESI connection.
-    3. Applies structure if valid.
-    4. Sets MOTD if provided.
+    2. Checks ESI connection (Optional).
+    3. Applies structure if valid (Optional).
+    4. Sets MOTD if provided (Optional).
     """
     try:
         data = json.loads(request.body)
@@ -106,28 +106,34 @@ def api_create_fleet_with_structure(request):
         char_id = data.get('character_id')
         structure = data.get('structure', []) 
         motd = data.get('motd', '') 
+        is_offline = data.get('is_offline', False) # NEW: Offline Mode Flag
         
         if not fleet_name or not char_id:
             return JsonResponse({'success': False, 'error': 'Missing Name or FC Selection'})
             
         fc_char = get_object_or_404(EveCharacter, character_id=char_id, user=request.user)
         
-        # 1. ESI Check
-        headers = {'Authorization': f'Bearer {fc_char.access_token}'}
         esi_fleet_id = None
-        try:
-            if check_token(fc_char):
-                resp = requests.get(f"{ESI_BASE}/characters/{fc_char.character_id}/fleet/", headers=headers, timeout=5)
-                if resp.status_code == 200:
-                    esi_fleet_id = resp.json()['fleet_id']
-                elif resp.status_code == 404:
-                    return JsonResponse({'success': False, 'error': 'You are not in a fleet in-game. Please form fleet first.'})
+        logs = []
+
+        # 1. ESI Check (Skip if Offline)
+        if not is_offline:
+            headers = {'Authorization': f'Bearer {fc_char.access_token}'}
+            try:
+                if check_token(fc_char):
+                    resp = requests.get(f"{ESI_BASE}/characters/{fc_char.character_id}/fleet/", headers=headers, timeout=5)
+                    if resp.status_code == 200:
+                        esi_fleet_id = resp.json()['fleet_id']
+                    elif resp.status_code == 404:
+                        return JsonResponse({'success': False, 'error': 'You are not in a fleet in-game. Please form fleet first or use Offline Mode.'})
+                    else:
+                        return JsonResponse({'success': False, 'error': f'ESI Error {resp.status_code}'})
                 else:
-                    return JsonResponse({'success': False, 'error': f'ESI Error {resp.status_code}'})
-            else:
-                return JsonResponse({'success': False, 'error': 'Token Expired'})
-        except Exception as e:
-            return JsonResponse({'success': False, 'error': str(e)})
+                    return JsonResponse({'success': False, 'error': 'Token Expired'})
+            except Exception as e:
+                return JsonResponse({'success': False, 'error': str(e)})
+        else:
+            logs.append("Fleet created in Offline Mode (No ESI Link).")
 
         # 2. Create Django Fleet
         fleet = Fleet.objects.create(
@@ -138,13 +144,15 @@ def api_create_fleet_with_structure(request):
             motd=motd
         )
         
-        # 3. Apply Structure
-        success, logs = sync_fleet_structure(esi_fleet_id, fc_char, structure)
-        
-        # 4. Apply MOTD
-        if motd:
-            success_motd, msg_motd = update_fleet_settings(esi_fleet_id, fc_char, motd=motd)
-            logs.append(f"MOTD Update: {msg_motd}")
+        # 3. Apply Structure (Skip if Offline)
+        if not is_offline and esi_fleet_id:
+            success, struct_logs = sync_fleet_structure(esi_fleet_id, fc_char, structure)
+            logs.extend(struct_logs)
+            
+            # 4. Apply MOTD
+            if motd:
+                success_motd, msg_motd = update_fleet_settings(esi_fleet_id, fc_char, motd=motd)
+                logs.append(f"MOTD Update: {msg_motd}")
 
         # Log results
         if logs:

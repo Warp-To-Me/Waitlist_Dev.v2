@@ -11,16 +11,24 @@
             <h1 class="heading-1 flex items-center gap-3">
                 <span class="text-3xl">📡</span> Manage Fleet: {{ fleet.name }}
             </h1>
-            <p class="text-slate-400 text-sm mt-1 font-mono">ID: {{ fleet.esi_fleet_id|default:"Not Linked" }}</p>
+            <p class="text-slate-400 text-sm mt-1 font-mono">ID: {{ fleet.esi_fleet_id|default:"Offline Mode" }}</p>
         </div>
-        <div class="flex gap-3">
-            <button onclick="closeFleet()" class="btn-danger py-2 px-6 shadow-lg shadow-red-500/20 mr-2 border-red-500/50 hover:bg-red-900/80">
+        <div class="flex gap-2 items-center">
+
+            {% if not fleet.esi_fleet_id %}
+            <button onclick="linkEsiFleet()" id="btn-link-esi" class="btn-secondary text-xs py-1.5 px-3 border-blue-500/30 text-blue-400 hover:bg-blue-500/10 shadow-lg shadow-blue-500/10">
+                <span>🔗</span> Link ESI
+            </button>
+            <div class="w-px h-6 bg-white/10 mx-1"></div>
+            {% endif %}
+
+            <button onclick="closeFleet()" class="btn-danger text-xs py-1.5 px-3 shadow-lg shadow-red-500/20 mr-1 border-red-500/50 hover:bg-red-900/80">
                 <span>☠️</span> Close Fleet
             </button>
-            <a href="{% url 'fleet_dashboard' fleet.join_token %}" class="btn-secondary text-xs">
+            <a href="{% url 'fleet_dashboard' fleet.join_token %}" class="btn-secondary text-xs py-1.5 px-3">
                 Back to Dashboard
             </a>
-            <button onclick="saveSettings()" id="save-btn" class="btn-primary py-2 px-6 shadow-lg shadow-brand-500/20">
+            <button onclick="saveSettings()" id="save-btn" class="btn-primary text-xs py-1.5 px-4 shadow-lg shadow-brand-500/20">
                 <span>💾</span> Update Fleet
             </button>
         </div>
@@ -60,12 +68,21 @@
                 </div>
             </div>
 
-            <!-- FIXED: Added maxlength="4000" and counter -->
+            <!-- Editor -->
             <textarea id="motd-input" maxlength="4000" class="input-field flex-grow font-mono text-xs leading-relaxed resize-none p-4" placeholder="Enter fleet MOTD...">{{ fleet.motd }}</textarea>
 
             <div class="flex justify-between items-center text-[10px] text-slate-500">
                 <span class="italic">Changes are pushed to EVE immediately.</span>
                 <span><span id="char-count">{{ fleet.motd|length }}</span>/4000</span>
+            </div>
+
+            <!-- NEW: Preview Box (Scaled Down) -->
+            <div class="mt-2 pt-2 border-t border-white/5">
+                <h4 class="label-text mb-1 flex items-center gap-2 text-[10px]">
+                    <span class="text-sm">👁️</span> Live Preview
+                </h4>
+                <!-- FIXED: Used inline style to guarantee font sizing -->
+                <div id="motd-preview" style="font-size: 10px; line-height: 1.2;" class="bg-black/40 border border-white/10 rounded p-2 text-slate-300 font-sans whitespace-pre-wrap min-h-[60px] overflow-y-auto max-h-40 shadow-inner"></div>
             </div>
         </div>
 
@@ -104,11 +121,21 @@
             document.getElementById('structure-container').innerHTML = '<div class="text-red-400 text-center text-xs">Error loading structure.</div>';
         }
 
-        // Char Counter
+        // Char Counter & Preview Init
         const motdInput = document.getElementById('motd-input');
-        motdInput.addEventListener('input', function() {
-            document.getElementById('char-count').innerText = this.value.length;
-        });
+        const preview = document.getElementById('motd-preview');
+        const count = document.getElementById('char-count');
+
+        function updatePreview() {
+            const val = motdInput.value;
+            count.innerText = val.length;
+            preview.innerHTML = val;
+        }
+
+        motdInput.addEventListener('input', updatePreview);
+
+        // Initial run
+        updatePreview();
     });
 
     // --- COLOR PICKER HELPER ---
@@ -132,7 +159,7 @@
         input.focus();
         input.selectionStart = start + replace.length;
         input.selectionEnd = start + replace.length;
-        input.dispatchEvent(new Event('input'));
+        input.dispatchEvent(new Event('input')); // Triggers preview update
     }
 
     function insertColor(color) {
@@ -154,7 +181,7 @@
         input.focus();
         input.selectionStart = start + replace.length;
         input.selectionEnd = start + replace.length;
-        input.dispatchEvent(new Event('input'));
+        input.dispatchEvent(new Event('input')); // Triggers preview update
     }
 
     // --- STRUCTURE LOGIC ---
@@ -302,6 +329,36 @@
             }
         })
         .catch(e => alert("Network error"));
+    }
+
+    // --- LINK ESI FLEET ---
+    function linkEsiFleet() {
+        const btn = document.getElementById('btn-link-esi');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = 'Linking...';
+        btn.disabled = true;
+
+        fetch("{% url 'api_link_esi_fleet' fleet.join_token %}", {
+            method: 'POST',
+            headers: { 'X-CSRFToken': CSRF_TOKEN }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                alert("Fleet successfully linked! ID: " + data.fleet_id);
+                // Reload to show online status and update UI
+                location.reload();
+            } else {
+                alert("Link Failed: " + data.error);
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        })
+        .catch(e => {
+            alert("Network Error");
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        });
     }
 </script>
 {% endblock %}

@@ -120,7 +120,13 @@ def manage_doctrines(request):
                     FitModule.objects.create(fit=fit, item_type=item['obj'], quantity=item['quantity'], slot=slot)
             return redirect('manage_doctrines')
     
-    categories = DoctrineCategory.objects.all()
+    # Prefetch deeply nested subcategories to ensure the dropdown has all levels available
+    categories = DoctrineCategory.objects.filter(parent__isnull=True).prefetch_related(
+        'subcategories',
+        'subcategories__subcategories',
+        'subcategories__subcategories__subcategories'
+    )
+    
     fits = DoctrineFit.objects.select_related('category', 'ship_type').prefetch_related('tags').order_by('category__name', 'order')
     tags = DoctrineTag.objects.all()
     context = { 'categories': categories, 'fits': fits, 'tags': tags, 'base_template': get_template_base(request) }

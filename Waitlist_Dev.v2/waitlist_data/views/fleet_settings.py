@@ -1,4 +1,5 @@
 import json
+import requests
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.http import JsonResponse
@@ -7,7 +8,7 @@ from django.utils import timezone
 
 from core.permissions import is_fleet_command, get_template_base, get_mgmt_context
 from waitlist_data.models import Fleet
-from esi_calls.fleet_service import get_fleet_composition, sync_fleet_structure, update_fleet_settings
+from esi_calls.fleet_service import get_fleet_composition, sync_fleet_structure, update_fleet_settings, ESI_BASE
 from esi_calls.token_manager import check_token
 
 @login_required
@@ -84,6 +85,44 @@ def api_update_fleet_settings(request, token):
                 return JsonResponse({'success': False, 'error': f"Structure sync failed: {logs}"})
 
         return JsonResponse({'success': True, 'message': ", ".join(messages) or "No changes"})
+            
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+@user_passes_test(is_fleet_command)
+@require_POST
+def api_link_esi_fleet(request, token):
+    """
+    Attempts to find the FC's current fleet in-game and link it to this Waitlist Fleet.
+    Useful for bringing an "Offline Mode" fleet Online.
+    """
+    fleet = get_object_or_404(Fleet, join_token=token)
+    
+    if fleet.esi_fleet_id:
+        return JsonResponse({'success': False, 'error': 'Fleet is already linked to ESI.'})
+
+    fc_char = fleet.commander.characters.filter(is_main=True).first() or fleet.commander.characters.first()
+    if not fc_char: 
+        return JsonResponse({'success': False, 'error': 'No FC Character found'})
+
+    if not check_token(fc_char):
+        return JsonResponse({'success': False, 'error': 'FC Token Expired/Invalid'})
+
+    try:
+        headers = {'Authorization': f'Bearer {fc_char.access_token}'}
+        resp = requests.get(f"{ESI_BASE}/characters/{fc_char.character_id}/fleet/", headers=headers, timeout=5)
+        
+        if resp.status_code == 200:
+            data = resp.json()
+            fleet.esi_fleet_id = data['fleet_id']
+            fleet.save()
+            
+            return JsonResponse({'success': True, 'fleet_id': fleet.esi_fleet_id})
+        elif resp.status_code == 404:
+            return JsonResponse({'success': False, 'error': 'You are not in a fleet in-game. Please form fleet first.'})
+        else:
+            return JsonResponse({'success': False, 'error': f'ESI Error: {resp.status_code}'})
             
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})

@@ -34,9 +34,22 @@
                     <label class="label-text">Category</label>
                     <select name="category_id" id="category_id" class="select-field">
                         {% for cat in categories %}
-                        <option value="{{ cat.id }}">{{ cat.name }} {% if cat.parent %}(Sub){% endif %}</option>
-                        {% for sub in cat.subcategories.all %}
-                        <option value="{{ sub.id }}">-- {{ sub.name }}</option>
+                        <!-- LEVEL 0: Root -->
+                        <option value="{{ cat.id }}" class="font-bold bg-slate-900">{{ cat.name }}</option>
+
+                        <!-- LEVEL 1 -->
+                        {% for l1 in cat.subcategories.all %}
+                        <option value="{{ l1.id }}" class="bg-slate-800">-- {{ l1.name }}</option>
+
+                        <!-- LEVEL 2 -->
+                        {% for l2 in l1.subcategories.all %}
+                        <option value="{{ l2.id }}" class="bg-slate-800">---- {{ l2.name }}</option>
+
+                        <!-- LEVEL 3 -->
+                        {% for l3 in l2.subcategories.all %}
+                        <option value="{{ l3.id }}" class="bg-slate-800">------ {{ l3.name }}</option>
+                        {% endfor %}
+                        {% endfor %}
                         {% endfor %}
                         {% endfor %}
                     </select>
@@ -95,7 +108,16 @@
                             <td class="px-6 py-4 font-bold text-white">{{ fit.ship_type.type_name }}</td>
                             <td class="px-6 py-4">{{ fit.name }}</td>
                             <td class="px-6 py-4">
-                                {% if fit.category.parent %}<span class="opacity-50">{{ fit.category.parent.name }} > </span>{% endif %}
+                                <!-- Deep Hierarchical Breadcrumb -->
+                                {% if fit.category.parent.parent.parent %}
+                                <span class="opacity-50 text-[10px]">{{ fit.category.parent.parent.parent.name }} > </span>
+                                {% endif %}
+                                {% if fit.category.parent.parent %}
+                                <span class="opacity-50 text-[10px]">{{ fit.category.parent.parent.name }} > </span>
+                                {% endif %}
+                                {% if fit.category.parent %}
+                                <span class="opacity-50">{{ fit.category.parent.name }} > </span>
+                                {% endif %}
                                 {{ fit.category.name }}
                             </td>
                             <td class="px-6 py-4">

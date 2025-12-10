@@ -20,6 +20,7 @@ urlpatterns = [
     path('fleet/<uuid:token>/settings/', fleet_settings.fleet_settings, name='fleet_settings'),
     path('fleet/<uuid:token>/api/settings/', fleet_settings.api_update_fleet_settings, name='api_update_fleet_settings'),
     path('api/fleet/close/<uuid:token>/', fleet_settings.api_close_fleet, name='api_close_fleet'),
+    path('api/fleet/link/<uuid:token>/', fleet_settings.api_link_esi_fleet, name='api_link_esi_fleet'), # NEW ROUTE
 
     # WAITLIST / FLEET DASHBOARD
     path('fleet/<uuid:token>/dashboard/', dashboard.fleet_dashboard, name='fleet_dashboard'),

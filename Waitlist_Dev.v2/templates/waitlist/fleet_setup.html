@@ -13,22 +13,24 @@
             </h1>
             <p class="text-slate-400 text-sm mt-1">Initialize fleet structure and mappings.</p>
         </div>
-        <div class="flex gap-3">
-            <!-- CANCEL BUTTON: Points to Fleets list, NOT Dashboard -->
-            <a href="{% url 'management_fleets' %}" class="btn-secondary text-xs">
+        <div class="flex gap-2">
+            <!-- CANCEL BUTTON -->
+            <a href="{% url 'management_fleets' %}" class="btn-secondary text-xs py-1.5 px-3">
                 Cancel
             </a>
-            <button onclick="saveTemplate()" class="btn-secondary text-xs border-brand-500/30 text-brand-400 hover:bg-brand-500/10">
+            <!-- SAVE TEMPLATE -->
+            <button onclick="saveTemplate()" class="btn-secondary text-xs py-1.5 px-3 border-brand-500/30 text-brand-400 hover:bg-brand-500/10">
                 <span>💾</span> Save Template
             </button>
-            <button onclick="launchFleet()" class="btn-primary py-2 px-6 shadow-lg shadow-brand-500/20">
+            <!-- LAUNCH FLEET -->
+            <button onclick="launchFleet()" class="btn-primary text-xs py-1.5 px-4 shadow-lg shadow-brand-500/20">
                 <span>🚀</span> Launch Fleet
             </button>
         </div>
     </div>
 
     <!-- MAIN GRID -->
-    <div class="flex-grow grid grid-cols-1 lg:grid-cols-3 gap-0 overflow-hidden">
+    <div class="flex-grow grid grid-cols-1 lg:grid-cols-2 gap-0 overflow-hidden">
 
         <!-- LEFT: CONFIGURATION -->
         <div class="bg-dark-900/50 p-6 flex flex-col gap-6 overflow-y-auto custom-scrollbar border-r border-white/5">
@@ -52,6 +54,15 @@
                             {% endfor %}
                         </select>
                     </div>
+
+                    <!-- NEW: Offline Mode Toggle -->
+                    <label class="flex items-center gap-3 p-3 rounded bg-white/5 border border-white/5 cursor-pointer group hover:bg-white/10 hover:border-white/20 transition">
+                        <input type="checkbox" id="offline-mode" class="w-4 h-4 rounded border-slate-600 bg-slate-800 text-brand-500 focus:ring-0 focus:ring-offset-0 transition cursor-pointer">
+                        <div>
+                            <span class="text-xs font-bold text-slate-300 group-hover:text-white block">Offline Mode</span>
+                            <span class="text-[10px] text-slate-500 block">Skip in-game fleet linking (Testing/Emergency)</span>
+                        </div>
+                    </label>
                 </div>
             </div>
 
@@ -62,7 +73,7 @@
                 <h3 class="label-text mb-2">Message of the Day</h3>
                 <div class="space-y-2">
                     <!-- Toolbar -->
-                    <div class="flex gap-1 flex-wrap items-center">
+                    <div class="flex gap-1 bg-black/20 p-2 rounded border border-white/5 items-center flex-wrap">
                         <button onclick="insertTag('b')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs font-bold text-slate-300 hover:text-white" title="Bold">B</button>
                         <button onclick="insertTag('i')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs italic text-slate-300 hover:text-white" title="Italic">I</button>
                         <button onclick="insertTag('u')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs underline text-slate-300 hover:text-white" title="Underline">U</button>
@@ -87,6 +98,13 @@
                     <!-- FIXED: Added maxlength="4000" -->
                     <textarea id="motd-input" maxlength="4000" class="input-field h-40 text-xs font-mono resize-none" placeholder="Enter MOTD here... Supports HTML-like tags: <b>, <i>, <font color=''>"></textarea>
                     <div class="text-[10px] text-slate-500 text-right"><span id="char-count">0</span>/4000</div>
+
+                    <!-- NEW: Preview Box (Scaled Down) -->
+                    <div class="mt-2 pt-2 border-t border-white/5">
+                        <label class="label-text mb-1 text-[9px]">Preview</label>
+                        <!-- FIXED: Used inline style to guarantee font sizing -->
+                        <div id="motd-preview" style="font-size: 10px; line-height: 1.2;" class="bg-black/40 border border-white/10 rounded p-2 text-slate-300 font-sans whitespace-pre-wrap min-h-[60px] max-h-32 overflow-y-auto"></div>
+                    </div>
                 </div>
             </div>
 
@@ -138,7 +156,7 @@
         </div>
 
         <!-- RIGHT: STRUCTURE BUILDER -->
-        <div class="lg:col-span-2 flex flex-col overflow-hidden bg-slate-900/50">
+        <div class="lg:col-span-1 flex flex-col overflow-hidden bg-slate-900/50">
             <div class="p-4 border-b border-white/5 bg-slate-900 flex justify-between items-center">
                 <h3 class="label-text mb-0 text-brand-500">Structure Preview</h3>
                 <button onclick="addWing()" class="btn-secondary py-1 px-3 text-xs bg-slate-800 border-slate-700 hover:border-white/30">
@@ -177,11 +195,20 @@
             });
         }
 
-        // Char Counter
+        // Char Counter & Preview Init
         const motdInput = document.getElementById('motd-input');
-        motdInput.addEventListener('input', function() {
-            document.getElementById('char-count').innerText = this.value.length;
-        });
+        const preview = document.getElementById('motd-preview');
+        const count = document.getElementById('char-count');
+
+        function updatePreview() {
+            const val = motdInput.value;
+            count.innerText = val.length;
+            preview.innerHTML = val;
+        }
+
+        motdInput.addEventListener('input', updatePreview);
+        // Initial run
+        updatePreview();
     });
 
     function loadDefault() {
@@ -191,8 +218,10 @@
                 squads: ["Squad 1", "Squad 2"]
             }
         ];
-        document.getElementById('motd-input').value = "";
-        document.getElementById('char-count').innerText = "0";
+        const input = document.getElementById('motd-input');
+        input.value = "";
+        // Trigger input event to update preview/counter
+        input.dispatchEvent(new Event('input'));
         renderStructure();
     }
 
@@ -203,8 +232,9 @@
             const data = JSON.parse(jsonText);
             structure = data.wings;
             const motd = data.motd || "";
-            document.getElementById('motd-input').value = motd;
-            document.getElementById('char-count').innerText = motd.length;
+            const input = document.getElementById('motd-input');
+            input.value = motd;
+            input.dispatchEvent(new Event('input')); // Update preview/counter
             renderStructure();
         } catch(e) {
             alert("Error loading template data.");
@@ -257,7 +287,7 @@
         input.selectionStart = start + replace.length;
         input.selectionEnd = start + replace.length;
 
-        // Trigger input event to update counter
+        // Trigger input event to update counter/preview
         input.dispatchEvent(new Event('input'));
     }
 
@@ -268,10 +298,12 @@
         const text = input.value;
         const selected = text.substring(start, end);
 
+        // Handle hex vs names (though we pass hex from picker)
         let hex = color;
         if(color === 'green') hex = "#00ff00";
         if(color === 'red') hex = "#ff0000";
         if(color === 'yellow') hex = "#ffff00";
+        if(color === 'blue') hex = "#00ffff";
 
         const replace = `<font color="${hex}">${selected}</font>`;
         input.value = text.substring(0, start) + replace + text.substring(end);
@@ -291,7 +323,7 @@
             const wingEl = document.createElement('div');
             wingEl.className = "bg-slate-800 rounded-lg border border-slate-700 overflow-hidden group/wing";
 
-            // Wing Header
+            // Render Squads
             let squadsHtml = '';
             wing.squads.forEach((squad, sIndex) => {
                 squadsHtml += `
@@ -397,6 +429,7 @@
         const fleetName = document.getElementById('fleet-name').value;
         const charId = document.getElementById('fc-select').value;
         const motd = document.getElementById('motd-input').value;
+        const isOffline = document.getElementById('offline-mode').checked;
 
         fetch("{% url 'api_create_fleet_with_structure' %}", {
             method: 'POST',
@@ -408,7 +441,8 @@
                 fleet_name: fleetName,
                 character_id: charId,
                 structure: structure,
-                motd: motd
+                motd: motd,
+                is_offline: isOffline
             })
         })
         .then(r => r.json())

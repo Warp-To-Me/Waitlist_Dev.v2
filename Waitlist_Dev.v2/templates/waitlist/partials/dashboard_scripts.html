@@ -429,11 +429,9 @@
 
         fetch(`/fleet/entry/api/${id}/`)
             .then(r => {
-                if (r.status === 403) {
-                    alert("Unauthorized access.");
-                    closeEntryModal();
-                    return Promise.reject("Forbidden");
-                }
+                if (r.status === 403) throw new Error("Unauthorized Access");
+                if (r.status === 500) throw new Error("Server Error (500): Check SDE Data");
+                if (!r.ok) throw new Error(`HTTP Error ${r.status}`);
                 return r.json();
             })
             .then(d => {
@@ -543,7 +541,16 @@
 
                 slotContainer.innerHTML = html;
             })
-            .catch(err => console.error(err));
+            .catch(err => {
+                console.error("Fit Inspection Error:", err);
+                slotContainer.innerHTML = `
+                    <div class="flex flex-col items-center justify-center h-48 text-center px-6">
+                        <div class="text-4xl mb-2">💥</div>
+                        <h4 class="text-red-400 font-bold mb-1">Analysis Failed</h4>
+                        <p class="text-slate-500 text-xs">${err.message || 'Server encountered an error processing this fit.'}</p>
+                    </div>
+                `;
+            });
     }
 
     // --- HELPER: Status Styles ---
