@@ -82,7 +82,7 @@
                     <span class="text-sm">👁️</span> Live Preview
                 </h4>
                 <!-- FIXED: Used inline style to guarantee font sizing -->
-                <div id="motd-preview" style="font-size: 10px; line-height: 1.2;" class="bg-black/40 border border-white/10 rounded p-2 text-slate-300 font-sans whitespace-pre-wrap min-h-[60px] overflow-y-auto max-h-40 shadow-inner"></div>
+                <div id="motd-preview" style="font-size: 10px; line-height: 1.5;" class="bg-black/40 border border-white/10 rounded p-2 text-slate-300 font-sans whitespace-pre-wrap min-h-[60px] overflow-y-auto max-h-40 shadow-inner"></div>
             </div>
         </div>
 
@@ -109,8 +109,10 @@
 
 <script>
     var CSRF_TOKEN = '{{ csrf_token }}';
+    let structure = [];
 
-    document.addEventListener('DOMContentLoaded', () => {
+    // --- INITIALIZATION (Updated for SPA) ---
+    function initSettings() {
         // Parse initial structure
         try {
             const raw = `{{ initial_structure|escapejs }}`;
@@ -126,17 +128,18 @@
         const preview = document.getElementById('motd-preview');
         const count = document.getElementById('char-count');
 
-        function updatePreview() {
-            const val = motdInput.value;
-            count.innerText = val.length;
-            preview.innerHTML = val;
+        if (motdInput) {
+            motdInput.addEventListener('input', function() {
+                const val = this.value;
+                count.innerText = val.length;
+                preview.innerHTML = val;
+            });
+            // Initial run
+            const initialVal = motdInput.value;
+            count.innerText = initialVal.length;
+            preview.innerHTML = initialVal;
         }
-
-        motdInput.addEventListener('input', updatePreview);
-
-        // Initial run
-        updatePreview();
-    });
+    }
 
     // --- COLOR PICKER HELPER ---
     function triggerColorPicker() {
@@ -185,8 +188,6 @@
     }
 
     // --- STRUCTURE LOGIC ---
-    let structure = [];
-
     function renderStructure() {
         const container = document.getElementById('structure-container');
         container.innerHTML = '';
@@ -360,5 +361,8 @@
             btn.disabled = false;
         });
     }
+
+    // Run Initialization immediately
+    initSettings();
 </script>
 {% endblock %}

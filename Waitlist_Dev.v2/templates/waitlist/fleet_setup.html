@@ -179,9 +179,7 @@
     let structure = [];
 
     // --- INITIALIZATION ---
-    document.addEventListener('DOMContentLoaded', () => {
-        loadDefault();
-
+    function initSetup() {
         // Listen for FC Selection changes to update default fleet name
         const fcSelect = document.getElementById('fc-select');
         const nameInput = document.getElementById('fleet-name');
@@ -200,16 +198,17 @@
         const preview = document.getElementById('motd-preview');
         const count = document.getElementById('char-count');
 
-        function updatePreview() {
-            const val = motdInput.value;
-            count.innerText = val.length;
-            preview.innerHTML = val;
+        if (motdInput) {
+            motdInput.addEventListener('input', function() {
+                const val = this.value;
+                count.innerText = val.length;
+                preview.innerHTML = val;
+            });
         }
 
-        motdInput.addEventListener('input', updatePreview);
-        // Initial run
-        updatePreview();
-    });
+        // Load Default Logic immediately
+        loadDefault();
+    }
 
     function loadDefault() {
         structure = [
@@ -219,9 +218,10 @@
             }
         ];
         const input = document.getElementById('motd-input');
-        input.value = "";
-        // Trigger input event to update preview/counter
-        input.dispatchEvent(new Event('input'));
+        if(input) {
+            input.value = "";
+            input.dispatchEvent(new Event('input')); // Update preview/counter
+        }
         renderStructure();
     }
 
@@ -233,8 +233,10 @@
             structure = data.wings;
             const motd = data.motd || "";
             const input = document.getElementById('motd-input');
-            input.value = motd;
-            input.dispatchEvent(new Event('input')); // Update preview/counter
+            if(input) {
+                input.value = motd;
+                input.dispatchEvent(new Event('input')); // Update preview/counter
+            }
             renderStructure();
         } catch(e) {
             alert("Error loading template data.");
@@ -254,7 +256,7 @@
             body: JSON.stringify({ template_id: tplId })
         })
         .then(r => r.json())
-        .then(data => {
+        .then(d => {
             if (data.success) {
                 const el = document.getElementById(`template-card-${tplId}`);
                 if (el) el.remove();
@@ -461,5 +463,8 @@
             btn.disabled = false;
         });
     }
+
+    // Run Initialization immediately
+    initSetup();
 </script>
 {% endblock %}
