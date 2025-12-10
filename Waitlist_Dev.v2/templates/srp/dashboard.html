@@ -8,9 +8,23 @@
 
     <!-- HEADER / FILTERS -->
     <div class="glass-panel p-4 flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-900/90 shrink-0">
-        <div>
-            <h1 class="text-lg font-bold text-white tracking-tight">Corporation Wallet Monitor</h1>
-            <p class="text-xs text-slate-400">Last Sync: {{ config.last_sync|timesince }} ago</p>
+        <div class="flex items-center gap-6">
+            <div>
+                <h1 class="text-lg font-bold text-white tracking-tight">Corporation Wallet Monitor</h1>
+                <p class="text-xs text-slate-400">Last Sync: {{ config.last_sync|timesince }} ago</p>
+            </div>
+
+            <!-- NEXT SYNC TIMER -->
+            {% if next_sync %}
+            <div class="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-black/20 border border-white/5" id="sync-timer-container">
+                <span class="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Next Sync</span>
+                <span class="text-xs font-mono text-brand-400 font-bold" id="next-sync-timer">--:--</span>
+            </div>
+            <script>
+                // Pass Django timestamp to JS
+                window.NEXT_SYNC_ISO = "{{ next_sync.isoformat }}";
+            </script>
+            {% endif %}
         </div>
 
         <div class="flex gap-4 items-center flex-wrap">
@@ -23,14 +37,14 @@
             <div class="flex gap-2 text-xs">
                 {% for i in "1234567" %}
                 <label class="flex items-center gap-1 cursor-pointer select-none">
-                    <input type="checkbox" name="div" value="{{ i }}" checked onchange="loadData()"
+                    <input type="checkbox" name="div" value="{{ i }}" checked onchange="loadData(1)"
                            class="rounded bg-slate-800 border-slate-600 text-brand-500 focus:ring-0 w-3 h-3">
                     <span class="text-slate-300">Div {{ i }}</span>
                 </label>
                 {% endfor %}
             </div>
 
-            <button onclick="loadData()" class="btn-primary py-1.5 px-4 text-xs shadow-brand-500/20">Apply</button>
+            <button onclick="loadData(1)" class="btn-primary py-1.5 px-4 text-xs shadow-brand-500/20">Apply</button>
         </div>
     </div>
 
@@ -76,9 +90,21 @@
 
     <!-- TRANSACTIONS -->
     <div class="glass-panel flex flex-col overflow-hidden min-h-[500px]">
-        <div class="p-4 border-b border-white/5 bg-slate-900/50 shrink-0">
+        <div class="p-4 border-b border-white/5 bg-slate-900/50 shrink-0 flex justify-between items-center">
             <h3 class="label-text mb-0">Recent Transactions</h3>
+
+            <!-- Rows Selector -->
+            <div class="flex items-center gap-2">
+                <span class="text-[10px] text-slate-500 uppercase font-bold">Rows:</span>
+                <select id="limit-select" onchange="loadData(1)" class="bg-black/30 border border-slate-700 text-slate-300 text-xs rounded px-2 py-1 outline-none focus:border-brand-500">
+                    <option value="10">10</option>
+                    <option value="25" selected>25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                </select>
+            </div>
         </div>
+
         <div class="overflow-auto custom-scrollbar flex-grow relative bg-slate-900/20">
             <table class="w-full text-left text-xs text-slate-400 border-collapse">
                 <thead class="bg-slate-900/95 text-[10px] uppercase font-bold sticky top-0 z-10 backdrop-blur-md shadow-sm">
@@ -94,6 +120,22 @@
                 </thead>
                 <tbody class="divide-y divide-white/5" id="tx-body"></tbody>
             </table>
+        </div>
+
+        <!-- PAGINATION CONTROLS -->
+        <div class="p-3 bg-slate-900/80 border-t border-white/5 flex justify-between items-center text-xs shrink-0" id="pagination-controls">
+            <button onclick="changePage(-1)" id="btn-prev" class="btn-secondary py-1 px-3 text-[10px] disabled:opacity-50 disabled:cursor-not-allowed">
+                &larr; Previous
+            </button>
+
+            <div class="flex items-center gap-4">
+                <span class="text-slate-500" id="page-info">Page 1 of 1</span>
+                <span class="text-slate-600 text-[10px] font-mono" id="total-count">0 entries</span>
+            </div>
+
+            <button onclick="changePage(1)" id="btn-next" class="btn-secondary py-1 px-3 text-[10px] disabled:opacity-50 disabled:cursor-not-allowed">
+                Next &rarr;
+            </button>
         </div>
     </div>
 
@@ -137,30 +179,50 @@
     var srpCharts = {};
     const CSRF_TOKEN = '{{ csrf_token }}';
 
+    // Pagination State
+    var currentPage = 1;
+    var totalPages = 1;
+
+    // Cache for delayed rendering
+    var cachedChartData = null;
+
     function initSRPDashboard() {
         console.log("Initializing SRP Dashboard...");
+
+        // START SYNC TIMER
+        if (window.NEXT_SYNC_ISO) {
+            startSyncTimer(window.NEXT_SYNC_ISO);
+        }
 
         const startEl = document.getElementById('start-date');
         if (!startEl) return; // Guard clause in case DOM is gone
 
-        // Set default dates (Current Year)
+        // Set default dates (Current Month)
         const today = new Date();
-        const firstDay = new Date(today.getFullYear(), 0, 1);
+        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1); // 1st of Current Month
         startEl.valueAsDate = firstDay;
         document.getElementById('end-date').valueAsDate = today;
 
-        loadData();
+        loadData(1);
     }
 
-    function loadData() {
+    function loadData(page = 1) {
+        currentPage = page;
         const start = document.getElementById('start-date').value;
         const end = document.getElementById('end-date').value;
+        const limit = document.getElementById('limit-select').value;
         const divs = Array.from(document.querySelectorAll('input[name="div"]:checked')).map(cb => cb.value);
 
         const params = new URLSearchParams();
         params.append('start_date', start);
         params.append('end_date', end);
+        params.append('page', page);
+        params.append('limit', limit);
         divs.forEach(d => params.append('divisions[]', d));
+
+        // Show loading state on table
+        const tbody = document.getElementById('tx-body');
+        if(tbody) tbody.style.opacity = '0.5';
 
         fetch(`{% url 'api_srp_data' %}?${params.toString()}`)
             .then(r => r.json())
@@ -169,11 +231,41 @@
                     console.error("API Error:", data.error);
                     return;
                 }
+
+                if(tbody) tbody.style.opacity = '1';
+
                 renderSummary(data.summary);
-                renderCharts(data);
                 renderTable(data.transactions);
+                updatePagination(data.pagination);
+
+                // Handle Charts (with lazy loading)
+                cachedChartData = data;
+                ensureChartsRender();
             })
-            .catch(err => console.error("Network Error:", err));
+            .catch(err => {
+                console.error("Network Error:", err);
+                if(tbody) tbody.style.opacity = '1';
+            });
+    }
+
+    function updatePagination(meta) {
+        if (!meta) return;
+
+        totalPages = meta.total_pages;
+        currentPage = meta.current_page;
+
+        document.getElementById('page-info').textContent = `Page ${meta.current_page} of ${meta.total_pages}`;
+        document.getElementById('total-count').textContent = `${meta.total_count} total entries`;
+
+        document.getElementById('btn-prev').disabled = !meta.has_previous;
+        document.getElementById('btn-next').disabled = !meta.has_next;
+    }
+
+    function changePage(delta) {
+        const newPage = currentPage + delta;
+        if (newPage > 0 && newPage <= totalPages) {
+            loadData(newPage);
+        }
     }
 
     function renderSummary(sum) {
@@ -188,10 +280,38 @@
         return parseFloat(val).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' ISK';
     }
 
-    function renderCharts(data) {
-        // Ensure Chart is available
-        if (typeof Chart === 'undefined') return;
+    // --- CHART LOADING LOGIC ---
+    function ensureChartsRender() {
+        if (typeof Chart !== 'undefined') {
+            // Library ready, render immediately
+            renderChartsInternal(cachedChartData);
+        } else {
+            // Library missing
+            const existingScript = document.querySelector('script[src*="chart.js"]');
+            if (existingScript) {
+                // Script tag exists but Chart is undefined (Still Loading)
+                // Poll until ready
+                const checkInterval = setInterval(() => {
+                    if (typeof Chart !== 'undefined') {
+                        clearInterval(checkInterval);
+                        if (cachedChartData) renderChartsInternal(cachedChartData);
+                    }
+                }, 100);
+            } else {
+                // Not requested yet, inject it
+                console.log("Fetching Chart.js...");
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/chart.js';
+                script.onload = () => {
+                    if (cachedChartData) renderChartsInternal(cachedChartData);
+                };
+                document.head.appendChild(script);
+            }
+        }
+    }
 
+    function renderChartsInternal(data) {
+        if (!data) return;
         const ctxMonthly = document.getElementById('chart-monthly');
         const ctxCat = document.getElementById('chart-cat');
         const ctxPayerC = document.getElementById('chart-payers-count');
@@ -335,22 +455,41 @@
         .then(d => {
             if(d.success) {
                 closeCategoryModal();
-                loadData(); // Reload table
+                loadData(currentPage); // Reload table on current page
             } else {
                 alert("Error updating category: " + d.error);
             }
         });
     }
 
-    // --- DEPENDENCY CHECK & START ---
-    if (typeof Chart === 'undefined') {
-        console.log("Fetching Chart.js...");
-        const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/chart.js';
-        script.onload = initSRPDashboard;
-        document.head.appendChild(script);
-    } else {
-        initSRPDashboard();
+    // --- SYNC TIMER LOGIC ---
+    function startSyncTimer(isoDateString) {
+        const timerEl = document.getElementById('next-sync-timer');
+        const target = new Date(isoDateString).getTime();
+
+        const updateTimer = () => {
+            const now = new Date().getTime();
+            const diff = target - now;
+
+            if (diff <= 0) {
+                timerEl.textContent = "Processing...";
+                timerEl.classList.add('animate-pulse', 'text-green-400');
+                timerEl.classList.remove('text-brand-400');
+                // Optional: Poll for completion or just wait
+                return;
+            }
+
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+            timerEl.textContent = `${minutes}m ${seconds}s`;
+        };
+
+        updateTimer(); // Run once immediately
+        setInterval(updateTimer, 1000);
     }
+
+    // --- INITIALIZATION START ---
+    initSRPDashboard();
 </script>
 {% endblock %}

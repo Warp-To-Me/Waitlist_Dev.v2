@@ -4,11 +4,15 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.db.models import Sum
+from django.core.paginator import Paginator
+from django.core.cache import cache # Import Cache
+from django.utils import timezone
+from datetime import timedelta
 from dateutil.parser import parse
 
 from core.permissions import get_template_base, get_mgmt_context
-from pilot_data.models import SRPConfiguration, EveCharacter, CorpWalletJournal
-from scheduler.tasks import refresh_srp_wallet_task # Import the task
+from pilot_data.models import SRPConfiguration, EveCharacter, CorpWalletJournal, EsiHeaderCache
+from scheduler.tasks import refresh_srp_wallet_task
 
 def can_manage_srp(user):
     if user.is_superuser: return True
@@ -65,10 +69,47 @@ def api_sync_srp(request):
     config = SRPConfiguration.objects.first()
     if not config: return JsonResponse({'success': False, 'error': 'No configuration found'})
     
-    # FIRE AND FORGET
-    refresh_srp_wallet_task.delay()
+    # 1. Debounce Check: Prevent spamming the button
+    # If a sync is already queued/running for this config, block the request.
+    lock_key = f"srp_sync_lock_{config.id}"
+    if cache.get(lock_key):
+        return JsonResponse({'success': True, 'message': 'Sync already scheduled or in progress.'})
+
+    # Determine execution time based on ESI Cache
+    countdown = 0
+    if config.character and config.character.corporation_id:
+        prefix = f"corp_wallet_{config.character.corporation_id}"
+        cache_entry = EsiHeaderCache.objects.filter(
+            character=config.character,
+            endpoint_name__startswith=prefix
+        ).order_by('-expires').first()
+        
+        if cache_entry and cache_entry.expires:
+            now = timezone.now()
+            if cache_entry.expires > now:
+                # Calculate seconds until expiry
+                countdown = int((cache_entry.expires - now).total_seconds())
+                # Add a small buffer (e.g. 5 seconds) to ensure ESI has updated
+                countdown += 5
+
+    # 2. Schedule Task & Set Lock
+    if countdown > 0:
+        refresh_srp_wallet_task.apply_async(countdown=countdown)
+        
+        # Lock for the duration of the wait + 30s for execution time
+        cache.set(lock_key, "queued", timeout=countdown + 30)
+        
+        msg = f"Sync scheduled in {countdown}s (respecting ESI cache)."
+    else:
+        # Immediate execution
+        refresh_srp_wallet_task.delay()
+        
+        # Lock for 60 seconds to prevent rapid-fire clicking
+        cache.set(lock_key, "processing", timeout=60)
+        
+        msg = "Sync started immediately."
     
-    return JsonResponse({'success': True, 'message': 'Sync started in background. Check back in a few minutes.'})
+    return JsonResponse({'success': True, 'message': msg})
 
 @login_required
 @user_passes_test(can_manage_srp)
@@ -102,8 +143,30 @@ def api_update_transaction_category(request):
 @user_passes_test(can_view_srp)
 def srp_dashboard(request):
     config = SRPConfiguration.objects.first()
+    
+    # Calculate Next Sync based on ESI Cache Headers (Expires)
+    next_sync = None
+    if config:
+        # 1. Try to get the actual ESI expiration time
+        if config.character and config.character.corporation_id:
+            # Matches format in wallet_service.py: corp_wallet_{id}_{div}_{page}
+            prefix = f"corp_wallet_{config.character.corporation_id}"
+            
+            cache_entry = EsiHeaderCache.objects.filter(
+                character=config.character,
+                endpoint_name__startswith=prefix
+            ).order_by('-expires').first()
+            
+            if cache_entry and cache_entry.expires:
+                next_sync = cache_entry.expires
+
+        # 2. Fallback to 1 hour if no cache headers found (e.g., first run)
+        if not next_sync and config.last_sync:
+            next_sync = config.last_sync + timedelta(hours=1)
+    
     context = {
         'config': config,
+        'next_sync': next_sync,
         'base_template': get_template_base(request)
     }
     context.update(get_mgmt_context(request.user))
@@ -123,18 +186,29 @@ def api_srp_data(request):
     end_date_str = request.GET.get('end_date')
     divisions = request.GET.getlist('divisions[]') # List of ints
     
+    # Pagination Params
+    try:
+        page_number = int(request.GET.get('page', 1))
+    except ValueError:
+        page_number = 1
+        
+    try:
+        limit = int(request.GET.get('limit', 25))
+    except ValueError:
+        limit = 25
+    
     qs = CorpWalletJournal.objects.filter(config=config)
     
     if start_date_str: qs = qs.filter(date__gte=parse(start_date_str))
     if end_date_str: qs = qs.filter(date__lte=parse(end_date_str))
     if divisions: qs = qs.filter(division__in=divisions)
 
-    # 2. Aggregates (Income/Outcome)
+    # 2. Aggregates (Income/Outcome) - CALCULATED ON FULL SET
     total_income = qs.filter(amount__gt=0).aggregate(s=Sum('amount'))['s'] or 0
     total_outcome = qs.filter(amount__lt=0).aggregate(s=Sum('amount'))['s'] or 0
     net_change = total_income + total_outcome
 
-    # 3. Process Data for Charts
+    # 3. Process Data for Charts - CALCULATED ON FULL SET
     chart_data = qs.values('amount', 'date', 'ref_type', 'first_party_name', 'second_party_name', 'custom_category').order_by('date')
     
     monthly_stats = {}
@@ -175,12 +249,24 @@ def api_srp_data(request):
             if payer not in timeline_payers: timeline_payers[payer] = {}
             timeline_payers[payer][day_key] = timeline_payers[payer].get(day_key, 0) + amt
 
-    # 4. Transaction Table (Limit 500)
-    # Added entry_id and custom_category
-    recent_transactions = list(qs.order_by('-date')[:500].values(
+    # 4. Transaction Table (Paginated)
+    full_qs = qs.order_by('-date')
+    paginator = Paginator(full_qs, limit)
+    page_obj = paginator.get_page(page_number)
+
+    paginated_transactions = list(page_obj.object_list.values(
         'entry_id', 'date', 'division', 'amount', 'first_party_name', 
         'second_party_name', 'ref_type', 'reason', 'custom_category'
     ))
+
+    pagination_meta = {
+        'current_page': page_obj.number,
+        'total_pages': paginator.num_pages,
+        'has_next': page_obj.has_next(),
+        'has_previous': page_obj.has_previous(),
+        'total_count': paginator.count,
+        'limit': limit
+    }
 
     return JsonResponse({
         'summary': {
@@ -192,5 +278,6 @@ def api_srp_data(request):
         'categories': ref_type_breakdown,
         'top_payers': top_payers,
         'timeline': timeline_payers,
-        'transactions': recent_transactions
+        'transactions': paginated_transactions,
+        'pagination': pagination_meta
     })

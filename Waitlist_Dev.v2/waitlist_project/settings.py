@@ -172,6 +172,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'scheduler.tasks.dispatch_stale_characters',
         'schedule': crontab(minute='*'), # Runs every 1 minute
     },
+    'refresh-srp-wallet-hourly': {
+        'task': 'scheduler.tasks.refresh_srp_wallet_task',
+        'schedule': crontab(minute=0), # Runs at the start of every hour
+    },
 }
 
 # 5. SAFETY & RATE LIMITS
