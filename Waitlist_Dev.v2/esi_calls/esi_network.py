@@ -6,6 +6,7 @@ from pilot_data.models import EsiHeaderCache
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from django.core.cache import cache # Import Django Cache
+import asyncio
 
 # Channels imports for broadcasting
 from asgiref.sync import async_to_sync
@@ -78,24 +79,30 @@ def _broadcast_ratelimit(user, headers):
     if payload:
         try:
             channel_layer = get_channel_layer()
-            # FIX: Check if we are already in an async loop (e.g. gevent)
-            # If so, we can't use AsyncToSync easily. 
-            # For now, we wrap it in a try/except to prevent crashing the ESI call.
-            # Ideally, we should schedule this on the event loop if one exists.
             
-            async_to_sync(channel_layer.group_send)(
-                f"user_{user.id}",
-                {
-                    "type": "user_notification",
-                    "data": payload
-                }
-            )
+            # Use safe scheduling logic to avoid blocking or deadlocks
+            try:
+                loop = asyncio.get_running_loop()
+                # If we are in an active loop (Daphne/Async Worker), schedule it
+                loop.create_task(channel_layer.group_send(
+                    f"user_{user.id}",
+                    {
+                        "type": "user_notification",
+                        "data": payload
+                    }
+                ))
+            except RuntimeError:
+                # No running loop (Standard Thread), use async_to_sync
+                async_to_sync(channel_layer.group_send)(
+                    f"user_{user.id}",
+                    {
+                        "type": "user_notification",
+                        "data": payload
+                    }
+                )
+
         except Exception as e:
-            # Log specific warning for the loop issue but don't crash
-            if "AsyncToSync" in str(e):
-                pass # Silent fail on async conflict is better than log spam
-            else:
-                print(f"Error broadcasting ratelimit: {e}")
+            print(f"Error broadcasting ratelimit: {e}")
 
 def call_esi(character, endpoint_name, url, method='GET', params=None, body=None, force_refresh=False):
     """
