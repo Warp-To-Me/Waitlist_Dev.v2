@@ -14,7 +14,7 @@
 
     <!-- Cards Container -->
     <!-- Used by JS to append/remove cards. ID format: col-pending, col-dps, etc. -->
-    <div id="col-{{ id }}" class="flex-grow overflow-y-auto p-2 custom-scrollbar space-y-2">
+    <div id="col-{{ id }}" class="flex-grow overflow-y-auto p-1 custom-scrollbar">
         {% for entry in entries %}
         {% include 'waitlist/entry_card.html' with entry=entry %}
         {% endfor %}

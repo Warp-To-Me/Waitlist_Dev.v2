@@ -1,5 +1,5 @@
 ﻿<div id="entry-{{ entry.id }}"
-     class="glass-panel p-3 relative group hover:border-brand-500/50 hover:bg-slate-800/60 transition-all duration-300 mb-2 entry-card cursor-pointer border border-white/5 shadow-lg shadow-black/20"
+     class="glass-panel p-1 relative group hover:border-brand-500/50 hover:bg-slate-800/60 transition-all duration-300 mb-0.5 entry-card cursor-pointer border border-white/5 shadow-lg shadow-black/20"
      onclick="openEntry({{ entry.id }})"
      data-entry-id="{{ entry.id }}"
      data-owner-id="{{ entry.character.user_id }}">
@@ -12,24 +12,24 @@
     </div>
 
     <!-- Pilot Info -->
-    <div class="flex items-center gap-3 mb-3">
+    <div class="flex items-center gap-3 mb-2">
         <div class="relative">
             <img src="https://images.evetech.net/characters/{{ entry.character.character_id }}/portrait?size=64"
-                 class="w-9 h-9 rounded-lg border border-white/10 shadow-sm bg-black/50" alt="">
+                 class="w-8 h-8 rounded-lg border border-white/10 shadow-sm bg-black/50" alt="">
             <!-- Optional Status Dot could go here later -->
         </div>
         <div class="flex-grow min-w-0">
             <div class="font-bold text-sm text-slate-200 truncate group-hover:text-white transition leading-none">{{ entry.character.character_name }}</div>
-            <div class="text-[10px] text-slate-500 truncate mt-1 font-medium">{{ entry.character.corporation_name }}</div>
+            <div class="text-[10px] text-slate-500 truncate mt-0.5 font-medium">{{ entry.character.corporation_name }}</div>
         </div>
     </div>
 
     <!-- Ship & Fit Section -->
-    <div class="flex items-center gap-3 bg-black/20 p-2 rounded-lg border border-white/5 relative group/fit">
+    <div class="flex items-center gap-3 bg-black/20 p-1.5 rounded-lg border border-white/5 relative group/fit">
         <!-- Ship Icon -->
         <div class="relative flex-shrink-0">
             <img src="https://images.evetech.net/types/{% firstof entry.hull.type_id entry.fit.ship_type.type_id %}/icon?size=32"
-                 class="w-8 h-8 rounded border border-white/10 bg-slate-900/50" alt="">
+                 class="w-6 h-6 rounded border border-white/10 bg-slate-900/50" alt="">
         </div>
 
         <!-- Details -->
@@ -89,7 +89,7 @@
     </div>
 
     <!-- Footer Stats -->
-    <div class="flex justify-between items-center text-[9px] text-slate-500 uppercase font-bold tracking-wider mt-2 px-1">
+    <div class="flex justify-between items-center text-[9px] text-slate-500 uppercase font-bold tracking-wider mt-1.5 px-1">
         <div class="flex items-center gap-1.5">
             <span class="opacity-50">Total</span>
             <span class="text-slate-300 font-mono">{{ entry.display_stats.total_hours|default:"0" }}h</span>
@@ -102,7 +102,7 @@
     </div>
 
     <!-- OWNER ACTIONS -->
-    <div id="owner-controls-{{ entry.id }}" class="owner-controls hidden mt-2 pt-2 border-t border-white/5 grid grid-cols-2 gap-2" onclick="event.stopPropagation()">
+    <div id="owner-controls-{{ entry.id }}" class="owner-controls hidden mt-1.5 pt-1.5 border-t border-white/5 grid grid-cols-2 gap-2" onclick="event.stopPropagation()">
         <button onclick="openUpdateModal({{ entry.id }})" class="bg-blue-600 hover:bg-blue-500 text-white text-[10px] py-1 rounded font-bold transition shadow-lg shadow-blue-500/20">
             Update
         </button>
@@ -113,7 +113,7 @@
 
     <!-- FC ACTIONS -->
     {% if is_fc %}
-    <div class="mt-2 pt-2 border-t border-white/5" id="actions-{{ entry.id }}" onclick="event.stopPropagation()">
+    <div class="mt-1.5 pt-1.5 border-t border-white/5" id="actions-{{ entry.id }}" onclick="event.stopPropagation()">
         <div class="flex gap-1.5">
             {% if entry.status == 'pending' %}
             <button onclick="sendAction({{ entry.id }}, 'approve')" class="flex-1 bg-green-600 hover:bg-green-500 text-white text-[10px] py-1 rounded font-bold transition shadow-lg shadow-green-500/20">
