@@ -9,7 +9,28 @@ from core.permissions import get_template_base, can_manage_doctrines, get_mgmt_c
 # Models
 from pilot_data.models import EveCharacter, ItemType, ItemGroup
 from waitlist_data.models import Fleet, DoctrineCategory, DoctrineFit, FitModule, DoctrineTag
+from core.models import Ban
 from core.eft_parser import EFTParser
+
+from django.db import models
+from django.utils import timezone
+
+@login_required
+def banned_view(request):
+    active_ban = Ban.objects.filter(
+        user=request.user
+    ).filter(
+        models.Q(expires_at__isnull=True) | models.Q(expires_at__gt=timezone.now())
+    ).order_by('-created_at').first()
+
+    if not active_ban:
+        return redirect('landing_page')
+
+    context = {
+        'ban': active_ban,
+        'base_template': get_template_base(request)
+    }
+    return render(request, 'banned.html', context)
 
 def landing_page(request):
     active_fleets_qs = Fleet.objects.filter(is_active=True).select_related('commander').order_by('-created_at')

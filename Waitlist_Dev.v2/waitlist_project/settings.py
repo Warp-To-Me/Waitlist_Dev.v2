@@ -82,16 +82,24 @@ WSGI_APPLICATION = 'waitlist_project.wsgi.application'
 ASGI_APPLICATION = "waitlist_project.asgi.application"
 
 # Database
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': os.getenv('DB_NAME', 'waitlist'),
-        'USER': os.getenv('DB_USER', 'root'),
-        'PASSWORD': os.getenv('DB_PASSWORD', ''),
-        'HOST': os.getenv('DB_HOST', '127.0.0.1'),
-        'PORT': os.getenv('DB_PORT', '3306'),
+if os.getenv('USE_SQLITE', 'False') == 'True':
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.mysql',
+            'NAME': os.getenv('DB_NAME', 'waitlist'),
+            'USER': os.getenv('DB_USER', 'root'),
+            'PASSWORD': os.getenv('DB_PASSWORD', ''),
+            'HOST': os.getenv('DB_HOST', '127.0.0.1'),
+            'PORT': os.getenv('DB_PORT', '3306'),
+        }
+    }
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
@@ -175,6 +183,10 @@ CELERY_BEAT_SCHEDULE = {
     'refresh-srp-wallet-hourly': {
         'task': 'scheduler.tasks.refresh_srp_wallet_task',
         'schedule': crontab(minute=0), # Runs at the start of every hour
+    },
+    'check-expired-bans-every-minute': {
+        'task': 'core.tasks.check_expired_bans',
+        'schedule': crontab(minute='*'),
     },
 }
 

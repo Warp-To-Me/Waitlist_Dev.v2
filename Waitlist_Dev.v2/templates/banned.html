@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="min-h-screen flex items-center justify-center -mt-20">
+    <div class="max-w-md w-full bg-slate-800 border border-slate-700 rounded-xl shadow-2xl p-8 text-center relative overflow-hidden">
+
+        <!-- Red Glow Background -->
+        <div class="absolute top-0 left-0 w-full h-2 bg-red-600"></div>
+        <div class="absolute -top-10 -left-10 w-32 h-32 bg-red-600/20 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="absolute -bottom-10 -right-10 w-32 h-32 bg-red-600/20 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div class="mb-6">
+            <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-red-900/30 text-red-500 mb-4 ring-1 ring-red-500/50">
+                <i class="fa-solid fa-gavel text-4xl"></i>
+            </div>
+            <h1 class="text-3xl font-bold text-white mb-2">Account Banned</h1>
+            <p class="text-slate-400">Your access to the Waitlist Dashboard has been restricted.</p>
+        </div>
+
+        <div class="bg-slate-900/50 rounded-lg p-5 border border-slate-700 text-left space-y-3 mb-6">
+            <div>
+                <span class="text-xs text-slate-500 uppercase tracking-wide font-bold">Reason</span>
+                <p class="text-slate-200 mt-1">{{ ban.reason }}</p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <span class="text-xs text-slate-500 uppercase tracking-wide font-bold">Banned On</span>
+                    <p class="text-slate-300 mt-1 text-sm">{{ ban.created_at|date:"M d, Y" }}</p>
+                </div>
+                <div>
+                    <span class="text-xs text-slate-500 uppercase tracking-wide font-bold">Expires</span>
+                    {% if ban.expires_at %}
+                        <p class="text-yellow-400 mt-1 text-sm font-medium">{{ ban.expires_at|date:"M d, Y H:i" }}</p>
+                    {% else %}
+                        <p class="text-red-500 mt-1 text-sm font-bold">PERMANENT</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="text-sm text-slate-500">
+            If you believe this is an error, please contact a Fleet Commander or Administrator on Discord.
+        </div>
+
+        <div class="mt-6 pt-6 border-t border-slate-700">
+             <a href="{% url 'profile' %}" class="block w-full py-2 px-4 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg transition-colors mb-3">
+                <i class="fa-solid fa-user mr-2"></i>View My Profile
+            </a>
+            <!-- Logout is handled in navbar but good to have a way out -->
+        </div>
+    </div>
+</div>
+{% endblock %}

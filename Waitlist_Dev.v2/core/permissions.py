@@ -64,6 +64,14 @@ def can_view_sensitive_data(user):
     if user.is_superuser: return True
     return user.groups.filter(capabilities__slug='view_sensitive_data').exists()
 
+def can_manage_bans(user):
+    if user.is_superuser: return True
+    return user.groups.filter(capabilities__slug='manage_bans').exists()
+
+def can_view_ban_audit(user):
+    if user.is_superuser: return True
+    return user.groups.filter(capabilities__slug='view_ban_audit_log').exists()
+
 def get_mgmt_context(user):
     """
     Injects the granular permission set into the template.
