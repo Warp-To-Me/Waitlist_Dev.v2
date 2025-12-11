@@ -11,86 +11,121 @@
     </div>
     {% endif %}
 
-    <!-- LEFT: Character List Area -->
-    <div class="w-full lg:w-auto lg:flex-1 lg:min-w-0 p-6 border-b lg:border-b-0 lg:border-r border-white/5 relative pt-8">
+    <!-- LEFT: Character Switcher Area -->
+    <div class="w-full lg:w-auto lg:flex-1 lg:min-w-0 p-6 border-b lg:border-b-0 lg:border-r border-white/5 relative flex flex-col justify-center">
+
+        <!-- Header Row -->
         <div class="flex justify-between items-center mb-4">
             <h2 class="text-xl font-bold text-white flex items-center gap-2">
                 👥 Pilots
                 <span class="badge badge-slate">{{ characters|length }}</span>
             </h2>
-            {% if not is_inspection_mode %}
-            <a href="{% url 'add_alt' %}" data-no-spa class="btn-primary text-xs px-3 py-1.5 shadow-lg shadow-brand-500/20 inline-flex items-center gap-2">
-                <span>+</span> Link Alt
-            </a>
-            {% endif %}
+            <div class="flex gap-2">
+                {% if not is_inspection_mode %}
+                <a href="{% url 'add_alt' %}" data-no-spa class="btn-primary text-xs px-3 py-1.5 shadow-lg shadow-brand-500/20 inline-flex items-center gap-2">
+                    <span>+</span> Link Alt
+                </a>
+                {% endif %}
+            </div>
         </div>
 
-        <!-- Scrollable Character List -->
-        <div class="relative group-container">
-            <button onclick="scrollContainer('left')" class="absolute left-0 top-1/2 -translate-y-1/2 -ml-2 lg:-ml-4 z-10 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white p-2 rounded-full border border-slate-600 shadow-xl hidden md:flex items-center justify-center transition hover:scale-110"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg></button>
+        <div class="flex flex-col gap-4">
 
-            <div id="char-scroll-container" class="flex gap-4 overflow-x-auto pb-4 pt-2 scroll-smooth custom-scrollbar">
+            <!-- ROW 1: PRIMARY PILOTS (Main & Active) -->
+            <div class="flex flex-wrap gap-4">
+
+                <!-- 1. FIND AND DISPLAY MAIN CHARACTER -->
                 {% for char in characters %}
-                <!-- ID for auto-scroll targeting -->
-                <div class="relative group flex-shrink-0" id="char-card-{{ char.character_id }}">
-                    <!-- Card Body Link -->
-                    {% if is_inspection_mode %}
-                    <a href="{% url 'management_user_inspect_char' inspect_user_id char.character_id %}" class="flex items-center gap-3 p-2 pr-4 rounded-xl border transition w-48 {% if char == active_char %}bg-white/10 border-brand-500/50 shadow-[0_0_15px_rgba(245,158,11,0.15)]{% else %}bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/10{% endif %}">
-                        {% else %}
-                        <a href="{% url 'switch_character' char.character_id %}" data-no-spa class="flex items-center gap-3 p-2 pr-4 rounded-xl border transition w-48 {% if char == active_char %}bg-white/10 border-brand-500/50 shadow-[0_0_15px_rgba(245,158,11,0.15)]{% else %}bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/10{% endif %}">
-                            {% endif %}
-
-                            <img src="https://images.evetech.net/characters/{{ char.character_id }}/portrait?size=64" class="w-10 h-10 rounded-full border border-slate-600" alt="">
-                            <div class="text-left overflow-hidden">
-                                <div class="text-sm font-bold truncate {% if char == active_char %}text-white{% else %}text-slate-400{% endif %}">{{ char.character_name }}</div>
-                                <div class="text-xs text-slate-500 flex gap-2">{% if char.is_main %}<span class="text-brand-500 font-bold">MAIN</span>{% else %}<span>Alt</span>{% endif %}</div>
-                            </div>
-                        </a>
-
-                        <!-- UNLINK BUTTON -->
-                        {% if not char.is_main and is_admin_user or not char.is_main and is_inspection_mode %}
-                        <button onclick="unlinkAlt({{ char.character_id }}, '{{ char.character_name|escapejs }}')"
-                                class="absolute -top-2 -left-2 bg-slate-800 hover:bg-red-600 text-slate-400 hover:text-white rounded-full p-1 border border-slate-600 opacity-0 group-hover:opacity-100 transition text-[10px] w-6 h-6 flex items-center justify-center shadow-md z-20"
-                                title="Unlink Character">
-                            ✖
-                        </button>
-                        {% endif %}
-
-                        <!-- VISIBILITY TOGGLE -->
-                        {% if not is_inspection_mode %}
-                        <button onclick="toggleVisibility({{ char.character_id }})"
-                                id="vis-btn-{{ char.character_id }}"
-                                class="absolute -bottom-2 -right-2 rounded-full p-1.5 border opacity-0 group-hover:opacity-100 transition shadow-md z-20 flex items-center justify-center
-                            {% if char.x_up_visible %}bg-green-600 text-white border-green-500 hover:bg-green-500{% else %}bg-slate-700 text-slate-400 border-slate-600 hover:bg-slate-600 hover:text-white{% endif %}"
-                                title="Toggle X-Up Visibility">
-                            {% if char.x_up_visible %}
-                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                            {% else %}
-                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
-                            {% endif %}
-                        </button>
-                        {% endif %}
-
-                        <!-- PROMOTE BUTTON -->
-                        {% if not char.is_main %}
-                        {% if not is_inspection_mode or is_admin_user %}
-                        <button onclick="promoteAlt({{ char.character_id }}, '{{ char.character_name|escapejs }}')"
-                                class="absolute -top-2 -right-2 bg-slate-800 hover:bg-brand-500 text-slate-400 hover:text-white rounded-full p-1 border border-slate-600 opacity-0 group-hover:opacity-100 transition text-[10px] w-6 h-6 flex items-center justify-center shadow-md z-20"
-                                title="Set as Main">
-                            ★
-                        </button>
-                        {% endif %}
-                        {% endif %}
+                {% if char.is_main %}
+                {% if char.character_id == active_char.character_id %}
+                <!-- Main is Active (Static Display) -->
+                <div class="relative group p-1.5 rounded-xl bg-gradient-to-br from-brand-500/20 to-brand-900/40 border border-brand-500/50 shadow-[0_0_15px_rgba(245,158,11,0.15)] flex items-center gap-3 pr-5 cursor-default min-w-[200px]">
+                    <img src="https://images.evetech.net/characters/{{ char.character_id }}/portrait?size=64" class="w-12 h-12 rounded-lg border border-brand-400/50 bg-dark-900" alt="">
+                    <div>
+                        <div class="text-sm font-bold text-white leading-none">{{ char.character_name }}</div>
+                        <div class="flex gap-2 mt-1">
+                            <span class="text-[9px] font-bold bg-brand-500 text-white px-1.5 rounded uppercase tracking-wider">Main</span>
+                            <span class="text-[9px] font-bold text-green-400 uppercase tracking-wider flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span> Active</span>
+                        </div>
+                    </div>
                 </div>
+                {% else %}
+                <!-- Main is NOT Active (Click to Switch) -->
+                {% if is_inspection_mode %}
+                <a href="{% url 'management_user_inspect_char' inspect_user_id char.character_id %}"
+                   {% else %}
+                            <a href="{% url 'switch_character' char.character_id %}" data-no-spa
+                            {% endif %}
+                               class="relative group p-1.5 rounded-xl bg-white/5 border border-white/10 hover:bg-brand-500/10 hover:border-brand-500/50 transition flex items-center gap-3 pr-5 min-w-[200px]">
+                                <img src="https://images.evetech.net/characters/{{ char.character_id }}/portrait?size=64" class="w-12 h-12 rounded-lg border border-slate-600 group-hover:border-brand-400 transition bg-dark-900 opacity-80 group-hover:opacity-100" alt="">
+                                <div>
+                                    <div class="text-sm font-bold text-slate-300 group-hover:text-white leading-none transition">{{ char.character_name }}</div>
+                                    <div class="flex gap-2 mt-1">
+                                        <span class="text-[9px] font-bold bg-slate-700 text-slate-300 group-hover:bg-brand-500 group-hover:text-white px-1.5 rounded uppercase tracking-wider transition">Main</span>
+                                        <span class="text-[9px] font-bold text-slate-500 group-hover:text-brand-300 uppercase tracking-wider transition">Switch</span>
+                                    </div>
+                                </div>
+                            </a>
+                        {% endif %}
+                    {% endif %}
                 {% endfor %}
+
+                <!-- 2. DISPLAY ACTIVE CHARACTER (If it is NOT Main) -->
+                {% if not active_char.is_main %}
+                    <div class="relative group p-1.5 rounded-xl bg-gradient-to-br from-slate-700/30 to-slate-800/50 border border-slate-500/50 flex items-center gap-3 pr-5 cursor-default min-w-[200px]">
+                        <img src="https://images.evetech.net/characters/{{ active_char.character_id }}/portrait?size=64" class="w-12 h-12 rounded-lg border border-slate-400/50 bg-dark-900" alt="">
+                        <div>
+                            <div class="text-sm font-bold text-white leading-none">{{ active_char.character_name }}</div>
+                            <div class="flex gap-2 mt-1">
+                                <span class="text-[9px] font-bold bg-slate-600 text-slate-300 px-1.5 rounded uppercase tracking-wider">Alt</span>
+                                <span class="text-[9px] font-bold text-green-400 uppercase tracking-wider flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span> Active</span>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+
             </div>
-            <button onclick="scrollContainer('right')" class="absolute right-0 top-1/2 -translate-y-1/2 -mr-2 lg:-mr-4 z-10 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white p-2 rounded-full border border-slate-600 shadow-xl hidden md:flex items-center justify-center transition hover:scale-110"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg></button>
+
+            <!-- ROW 2: OTHER ALTS (Quick Switch) -->
+            {% if characters|length > 1 %}
+            <div class="flex flex-wrap gap-2 items-center pt-2 border-t border-white/5">
+                <span class="text-[10px] font-bold text-slate-600 uppercase tracking-wider mr-1">Recent</span>
+
+                {% for char in characters %}
+                <!-- Show if NOT Main AND NOT Active -->
+                {% if not char.is_main and char.character_id != active_char.character_id %}
+                <!-- Limit to 8 most recent -->
+                {% if forloop.counter0 < 8 %}
+                <div class="relative group">
+                    {% if is_inspection_mode %}
+                    <a href="{% url 'management_user_inspect_char' inspect_user_id char.character_id %}"
+                       {% else %}
+                            <a href="{% url 'switch_character' char.character_id %}" data-no-spa
+                            {% endif %}
+                               class="flex items-center gap-2 p-1 pr-3 rounded-lg border border-white/5 bg-white/5 hover:bg-white/10 hover:border-white/20 transition group"
+                               title="{{ char.character_name }}">
+                                <img src="https://images.evetech.net/characters/{{ char.character_id }}/portrait?size=32" class="w-6 h-6 rounded border border-slate-600 group-hover:border-slate-400 transition" alt="">
+                                <div class="text-xs font-bold text-slate-400 group-hover:text-white truncate max-w-[80px]">{{ char.character_name }}</div>
+                            </a>
+                </div>
+                {% endif %}
+                {% endif %}
+                {% endfor %}
+
+                <!-- Search / Overflow Button -->
+                {% if characters|length > 5 %}
+                <button onclick="openPilotModal()" class="ml-auto btn-secondary text-[10px] px-2 py-1 h-8 border-white/10 hover:border-white/30 text-slate-400 hover:text-white flex items-center gap-1">
+                    <span>🔍</span> All Pilots
+                </button>
+                {% endif %}
+            </div>
+            {% endif %}
         </div>
     </div>
 
     <!-- RIGHT: Account Totals Card -->
-    <div class="w-full lg:w-80 flex-shrink-0 p-6 bg-black/20 flex flex-col justify-center pt-8">
-        <h3 class="label-text mb-4 border-b border-white/5 pb-2 flex items-center gap-2">
+    <div class="w-full lg:w-80 flex-shrink-0 p-6 bg-black/20 flex flex-col justify-center border-t lg:border-t-0 border-white/5">
+        <h3 class="label-text mb-4 pb-2 border-b border-white/5 flex items-center gap-2">
             <span>📊</span> Account Aggregate
         </h3>
 
@@ -158,13 +193,6 @@
 <!-- NORMAL PROFILE VIEW (NON-BLOCKING) -->
 <div class="glass-panel mb-8 relative overflow-hidden flex flex-col lg:flex-row">
     <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-brand-500 via-brand-400 to-brand-600"></div>
-
-    {% if not is_inspection_mode %}
-    <div id="refresh-overlay" class="hidden absolute inset-0 bg-dark-900/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center transition-all duration-300">
-        <div class="w-10 h-10 border-4 border-brand-500 border-t-transparent rounded-full animate-spin mb-3"></div>
-        <p class="text-white font-bold text-sm animate-pulse">Syncing...</p>
-    </div>
-    {% endif %}
 
     <!-- Left: Character Stats -->
     <div class="p-6 flex-grow border-b lg:border-b-0 lg:border-r border-white/5">
@@ -350,8 +378,8 @@
                         <button onclick="clearServiceFilters()" class="p-1 rounded border border-red-500/30 text-red-400 hover:bg-red-500/20 transition" title="Clear Filters">
                             <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
                         </button>
-                        <!-- Added all filters from history page -->
-                        {% for action, label, icon in "x_up|X-Up|✋,approved|Approved|✔,invited|Invited|📩,esi_join|Detected|🔗,left_waitlist|Left WL|🚪,left_fleet|Left Fleet|💨,fit_update|Update|🔄,ship_change|Reship|🚢,moved|Moved|↔,promoted|Promoted|⬆,demoted|Demoted|⬇,kicked|Kicked|🥾,denied|Denied|✖"|split_actions %}
+                        <!-- Added all filters from history page + Ban Actions -->
+                        {% for action, label, icon in "x_up|X-Up|✋,approved|Approved|✔,invited|Invited|📩,esi_join|Detected|🔗,left_waitlist|Left WL|🚪,left_fleet|Left Fleet|💨,fit_update|Update|🔄,ship_change|Reship|🚢,moved|Moved|↔,promoted|Promoted|⬆,demoted|Demoted|⬇,kicked|Kicked|🥾,denied|Denied|✖,create|Ban|🚫,remove|Lift Ban|🔓,update|Update Ban|📝,expire|Ban Expired|⌛"|split_actions %}
                         <button onclick="toggleServiceFilter('{{ action }}')"
                                 id="srv-filter-btn-{{ action }}"
                                 class="srv-filter-btn flex items-center gap-1 px-2 py-0.5 rounded border border-white/10 bg-white/5 text-[9px] uppercase font-bold text-slate-400 hover:text-white hover:border-slate-500 transition select-none"
@@ -381,6 +409,10 @@
                                 {% elif log.action == 'left_fleet' %}bg-red-500
                                 {% elif log.action == 'ship_change' %}bg-purple-500
                                 {% elif log.action == 'denied' %}bg-red-600
+                                {% elif log.action == 'create' %}bg-red-600
+                                {% elif log.action == 'remove' %}bg-green-600
+                                {% elif log.action == 'update' %}bg-yellow-500
+                                {% elif log.action == 'expire' %}bg-slate-500
                                 {% else %}bg-slate-600{% endif %} z-10"></div>
                             {% if not forloop.last %}
                             <div class="w-px bg-white/5 flex-grow h-full absolute top-2 bottom-0"></div>
@@ -400,9 +432,17 @@
                                     {% elif log.action == 'fit_update' %}FIT UPDATE
                                     {% elif log.action == 'moved' %}MOVED
                                     {% elif log.action == 'kicked' %}KICKED
+                                    {% elif log.action == 'create' %}ACCOUNT BANNED
+                                    {% elif log.action == 'remove' %}BAN LIFTED
+                                    {% elif log.action == 'update' %}BAN UPDATED
+                                    {% elif log.action == 'expire' %}BAN EXPIRED
                                     {% else %}{{ log.get_action_display|upper }}{% endif %}
                                 </span>
+                                {% if log.fleet %}
                                 <span class="text-[10px] bg-white/5 px-1.5 py-0.5 rounded text-slate-500 border border-white/5">{{ log.fleet.name }}</span>
+                                {% else %}
+                                <span class="text-[10px] bg-white/5 px-1.5 py-0.5 rounded text-slate-500 border border-white/5">SYSTEM</span>
+                                {% endif %}
                             </div>
                             <div class="text-xs text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
                                 {% if log.ship_name %}
@@ -428,150 +468,215 @@
                         </div>
                     </div>
                     {% empty %}
-                    <div class="text-center py-12 text-slate-500 italic">No fleet history found.</div>
+                    <div class="text-center py-12 text-slate-500 italic">No history found.</div>
                     {% endfor %}
+                    </tbody>
+                    </table>
                 </div>
             </div>
 
-        </div>
-    </div>
-
-    <!-- Current Skills -->
-    <div id="tab-skills" class="tab-content hidden">
-        {% if grouped_skills %}
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {% for group, skills in grouped_skills.items %}
-            <div class="glass-panel overflow-hidden border-white/5">
-                <div class="bg-white/5 px-4 py-2 border-b border-white/5 flex justify-between items-center">
-                    <h3 class="font-bold text-slate-200 text-sm">{{ group }}</h3>
-                    <span class="badge badge-slate">{{ skills|length }}</span>
-                </div>
-                <div class="p-2 space-y-1">
-                    {% for skill in skills %}
-                    <div class="flex justify-between items-center px-2 py-1.5 hover:bg-white/5 rounded group">
-                        <span class="text-sm text-slate-300 group-hover:text-white transition">{{ skill.name }}</span>
-                        <div class="flex gap-[2px]">
-                            {% for i in "12345" %}
-                            <div class="w-3 h-3 rounded-sm border border-slate-600/50 {% if forloop.counter <= skill.level %}bg-slate-200 shadow-[0_0_5px_rgba(255,255,255,0.5)]{% else %}bg-dark-900/50{% endif %}"></div>
+            <!-- Current Skills -->
+            <div id="tab-skills" class="tab-content hidden">
+                {% if grouped_skills %}
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {% for group, skills in grouped_skills.items %}
+                    <div class="glass-panel overflow-hidden border-white/5">
+                        <div class="bg-white/5 px-4 py-2 border-b border-white/5 flex justify-between items-center">
+                            <h3 class="font-bold text-slate-200 text-sm">{{ group }}</h3>
+                            <span class="badge badge-slate">{{ skills|length }}</span>
+                        </div>
+                        <div class="p-2 space-y-1">
+                            {% for skill in skills %}
+                            <div class="flex justify-between items-center px-2 py-1.5 hover:bg-white/5 rounded group">
+                                <span class="text-sm text-slate-300 group-hover:text-white transition">{{ skill.name }}</span>
+                                <div class="flex gap-[2px]">
+                                    {% for i in "12345" %}
+                                    <div class="w-3 h-3 rounded-sm border border-slate-600/50 {% if forloop.counter <= skill.level %}bg-slate-200 shadow-[0_0_5px_rgba(255,255,255,0.5)]{% else %}bg-dark-900/50{% endif %}"></div>
+                                    {% endfor %}
+                                </div>
+                            </div>
                             {% endfor %}
                         </div>
                     </div>
                     {% endfor %}
                 </div>
+                {% else %}
+                <div class="text-center py-12 text-slate-500 border-2 border-dashed border-slate-700 rounded-xl bg-white/5">
+                    <p class="mb-4">No skills loaded yet.</p>
+                </div>
+                {% endif %}
             </div>
-            {% endfor %}
-        </div>
-        {% else %}
-        <div class="text-center py-12 text-slate-500 border-2 border-dashed border-slate-700 rounded-xl bg-white/5">
-            <p class="mb-4">No skills loaded yet.</p>
+
+            <!-- Skill Queue -->
+            <div id="tab-queue" class="tab-content hidden">
+                <div class="glass-panel overflow-hidden">
+                    <table class="w-full text-sm text-left text-slate-400">
+                        <thead class="text-xs uppercase bg-white/5 text-slate-300 font-bold">
+                            <tr>
+                                <th class="px-6 py-4">Skill</th>
+                                <th class="px-6 py-4 text-center">Finished Level</th>
+                                <th class="px-6 py-4 text-right">Ends</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in esi.queue %}
+                            <tr class="border-b border-white/5 hover:bg-white/5 transition">
+                                <td class="px-6 py-4 font-medium text-white">{{ item.name }}</td>
+                                <td class="px-6 py-4 flex justify-center">
+                                    <div class="flex gap-[2px]">
+                                        {% for i in "12345" %}
+                                        <div class="w-3 h-3 rounded-sm border border-slate-600/50 {% if forloop.counter <= item.finished_level %}bg-brand-500 shadow-[0_0_5px_rgba(245,158,11,0.5)]{% else %}bg-dark-900/50{% endif %}"></div>
+                                        {% endfor %}
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 text-slate-500 text-right">{{ item.finish_date|slice:":10" }} <span class="text-xs text-slate-600 font-mono">{{ item.finish_date|slice:"11:16" }}</span></td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="3" class="px-6 py-8 text-center italic">No queue data.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Corp History -->
+            <div id="tab-history" class="tab-content hidden">
+                <div class="space-y-4 max-w-3xl">
+                    {% for entry in esi.history %}
+                    <div class="flex items-center gap-4 glass-panel p-4 hover:border-white/20 transition group">
+                        <img src="https://images.evetech.net/corporations/{{ entry.corporation_id }}/logo?size=64" class="w-12 h-12 rounded-lg" alt="">
+                        <div>
+                            <div class="text-white font-bold text-lg group-hover:text-brand-400 transition">{{ entry.corporation_name }}</div>
+                            <div class="text-xs text-slate-500 flex gap-4 mt-1">
+                                <span>Joined: {{ entry.start_date|date:"M d, Y" }}</span>
+                                <span class="font-mono opacity-50">ID: {{ entry.corporation_id }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <p class="text-slate-500">No history found.</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Skill History Log -->
+            <div id="tab-skill-history" class="tab-content hidden">
+                <div class="glass-panel overflow-hidden">
+                    <table class="w-full text-sm text-left text-slate-400">
+                        <thead class="text-xs uppercase bg-white/5 text-slate-300 font-bold">
+                            <tr>
+                                <th class="px-6 py-4">Date</th>
+                                <th class="px-6 py-4">Skill</th>
+                                <th class="px-6 py-4 text-center">Level Change</th>
+                                <th class="px-6 py-4 text-right">SP Change</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for entry in esi.skill_history %}
+                            <tr class="border-b border-white/5 hover:bg-white/5 transition">
+                                <td class="px-6 py-4 text-slate-500 whitespace-nowrap font-mono text-xs">
+                                    {{ entry.logged_at|date:"Y-m-d" }}
+                                    <span class="text-slate-600 ml-1">{{ entry.logged_at|date:"H:i" }}</span>
+                                </td>
+                                <td class="px-6 py-4 font-medium text-white">{{ entry.name }}</td>
+                                <td class="px-6 py-4 text-center">
+                                    {% if entry.old_level == entry.new_level %}
+                                    <span class="text-slate-600">-</span>
+                                    {% elif entry.new_level > entry.old_level %}
+                                    <span class="badge badge-green">{{ entry.old_level }} ➝ {{ entry.new_level }}</span>
+                                    {% else %}
+                                    <span class="badge badge-red">{{ entry.old_level }} ➝ {{ entry.new_level }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-6 py-4 text-right font-mono">
+                                    {% if entry.sp_diff > 0 %}
+                                    <span class="text-green-400">+{{ entry.sp_diff|intcomma }}</span>
+                                    {% elif entry.sp_diff < 0 %}
+                                    <span class="text-red-400">{{ entry.sp_diff|intcomma }}</span>
+                                    {% else %}
+                                    <span class="text-slate-600">0</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="4" class="px-6 py-12 text-center text-slate-500 italic">No skill changes recorded yet.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
         </div>
         {% endif %}
-    </div>
 
-    <!-- Skill Queue -->
-    <div id="tab-queue" class="tab-content hidden">
-        <div class="glass-panel overflow-hidden">
-            <table class="w-full text-sm text-left text-slate-400">
-                <thead class="text-xs uppercase bg-white/5 text-slate-300 font-bold">
-                    <tr>
-                        <th class="px-6 py-4">Skill</th>
-                        <th class="px-6 py-4 text-center">Finished Level</th>
-                        <th class="px-6 py-4 text-right">Ends</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in esi.queue %}
-                    <tr class="border-b border-white/5 hover:bg-white/5 transition">
-                        <td class="px-6 py-4 font-medium text-white">{{ item.name }}</td>
-                        <td class="px-6 py-4 flex justify-center">
-                            <div class="flex gap-[2px]">
-                                {% for i in "12345" %}
-                                <div class="w-3 h-3 rounded-sm border border-slate-600/50 {% if forloop.counter <= item.finished_level %}bg-brand-500 shadow-[0_0_5px_rgba(245,158,11,0.5)]{% else %}bg-dark-900/50{% endif %}"></div>
-                                {% endfor %}
+        <!-- PILOT SWITCHER MODAL -->
+        <div id="pilot-modal" class="fixed inset-0 z-50 hidden" onclick="closePilotModal()">
+            <div class="fixed inset-0 bg-dark-950/90 backdrop-blur-sm transition-opacity"></div>
+            <div class="fixed inset-0 z-10 overflow-y-auto flex items-center justify-center p-4">
+                <div class="relative transform rounded-xl bg-slate-900 border border-white/10 shadow-2xl w-full max-w-4xl flex flex-col max-h-[85vh]" onclick="event.stopPropagation()">
+
+                    <!-- Header -->
+                    <div class="glass-header px-6 py-4 flex flex-col gap-4 border-b border-white/5">
+                        <div class="flex justify-between items-center">
+                            <h3 class="text-xl font-bold text-white flex items-center gap-2">
+                                <span>👥</span> Pilot Directory
+                                <span class="badge badge-slate">{{ characters|length }}</span>
+                            </h3>
+                            <button onclick="closePilotModal()" class="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
+                        </div>
+
+                        <!-- Search Bar -->
+                        <div class="relative w-full">
+                            <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-500">
+                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                             </div>
-                        </td>
-                        <td class="px-6 py-4 text-slate-500 text-right">{{ item.finish_date|slice:":10" }} <span class="text-xs text-slate-600 font-mono">{{ item.finish_date|slice:"11:16" }}</span></td>
-                    </tr>
-                    {% empty %}
-                    <tr><td colspan="3" class="px-6 py-8 text-center italic">No queue data.</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
+                            <input type="text" id="pilot-search-input" onkeyup="filterPilots()"
+                                   class="w-full bg-dark-950 border border-white/10 rounded-lg py-3 pl-10 text-white placeholder-slate-500 focus:border-brand-500 outline-none"
+                                   placeholder="Filter pilots by name or corporation...">
+                        </div>
+                    </div>
 
-    <!-- Corp History -->
-    <div id="tab-history" class="tab-content hidden">
-        <div class="space-y-4 max-w-3xl">
-            {% for entry in esi.history %}
-            <div class="flex items-center gap-4 glass-panel p-4 hover:border-white/20 transition group">
-                <img src="https://images.evetech.net/corporations/{{ entry.corporation_id }}/logo?size=64" class="w-12 h-12 rounded-lg" alt="">
-                <div>
-                    <div class="text-white font-bold text-lg group-hover:text-brand-400 transition">{{ entry.corporation_name }}</div>
-                    <div class="text-xs text-slate-500 flex gap-4 mt-1">
-                        <span>Joined: {{ entry.start_date|date:"M d, Y" }}</span>
-                        <span class="font-mono opacity-50">ID: {{ entry.corporation_id }}</span>
+                    <!-- Grid Content -->
+                    <div class="flex-grow overflow-y-auto custom-scrollbar p-6 bg-dark-900/50">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" id="pilot-grid">
+                            {% for char in characters %}
+                            <!-- Converted to proper <a> tag for stability -->
+                            <a href="{% if is_inspection_mode %}{% url 'management_user_inspect_char' inspect_user_id char.character_id %}{% else %}{% url 'switch_character' char.character_id %}{% endif %}"
+                               {% if not is_inspection_mode %}data-no-spa{% endif %}
+                               class="pilot-modal-card block flex items-center gap-3 p-3 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 hover:border-brand-500/30 transition cursor-pointer group"
+                               data-name="{{ char.character_name|default:''|lower|escape }} {{ char.corporation_name|default:''|lower|escape }}">
+
+                                <div class="relative">
+                                    <img src="https://images.evetech.net/characters/{{ char.character_id }}/portrait?size=64" class="w-12 h-12 rounded-lg border border-white/10 bg-black group-hover:scale-105 transition" loading="lazy">
+                                    {% if char.character_id == active_char.character_id %}
+                                    <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-slate-900 rounded-full"></div>
+                                    {% endif %}
+                                </div>
+
+                                <div class="flex-grow min-w-0">
+                                    <div class="flex justify-between items-start">
+                                        <h4 class="font-bold text-slate-200 group-hover:text-white truncate">{{ char.character_name }}</h4>
+                                        {% if char.is_main %}
+                                        <span class="text-[9px] font-bold text-brand-400 bg-brand-900/20 px-1.5 py-0.5 rounded border border-brand-500/20 uppercase">Main</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="text-xs text-slate-500 truncate mt-0.5">{{ char.corporation_name|default:"Unknown Corp" }}</div>
+                                    <div class="text-[10px] text-slate-600 font-mono mt-1">{{ char.total_sp|intword }} SP</div>
+                                </div>
+                            </a>
+                            {% endfor %}
+                        </div>
+
+                        <div id="no-pilots-msg" class="hidden text-center py-12 text-slate-500 italic">
+                            No pilots found matching your search.
+                        </div>
                     </div>
                 </div>
             </div>
-            {% empty %}
-            <p class="text-slate-500">No history found.</p>
-            {% endfor %}
         </div>
-    </div>
 
-    <!-- Skill History Log -->
-    <div id="tab-skill-history" class="tab-content hidden">
-        <div class="glass-panel overflow-hidden">
-            <table class="w-full text-sm text-left text-slate-400">
-                <thead class="text-xs uppercase bg-white/5 text-slate-300 font-bold">
-                    <tr>
-                        <th class="px-6 py-4">Date</th>
-                        <th class="px-6 py-4">Skill</th>
-                        <th class="px-6 py-4 text-center">Level Change</th>
-                        <th class="px-6 py-4 text-right">SP Change</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for entry in esi.skill_history %}
-                    <tr class="border-b border-white/5 hover:bg-white/5 transition">
-                        <td class="px-6 py-4 text-slate-500 whitespace-nowrap font-mono text-xs">
-                            {{ entry.logged_at|date:"Y-m-d" }}
-                            <span class="text-slate-600 ml-1">{{ entry.logged_at|date:"H:i" }}</span>
-                        </td>
-                        <td class="px-6 py-4 font-medium text-white">{{ entry.name }}</td>
-                        <td class="px-6 py-4 text-center">
-                            {% if entry.old_level == entry.new_level %}
-                            <span class="text-slate-600">-</span>
-                            {% elif entry.new_level > entry.old_level %}
-                            <span class="badge badge-green">{{ entry.old_level }} ➝ {{ entry.new_level }}</span>
-                            {% else %}
-                            <span class="badge badge-red">{{ entry.old_level }} ➝ {{ entry.new_level }}</span>
-                            {% endif %}
-                        </td>
-                        <td class="px-6 py-4 text-right font-mono">
-                            {% if entry.sp_diff > 0 %}
-                            <span class="text-green-400">+{{ entry.sp_diff|intcomma }}</span>
-                            {% elif entry.sp_diff < 0 %}
-                            <span class="text-red-400">{{ entry.sp_diff|intcomma }}</span>
-                            {% else %}
-                            <span class="text-slate-600">0</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr><td colspan="4" class="px-6 py-12 text-center text-slate-500 italic">No skill changes recorded yet.</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-</div>
-{% endif %}
-
-<!-- SCRIPTs -->
-<script>
+        <!-- SCRIPTs -->
+        <script>
     function unlinkAlt(charId, charName) {
         if (!confirm(`Are you sure you want to unlink ${charName}? This cannot be undone.`)) {
             return;
@@ -676,41 +781,81 @@
     }
 
     // --- SERVICE RECORD FILTER LOGIC ---
-    let activeServiceFilters = new Set();
+    // SAFE INITIALIZATION: Prevent redeclaration errors
+    if (typeof window.activeServiceFilters === 'undefined') {
+        window.activeServiceFilters = new Set();
+    } else {
+        // Reset filters on re-render if desired
+        window.activeServiceFilters.clear();
+    }
 
-    function toggleServiceFilter(action) {
+    // Explicitly window-scoped function to avoid "is not defined" errors
+    window.toggleServiceFilter = function(action) {
         const btn = document.getElementById('srv-filter-btn-' + action);
 
-        if (activeServiceFilters.has(action)) {
-            activeServiceFilters.delete(action);
+        if (window.activeServiceFilters.has(action)) {
+            window.activeServiceFilters.delete(action);
             btn.classList.remove('bg-brand-500', 'text-white', 'border-brand-400');
             btn.classList.add('bg-white/5', 'text-slate-400', 'border-white/10');
         } else {
-            activeServiceFilters.add(action);
+            window.activeServiceFilters.add(action);
             btn.classList.remove('bg-white/5', 'text-slate-400', 'border-white/10');
             btn.classList.add('bg-brand-500', 'text-white', 'border-brand-400');
         }
-        applyServiceFilters();
+        window.applyServiceFilters();
     }
 
-    function clearServiceFilters() {
-        activeServiceFilters.clear();
+    window.clearServiceFilters = function() {
+        window.activeServiceFilters.clear();
         document.querySelectorAll('.srv-filter-btn').forEach(btn => {
             btn.classList.remove('bg-brand-500', 'text-white', 'border-brand-400');
             btn.classList.add('bg-white/5', 'text-slate-400', 'border-white/10');
         });
-        applyServiceFilters();
+        window.applyServiceFilters();
     }
 
-    function applyServiceFilters() {
+    window.applyServiceFilters = function() {
         const rows = document.querySelectorAll('.service-row');
         rows.forEach(row => {
             const action = row.dataset.action;
-            if (activeServiceFilters.size === 0 || activeServiceFilters.has(action)) {
+            if (window.activeServiceFilters.size === 0 || window.activeServiceFilters.has(action)) {
                 row.classList.remove('hidden');
             } else {
                 row.classList.add('hidden');
             }
         });
     }
-</script>
+
+    // --- PILOT SWITCHER MODAL ---
+    window.openPilotModal = function() {
+        document.getElementById('pilot-modal').classList.remove('hidden');
+        setTimeout(() => document.getElementById('pilot-search-input').focus(), 100);
+    }
+
+    window.closePilotModal = function() {
+        document.getElementById('pilot-modal').classList.add('hidden');
+    }
+
+    // Removed showRefreshOverlay function to prevent locking the UI
+
+    window.filterPilots = function() {
+        const input = document.getElementById('pilot-search-input').value.toLowerCase();
+        const cards = document.querySelectorAll('.pilot-modal-card');
+        let visibleCount = 0;
+
+        cards.forEach(card => {
+            // Guard against missing data attributes
+            const name = (card.dataset.name || "").toLowerCase();
+            if (name.includes(input)) {
+                card.classList.remove('hidden');
+                visibleCount++;
+            } else {
+                card.classList.add('hidden');
+            }
+        });
+
+        const noMsg = document.getElementById('no-pilots-msg');
+        if (visibleCount === 0) noMsg.classList.remove('hidden');
+        else noMsg.classList.add('hidden');
+    }
+        </script>

@@ -7,15 +7,17 @@ from django.http import JsonResponse
 from django.utils import timezone
 from django.db.models import Sum
 from django.conf import settings
+from itertools import chain # Needed for merging lists efficiently
 
 # Core Imports
 from core.permissions import get_template_base, is_fleet_command, is_admin
 from core.utils import get_character_data
+from core.models import BanAuditLog # Import BanAuditLog
 
 # Models & Services
 from pilot_data.models import EveCharacter
 from waitlist_data.models import FleetActivity
-from waitlist_data.stats import calculate_pilot_stats # NEW IMPORT
+from waitlist_data.stats import calculate_pilot_stats
 from esi_calls.token_manager import update_character_data
 
 @login_required
@@ -33,10 +35,24 @@ def profile_view(request):
     # --- Service Record Stats ---
     service_record = calculate_pilot_stats(active_char)
     
-    # Add history logs explicitly here as the service only returns aggregates
-    # We do this separation because the dashboard doesn't need the full log list, only metrics
-    service_record['history_logs'] = FleetActivity.objects.filter(character=active_char)\
+    # 1. Fetch Fleet Logs
+    fleet_logs = FleetActivity.objects.filter(character=active_char)\
         .select_related('fleet', 'actor').order_by('-timestamp')[:50]
+
+    # 2. Fetch Ban Logs (Targeting the User account)
+    # We assume 'active_char' belongs to the user we want to see bans for.
+    ban_logs = BanAuditLog.objects.filter(target_user=active_char.user)\
+        .select_related('actor').order_by('-timestamp')[:20]
+
+    # 3. Merge & Sort
+    # We combine them into a single list sorted by timestamp descending
+    combined_logs = sorted(
+        chain(fleet_logs, ban_logs),
+        key=lambda x: x.timestamp,
+        reverse=True
+    )[:50] # Keep the top 50 most recent combined events
+
+    service_record['history_logs'] = combined_logs
     
     # Convert hull dict to sorted list for template
     service_record['hull_breakdown'] = sorted(

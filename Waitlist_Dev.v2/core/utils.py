@@ -30,39 +30,131 @@ ROLE_HIERARCHY = ROLE_HIERARCHY_DEFAULT
 
 ROLES_ADMIN = ['Admin']
 
-# Define FCs explicitly to avoid accidental inclusion of new roles like Personnel Manager
+# Define FCs explicitly
 ROLES_FC = [
     'Admin', 'Leadership', 'Officer', 'Certified Trainer', 'Training CT',
     'Fleet Commander', 'Training FC', 'Assault FC'
 ]
 
-ROLES_MANAGEMENT = ROLE_HIERARCHY_DEFAULT[:10] # Covers up to Resident
+# Management covers up to Resident (Staff)
+ROLES_MANAGEMENT = ROLE_HIERARCHY_DEFAULT[:10] 
 
-# --- CAPABILITY REGISTRY ---
+# --- CAPABILITY REGISTRY (REVAMPED) ---
+# Explicit slugs ensure database matches code decorators exactly.
 SYSTEM_CAPABILITIES = [
-    {"category": "System Administration", "name": "Full System Access", "desc": "Manage SDE, Roles, System Health, Unlink Alts.", "roles": ROLES_ADMIN},
-    {"category": "System Administration", "name": "Manage Doctrines", "desc": "Create, Edit, and Delete Doctrine Fits.", "roles": ROLES_ADMIN},
-    {"category": "System Administration", "name": "Promote/Demote Users", "desc": "Assign roles to users (up to own rank) and Unlink Alts.", "roles": ROLES_ADMIN},
-    {"category": "System Administration", "name": "Manage Analysis Rules", "desc": "Configure item comparison logic (Higher/Lower is Better).", "roles": ROLES_ADMIN},
-    {"category": "System Administration", "name": "View Sensitive Data", "desc": "View unobfuscated financial data in pilot profiles.", "roles": ['Admin']},
+    # --- SYSTEM ---
+    {
+        "slug": "access_admin", 
+        "category": "System", 
+        "name": "Full System Access", 
+        "desc": "Manage SDE, Roles, System Health, Unlink Alts.", 
+        "roles": ROLES_ADMIN
+    },
+    {
+        "slug": "manage_analysis_rules", 
+        "category": "System", 
+        "name": "Manage Analysis Rules", 
+        "desc": "Configure item comparison logic (Higher/Lower is Better).", 
+        "roles": ROLES_ADMIN
+    },
+    {
+        "slug": "view_sensitive_data", 
+        "category": "System", 
+        "name": "View Sensitive Data", 
+        "desc": "View unobfuscated financial data in pilot profiles.", 
+        "roles": ROLES_ADMIN
+    },
+
+    # --- MANAGEMENT ---
+    {
+        "slug": "access_management", 
+        "category": "Management", 
+        "name": "Management Access", 
+        "desc": "Access the Management Dashboard.", 
+        "roles": ROLES_MANAGEMENT
+    },
+    {
+        "slug": "manage_bans", 
+        "category": "Management", 
+        "name": "Manage Bans", 
+        "desc": "Ban and unban users.", 
+        "roles": ['Admin', 'Leadership', 'Officer'] # Restricted to Officers+ typically
+    },
+    {
+        "slug": "view_ban_audit_log", 
+        "category": "Management", 
+        "name": "View Ban Audit Log", 
+        "desc": "View the audit log of ban actions.", 
+        "roles": ['Admin', 'Leadership']
+    },
+
+    # --- SRP ---
+    {
+        "slug": "manage_srp_source", 
+        "category": "SRP & Finance", 
+        "name": "Manage SRP Source", 
+        "desc": "Configure the SRP data source character.", 
+        "roles": ['Admin', 'Leadership']
+    },
+    {
+        "slug": "view_srp_dashboard", 
+        "category": "SRP & Finance", 
+        "name": "View SRP Dashboard", 
+        "desc": "Access SRP Wallet History and Analytics.", 
+        "roles": ['Admin', 'Leadership', 'Officer']
+    },
+
+    # --- FLEET OPERATIONS ---
+    {
+        "slug": "access_fleet_command", 
+        "category": "Fleet Ops", 
+        "name": "Fleet Command", 
+        "desc": "Create/Close Fleets, Take Command, FC Actions.", 
+        "roles": ROLES_FC
+    },
+    {
+        "slug": "inspect_pilots", 
+        "category": "Fleet Ops", 
+        "name": "Inspect Pilots", 
+        "desc": "View full pilot details in Search.", 
+        "roles": ROLES_FC
+    },
+    {
+        "slug": "view_fleet_overview", 
+        "category": "Fleet Ops", 
+        "name": "View Fleet Overview", 
+        "desc": "See live fleet composition on dashboard.", 
+        "roles": ROLES_MANAGEMENT
+    },
     
-    # --- NEW SRP CAPABILITIES ---
-    {"category": "SRP & Finance", "name": "Manage SRP Source", "desc": "Configure the SRP data source character and settings.", "roles": ['Admin', 'Leadership']},
-    {"category": "SRP & Finance", "name": "View SRP Dashboard", "desc": "Access the SRP Wallet History and Analytics page.", "roles": ['Admin', 'Leadership', 'Officer']},
-
-    {"category": "User Management", "name": "Manage Bans", "desc": "Ban and unban users from accessing the waitlist and dashboard.", "roles": ROLES_ADMIN + ROLES_MANAGEMENT},
-    {"category": "User Management", "name": "View Ban Audit Log", "desc": "View the audit log of ban actions.", "roles": ROLES_ADMIN},
-
-    {"category": "Fleet Operations", "name": "Fleet Command", "desc": "Create/Close Fleets, Take Command, FC Actions (Approve/Invite).", "roles": ROLES_FC},
-    {"category": "Fleet Operations", "name": "Inspect Pilots", "desc": "View full pilot details (Skills, Assets) in User Search.", "roles": ROLES_FC},
-    {"category": "Fleet Operations", "name": "View Fleet Overview", "desc": "See the live fleet composition sidebar on the dashboard.", "roles": ROLES_MANAGEMENT},
-    {"category": "General", "name": "Management Access", "desc": "Access the Management Dashboard (limited view).", "roles": ROLES_MANAGEMENT},
-    {"category": "General", "name": "Join Waitlists", "desc": "X-Up for fleets.", "roles": ROLE_HIERARCHY_DEFAULT}
+    # --- GENERAL ---
+    {
+        "slug": "join_waitlists", 
+        "category": "General", 
+        "name": "Join Waitlists", 
+        "desc": "Ability to X-Up for fleets.", 
+        "roles": ROLE_HIERARCHY_DEFAULT
+    },
+    
+    # --- RE-ADDED MISSING CAPABILITIES FROM MIGRATION ---
+    {
+        "slug": "manage_doctrines",
+        "category": "System",
+        "name": "Manage Doctrines",
+        "desc": "Create, Edit, and Delete Doctrine Fits.",
+        "roles": ROLES_ADMIN
+    },
+    {
+        "slug": "promote_demote_users",
+        "category": "Management",
+        "name": "Promote/Demote Users",
+        "desc": "Assign roles to users (up to own rank).",
+        "roles": ROLES_ADMIN
+    }
 ]
 
 # --- BACKGROUND TASK CONFIG ---
 # Only these endpoints are processed by the background scheduler.
-# We filter the status page to match this list so we don't show "Fleet" calls as queued.
 BACKGROUND_ENDPOINTS = [
     'online', 'skills', 'queue', 'ship', 'wallet', 
     'lp', 'implants', 'public_info', 'history'
@@ -75,12 +167,9 @@ def get_role_hierarchy():
     Fetches roles from DB ordered by Priority.
     Returns list of strings.
     """
-    # Check if RolePriority table is populated
-    # We do a cheap check or cache this in a real prod env
     from core.models import RolePriority
     
     if RolePriority.objects.exists():
-        # Return names ordered by level
         return list(Group.objects.filter(priority_config__isnull=False).order_by('priority_config__level').values_list('name', flat=True))
     
     return ROLE_HIERARCHY_DEFAULT
@@ -89,7 +178,6 @@ def get_role_priority(group_name):
     """
     Returns integer priority. Lower is better.
     """
-    # Try DB first
     from core.models import RolePriority
     try:
         priority = RolePriority.objects.get(group__name=group_name)
@@ -97,7 +185,6 @@ def get_role_priority(group_name):
     except (RolePriority.DoesNotExist, Group.DoesNotExist):
         pass
 
-    # Fallback to list
     try:
         return ROLE_HIERARCHY_DEFAULT.index(group_name)
     except ValueError:
@@ -109,7 +196,6 @@ def get_user_highest_role(user):
     user_groups = list(user.groups.values_list('name', flat=True))
     if not user_groups: return 'Public', 999
     
-    # Get all priorities in one query if possible, or iterate
     best_role = 'Public'
     best_index = 999
     
@@ -125,7 +211,6 @@ def can_manage_role(actor, target_role_name):
     if actor.is_superuser: return True
     _, actor_index = get_user_highest_role(actor)
     target_index = get_role_priority(target_role_name)
-    # Strictly less: Can only manage roles BELOW you
     return actor_index < target_index
 
 # --- SYSTEM STATUS UTILS ---
@@ -154,7 +239,6 @@ def get_system_status():
         queue_length = 0
 
     # 2. Inspect Celery Workers
-    # FIX: Increased timeout from 0.5 to 1.0 to reduce "jumping" stats
     inspector = celery_app.control.inspect(timeout=1.0)
     
     workers = {}
@@ -162,7 +246,6 @@ def get_system_status():
     reserved_tasks = {}
     stats = {}
     
-    # Calculated below
     total_processed = 0
 
     try:
@@ -176,24 +259,20 @@ def get_system_status():
         if not redis_error:
             redis_error = f"Celery Inspect Error: {str(e)}"
 
-    # --- ENRICHMENT STEP: Resolve Character Names for Active Tasks ---
     char_name_map = {}
     
     if active_tasks:
         all_char_ids = set()
         for worker_tasks in active_tasks.values():
             for task in worker_tasks:
-                # Look for refresh_character_task or similar variants
                 if 'refresh_character' in task.get('name', ''):
                     args = task.get('args', [])
                     if args and len(args) > 0:
                         try:
-                            # 1. Get Char ID
                             char_id = int(args[0])
                             all_char_ids.add(char_id)
                             task['enriched_char_id'] = char_id
                             
-                            # 2. Format Info (Endpoints)
                             endpoints = args[1] if len(args) > 1 else None
                             force = args[2] if len(args) > 2 else False
                             
@@ -203,7 +282,6 @@ def get_system_status():
                             if endpoints is None:
                                 info_str += "Full Update"
                             else:
-                                # Clean up list string: ['skills', 'wallet'] -> skills, wallet
                                 ep_str = str(endpoints).replace("'", "").replace("[", "").replace("]", "")
                                 info_str += f"Partial: {ep_str}"
                                 
@@ -211,13 +289,11 @@ def get_system_status():
                         except (ValueError, TypeError, IndexError):
                             pass
         
-        # Bulk Fetch Names
         if all_char_ids:
             found = EveCharacter.objects.filter(character_id__in=list(all_char_ids)).values('character_id', 'character_name')
             for f in found:
                 char_name_map[f['character_id']] = f['character_name']
 
-    # --- WORKER DATA CONSTRUCTION ---
     worker_data = []
     current_raw_processed = 0
 
@@ -228,7 +304,6 @@ def get_system_status():
             w_stats = stats.get(worker_name, {})
             w_total = sum(w_stats.get('total', {}).values())
             
-            # Apply names to tasks
             for task in w_active:
                 if 'enriched_char_id' in task:
                     task['enriched_name'] = char_name_map.get(task['enriched_char_id'], 'Unknown Pilot')
@@ -246,34 +321,23 @@ def get_system_status():
                 'processed': w_total
             })
 
-    # --- STABILIZATION FIX ---
-    # Use Cache to persist the 'Total Processed' count if inspection fails/timeouts.
-    # This prevents the UI card from flashing "0" during minor blips.
     cache_key_proc = 'monitor_total_processed_stable'
     cached_total = cache.get(cache_key_proc) or 0
     
     if workers:
-        # We have live data
         total_processed = current_raw_processed
-        # Only update cache if we have a valid number
         if total_processed > 0:
             cache.set(cache_key_proc, total_processed, timeout=3600)
     else:
-        # Inspection failed or returned empty - fallback to cache to hide the glitch
         total_processed = cached_total
 
-    # 3. ESI TOKEN HEALTH & USER STATS
     total_characters = EveCharacter.objects.count()
-    
-    # Thresholds
     stale_threshold = timezone.now() - timedelta(minutes=60)
     active_30d_threshold = timezone.now() - timedelta(days=30)
     
     stale_count = EveCharacter.objects.filter(last_updated__lt=stale_threshold).count()
     users_online_count = EveCharacter.objects.filter(is_online=True).count()
     
-    # NEW: Active in last 30 days (based on last_login_at or last_updated if login not tracked)
-    # Using Q object to check either field
     active_30d_count = EveCharacter.objects.filter(
         Q(last_login_at__gte=active_30d_threshold) | 
         Q(last_updated__gte=active_30d_threshold)
@@ -289,13 +353,11 @@ def get_system_status():
     else:
         esi_health_percent = 0
 
-    # 4. OUTSTANDING ENDPOINT CALLS (SPLIT LOGIC)
     now = timezone.now()
     grace_period = now - timedelta(minutes=15)
 
-    # --- A. READY TO QUEUE (Active Queue) ---
     raw_queued = EsiHeaderCache.objects.filter(
-        endpoint_name__in=BACKGROUND_ENDPOINTS, # FILTER: Only show what workers actually process
+        endpoint_name__in=BACKGROUND_ENDPOINTS, 
         expires__lte=now
     ).filter(
         Q(endpoint_name='online') | 
@@ -307,7 +369,6 @@ def get_system_status():
     
     queued_breakdown = list(raw_queued)
 
-    # Part 2: Safety Net (Full Refresh Candidates)
     safety_net_threshold = now - timedelta(hours=24)
     safety_net_count = EveCharacter.objects.filter(
         Q(last_updated__isnull=True) | Q(last_updated__lt=safety_net_threshold)
@@ -319,9 +380,8 @@ def get_system_status():
             'pending_count': safety_net_count
         })
 
-    # --- B. DELAYED (Throttled) ---
     delayed_breakdown = EsiHeaderCache.objects.filter(
-        endpoint_name__in=BACKGROUND_ENDPOINTS, # FILTER: Only show what workers actually process
+        endpoint_name__in=BACKGROUND_ENDPOINTS,
         expires__lte=now
     ).exclude(
         Q(endpoint_name='online') | 
@@ -331,16 +391,11 @@ def get_system_status():
         pending_count=Count('id')
     ).order_by('-pending_count')
 
-    # NEW: Fetch ESI Status
     from esi_calls.token_manager import check_esi_status
     esi_status_bool = check_esi_status()
 
-    # --- NEW: VISUAL LOAD CALCULATION ---
-    # Treats 100 tasks as 100% capacity for visual scaling
     system_load_percent = min(int(queue_length), 100) 
     
-    # Calculate HSL Hue: 120 (Green) -> 0 (Red)
-    # Formula: 120 - (percent * 1.2)
     load_hue = int(120 - (system_load_percent * 1.2))
     if load_hue < 0: load_hue = 0
 
@@ -362,11 +417,10 @@ def get_system_status():
         'queued_breakdown': queued_breakdown,     
         'delayed_breakdown': delayed_breakdown,   
         'esi_server_status': esi_status_bool,
-        'system_load_percent': system_load_percent, # PASSED TO TEMPLATE
-        'load_hue': load_hue # PASSED TO TEMPLATE
+        'system_load_percent': system_load_percent,
+        'load_hue': load_hue
     }
 
-# --- DATA BUILDER HELPER (Moved from views.py) ---
 def get_character_data(active_char):
     esi_data = {'implants': [], 'queue': [], 'history': [], 'skill_history': []}
     grouped_skills = {}

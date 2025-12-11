@@ -1,99 +1,125 @@
-{% extends base_template %}
+﻿{% extends 'management/base_management.html' %}
 {% load humanize %}
 
-{% block content %}
+{% block management_content %}
 <div class="space-y-6">
 
     <!-- Header -->
     <div class="flex justify-between items-center">
         <div>
-            <h1 class="text-3xl font-bold text-slate-100">Ban Management</h1>
-            <p class="text-slate-400 mt-1">Manage user bans and restrictions.</p>
+            <h1 class="heading-1">Ban Management</h1>
+            <p class="text-slate-400 mt-1 text-sm">Manage user bans and restrictions.</p>
         </div>
         <div class="flex space-x-3">
-             {% if 'view_ban_audit_log' in user_perms %}
-            <a href="{% url 'management_ban_audit' %}" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg transition-colors border border-slate-600">
-                <i class="fa-solid fa-history mr-2"></i>Audit Log
+            {% if 'view_ban_audit_log' in user_perms %}
+            <a href="{% url 'management_ban_audit' %}" class="btn-secondary text-xs py-2 px-4 flex items-center gap-2">
+                <span>📜</span> Audit Log
             </a>
             {% endif %}
-            <button onclick="openBanModal()" class="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors shadow-lg shadow-red-900/20">
-                <i class="fa-solid fa-ban mr-2"></i>Ban User
+            <button onclick="openBanModal()" class="btn-danger text-xs py-2 px-4 shadow-lg shadow-red-900/20 flex items-center gap-2">
+                <span>🚫</span> Ban User
             </button>
         </div>
     </div>
 
+    <!-- Filter Bar -->
+    <div class="flex gap-2">
+        <a href="?filter=all" class="px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition border {% if current_filter == 'all' %}bg-brand-500 text-white border-brand-400{% else %}bg-white/5 text-slate-400 border-white/10 hover:text-white hover:border-white/30{% endif %}">
+            All
+        </a>
+        <a href="?filter=active" class="px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition border {% if current_filter == 'active' %}bg-brand-500 text-white border-brand-400{% else %}bg-white/5 text-slate-400 border-white/10 hover:text-white hover:border-white/30{% endif %}">
+            Active
+        </a>
+        <a href="?filter=permanent" class="px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition border {% if current_filter == 'permanent' %}bg-brand-500 text-white border-brand-400{% else %}bg-white/5 text-slate-400 border-white/10 hover:text-white hover:border-white/30{% endif %}">
+            Permanent
+        </a>
+        <a href="?filter=expired" class="px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition border {% if current_filter == 'expired' %}bg-brand-500 text-white border-brand-400{% else %}bg-white/5 text-slate-400 border-white/10 hover:text-white hover:border-white/30{% endif %}">
+            Expired
+        </a>
+    </div>
+
     <!-- Active Bans Table -->
-    <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-xl">
-        <div class="p-6 border-b border-slate-700">
-            <h3 class="text-lg font-semibold text-slate-200">Active & Past Bans</h3>
+    <div class="glass-panel overflow-hidden">
+        <div class="p-6 border-b border-white/5">
+            <h3 class="font-bold text-slate-200">
+                {% if current_filter == 'active' %}Active Only
+                {% elif current_filter == 'expired' %}Expired Only
+                {% elif current_filter == 'permanent' %}Permanent Only
+                {% else %}All Records{% endif %}
+            </h3>
         </div>
 
         <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse">
-                <thead>
-                    <tr class="bg-slate-900/50 text-slate-400 text-sm uppercase tracking-wider">
-                        <th class="p-4 font-medium border-b border-slate-700">User</th>
-                        <th class="p-4 font-medium border-b border-slate-700">Reason</th>
-                        <th class="p-4 font-medium border-b border-slate-700">Issued By</th>
-                        <th class="p-4 font-medium border-b border-slate-700">Issued At</th>
-                        <th class="p-4 font-medium border-b border-slate-700">Expires</th>
-                        <th class="p-4 font-medium border-b border-slate-700 text-right">Actions</th>
+            <table class="w-full text-left text-sm text-slate-400">
+                <thead class="text-xs uppercase bg-white/5 text-slate-300 font-bold">
+                    <tr>
+                        <th class="px-6 py-4">User</th>
+                        <th class="px-6 py-4">Reason</th>
+                        <th class="px-6 py-4">Issued By</th>
+                        <th class="px-6 py-4">Issued At</th>
+                        <th class="px-6 py-4">Expires</th>
+                        <th class="px-6 py-4 text-right">Actions</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-700 text-slate-300">
+                <tbody class="divide-y divide-white/5 text-slate-300">
                     {% for ban in bans %}
-                    <tr class="hover:bg-slate-750 transition-colors {% if not ban.is_active %}opacity-50{% endif %}">
-                        <td class="p-4">
-                            <div class="flex items-center space-x-3">
-                                <div class="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-400">
+                    <tr class="hover:bg-white/5 transition {% if not ban.is_active %}opacity-50{% endif %}">
+                        <td class="px-6 py-4">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-bold text-slate-400 overflow-hidden">
+                                    {% if ban.user_char_id %}
+                                    <img src="https://images.evetech.net/characters/{{ ban.user_char_id }}/portrait?size=64" alt="" class="w-full h-full object-cover">
+                                    {% else %}
                                     {{ ban.user.username|slice:":2"|upper }}
+                                    {% endif %}
                                 </div>
                                 <div>
-                                    <div class="font-medium text-slate-200">{{ ban.user.username }}</div>
-                                    <div class="text-xs text-slate-500">ID: {{ ban.user.id }}</div>
+                                    <!-- Use Annotated Main Character Name or Fallback to Username -->
+                                    <div class="font-bold text-slate-200">{{ ban.user_char_name|default:ban.user.username }}</div>
+                                    <div class="text-xs text-slate-500">ID: {{ ban.user_char_id|default:ban.user.username }}</div>
                                 </div>
                             </div>
                         </td>
-                        <td class="p-4 max-w-xs truncate" title="{{ ban.reason }}">
+                        <td class="px-6 py-4 max-w-xs truncate" title="{{ ban.reason }}">
                             {{ ban.reason }}
                         </td>
-                        <td class="p-4 text-sm">
-                            <span class="px-2 py-1 rounded bg-slate-700 text-slate-300 text-xs">
-                                {{ ban.issuer.username|default:"System" }}
+                        <td class="px-6 py-4">
+                            <span class="badge badge-slate">
+                                <!-- Use Annotated Issuer Main Character Name or Fallback -->
+                                {{ ban.issuer_char_name|default:ban.issuer.username|default:"System" }}
                             </span>
                         </td>
-                        <td class="p-4 text-sm text-slate-400">
+                        <td class="px-6 py-4 text-slate-400 text-xs font-mono">
                             {{ ban.created_at|date:"M d, Y H:i" }}
                         </td>
-                        <td class="p-4 text-sm">
+                        <td class="px-6 py-4 text-xs font-mono">
                             {% if ban.expires_at %}
-                                <span class="{% if ban.is_active %}text-yellow-400{% else %}text-green-400{% endif %}">
-                                    {{ ban.expires_at|date:"M d, Y H:i" }}
-                                </span>
+                            <span class="{% if ban.is_active %}text-brand-400{% else %}text-green-400{% endif %}">
+                                {{ ban.expires_at|date:"M d, Y H:i" }}
+                            </span>
                             {% else %}
-                                <span class="text-red-400 font-semibold">Permanent</span>
+                            <span class="text-red-400 font-bold uppercase">Permanent</span>
                             {% endif %}
                         </td>
-                        <td class="p-4 text-right">
-                             <div class="flex justify-end space-x-2">
-                                <button onclick="editBan('{{ ban.id }}', '{{ ban.user.username }}', '{{ ban.reason|escapejs }}', '{% if ban.expires_at %}{{ ban.expires_at|date:'U' }}{% else %}permanent{% endif %}')"
-                                        class="p-2 bg-slate-700 hover:bg-indigo-600 text-slate-300 hover:text-white rounded-lg transition-colors"
+                        <td class="px-6 py-4 text-right">
+                            <div class="flex justify-end gap-2">
+                                <button onclick="editBan('{{ ban.id }}', '{{ ban.user_char_name|default:ban.user.username|escapejs }}', '{{ ban.reason|escapejs }}', '{% if ban.expires_at %}{{ ban.expires_at|date:'U' }}{% else %}permanent{% endif %}')"
+                                        class="btn-secondary p-1.5"
                                         title="Edit Ban">
-                                    <i class="fa-solid fa-pen"></i>
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                                 </button>
-                                <button onclick="removeBan('{{ ban.id }}', '{{ ban.user.username }}')"
-                                        class="p-2 bg-slate-700 hover:bg-green-600 text-slate-300 hover:text-white rounded-lg transition-colors"
+                                <button onclick="removeBan('{{ ban.id }}', '{{ ban.user_char_name|default:ban.user.username|escapejs }}')"
+                                        class="btn-secondary p-1.5 hover:text-green-400 hover:border-green-500/50"
                                         title="Lift Ban">
-                                    <i class="fa-solid fa-unlock"></i>
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" /></svg>
                                 </button>
                             </div>
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="6" class="p-8 text-center text-slate-500">
-                            <i class="fa-solid fa-check-circle text-4xl mb-3 text-slate-700"></i>
-                            <p>No active bans found.</p>
+                        <td colspan="6" class="p-12 text-center text-slate-500 italic">
+                            No bans found matching filter.
                         </td>
                     </tr>
                     {% endfor %}
@@ -104,48 +130,49 @@
 </div>
 
 <!-- Ban Modal -->
-<div id="banModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
-    <div class="bg-slate-800 rounded-xl shadow-2xl w-full max-w-lg border border-slate-700 transform transition-all scale-100">
-        <div class="p-6 border-b border-slate-700 flex justify-between items-center bg-slate-900/50 rounded-t-xl">
-            <h3 class="text-xl font-bold text-slate-100" id="modalTitle">Ban User</h3>
-            <button onclick="closeBanModal()" class="text-slate-400 hover:text-white transition-colors">
-                <i class="fa-solid fa-xmark text-xl"></i>
-            </button>
+<div id="banModal" class="fixed inset-0 bg-dark-950/80 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-white/10 rounded-xl shadow-2xl w-full max-w-lg transform transition-all scale-100">
+        <div class="glass-header px-6 py-4 flex justify-between items-center border-b border-white/5">
+            <h3 class="text-xl font-bold text-white" id="modalTitle">Ban User</h3>
+            <button onclick="closeBanModal()" class="text-slate-400 hover:text-white transition">✕</button>
         </div>
 
         <div class="p-6 space-y-4">
             <!-- User Search (Only for New Ban) -->
             <div id="userSearchContainer">
-                <label class="block text-sm font-medium text-slate-400 mb-1">Target User</label>
+                <label class="label-text">Target User</label>
                 <div class="relative">
                     <input type="text" id="userSearchInput"
-                           class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-slate-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+                           class="input-field pl-10"
                            placeholder="Search by character name..." onkeyup="searchUsers(this.value)">
-                    <div id="userSearchResults" class="absolute w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 hidden max-h-48 overflow-y-auto">
+                    <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                        <svg class="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    </div>
+                    <div id="userSearchResults" class="absolute w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 hidden max-h-48 overflow-y-auto custom-scrollbar">
                         <!-- Results -->
                     </div>
                 </div>
                 <input type="hidden" id="selectedUserId">
             </div>
 
-             <!-- User Display (For Edit Mode) -->
+            <!-- User Display (For Edit Mode) -->
             <div id="userDisplayContainer" class="hidden">
-                 <label class="block text-sm font-medium text-slate-400 mb-1">Target User</label>
-                 <input type="text" id="userDisplayInput" readonly class="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-2 text-slate-400 cursor-not-allowed">
+                <label class="label-text">Target User</label>
+                <input type="text" id="userDisplayInput" readonly class="input-field bg-slate-800 text-slate-400 cursor-not-allowed border-slate-700">
             </div>
 
             <!-- Reason -->
             <div>
-                <label class="block text-sm font-medium text-slate-400 mb-1">Reason</label>
+                <label class="label-text">Reason</label>
                 <textarea id="banReason" rows="3"
-                          class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-slate-200 focus:border-indigo-500 outline-none"
+                          class="input-field resize-none"
                           placeholder="Why is this user being banned?"></textarea>
             </div>
 
             <!-- Duration -->
             <div>
-                <label class="block text-sm font-medium text-slate-400 mb-1">Duration</label>
-                <select id="banDuration" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-slate-200 focus:border-indigo-500 outline-none">
+                <label class="label-text">Duration</label>
+                <select id="banDuration" class="select-field">
                     <option value="5">5 Minutes</option>
                     <option value="60">1 Hour</option>
                     <option value="1440">24 Hours</option>
@@ -159,9 +186,9 @@
             <input type="hidden" id="editBanId">
         </div>
 
-        <div class="p-6 border-t border-slate-700 bg-slate-900/30 rounded-b-xl flex justify-end space-x-3">
-            <button onclick="closeBanModal()" class="px-4 py-2 text-slate-400 hover:text-white transition-colors">Cancel</button>
-            <button onclick="submitBan()" class="px-6 py-2 bg-red-600 hover:bg-red-500 text-white font-medium rounded-lg transition-colors shadow-lg shadow-red-900/20">
+        <div class="p-6 border-t border-white/5 bg-slate-900/50 flex justify-end gap-2">
+            <button onclick="closeBanModal()" class="btn-ghost text-xs">Cancel</button>
+            <button onclick="submitBan()" class="btn-danger text-xs px-6 shadow-lg shadow-red-900/20">
                 Confirm Ban
             </button>
         </div>
@@ -193,11 +220,9 @@ function editBan(id, username, reason, expiresTimestamp) {
     document.getElementById('banReason').value = reason;
     document.getElementById('editBanId').value = id;
 
-    // Try to map existing expiration to dropdown or default to perm if far future/none
-    // Ideally we would calculate duration from now, but for simplicity we just reset duration selector
-    // Or we could leave it to "Update Duration" logic.
-    // Let's default to 'permanent' so if they don't touch it, it becomes perm?
-    // No, that's dangerous. Let's select 'permanent' as default, but if they want to change it they can.
+    // Reset duration to permanent/custom handling logic needed if we want to show exact existing duration
+    // For now defaulting to permanent in edit view for simplicity or user re-selection
+    document.getElementById('banDuration').value = 'permanent';
 
     document.getElementById('banModal').classList.remove('hidden');
 }
@@ -227,9 +252,9 @@ function searchUsers(query) {
 
                 data.results.forEach(user => {
                     const div = document.createElement('div');
-                    div.className = 'px-4 py-2 hover:bg-slate-700 cursor-pointer border-b border-slate-700 last:border-0';
+                    div.className = 'px-4 py-2 hover:bg-slate-700 cursor-pointer border-b border-slate-700 last:border-0 transition';
                     div.innerHTML = `
-                        <div class="font-medium text-slate-200">${user.username}</div>
+                        <div class="font-bold text-slate-200 text-sm">${user.username}</div>
                         <div class="text-xs text-slate-400">${user.corp}</div>
                     `;
                     div.onclick = () => selectUser(user);

@@ -10,11 +10,14 @@ class Capability(models.Model):
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
     category = models.CharField(max_length=100, default="General")
+    # Added explicit ordering field
+    order = models.IntegerField(default=0, help_text="Display order in the permissions matrix")
     groups = models.ManyToManyField(Group, related_name='capabilities', blank=True)
 
     class Meta:
         verbose_name_plural = "Capabilities"
-        ordering = ['category', 'name']
+        # Sort by 'order' first, then category, then name
+        ordering = ['order', 'category', 'name']
 
     def __str__(self):
         return f"{self.name} ({self.slug})"

@@ -2,7 +2,7 @@ import json
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.models import User, Group
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.db.models import Count, Sum, Subquery, OuterRef
+from django.db.models import Count, Sum, Subquery, OuterRef, Q
 from django.db.models.functions import TruncDate
 from django.core.paginator import Paginator
 from django.http import JsonResponse, HttpResponseBadRequest
@@ -102,8 +102,7 @@ def management_user_inspect(request, user_id, char_id=None):
     
     totals = characters.aggregate(wallet_sum=Sum('wallet_balance'), lp_sum=Sum('concord_lp'), sp_sum=Sum('total_sp'))
     
-    # --- UPDATED CHECK ---
-    # Check if user has the specific "View Sensitive Data" capability
+    # Check permissions for sensitive data
     obfuscate_financials = not can_view_sensitive_data(request.user)
     
     context = {
@@ -245,6 +244,7 @@ def management_celery(request):
 def management_permissions(request):
     """
     Dynamic Access Control Matrix using Database Models.
+    Capabilities are ordered by the 'order' field in the database.
     """
     db_caps = Capability.objects.all().prefetch_related('groups')
     groups = Group.objects.all().select_related('priority_config').order_by('priority_config__level', 'name')
@@ -415,13 +415,33 @@ def api_update_user_role(request):
 @login_required
 @user_passes_test(can_manage_bans)
 def management_bans(request):
-    bans = Ban.objects.all().select_related('user', 'issuer').order_by('-created_at')
+    # Pre-fetch Main Character Names & IDs
+    user_main = EveCharacter.objects.filter(user=OuterRef('user'), is_main=True)
+    issuer_main = EveCharacter.objects.filter(user=OuterRef('issuer'), is_main=True)
 
-    # Filter expired bans if needed, but requirements imply seeing all
-    # Might want to add a filter in the UI
+    bans = Ban.objects.all().select_related('user', 'issuer').annotate(
+        user_char_name=Subquery(user_main.values('character_name')[:1]),
+        user_char_id=Subquery(user_main.values('character_id')[:1]),
+        issuer_char_name=Subquery(issuer_main.values('character_name')[:1])
+    ).order_by('-created_at')
+
+    # --- FILTERING LOGIC ---
+    filter_status = request.GET.get('filter', 'all')
+    now = timezone.now()
+
+    if filter_status == 'active':
+        # Expires in future OR is permanent (expires_at is null)
+        bans = bans.filter(models.Q(expires_at__gt=now) | models.Q(expires_at__isnull=True))
+    elif filter_status == 'expired':
+        # Expires in past
+        bans = bans.filter(expires_at__lt=now)
+    elif filter_status == 'permanent':
+        # No expiration date
+        bans = bans.filter(expires_at__isnull=True)
 
     context = {
         'bans': bans,
+        'current_filter': filter_status, # Pass to template for active state
         'base_template': get_template_base(request)
     }
     context.update(get_mgmt_context(request.user))
@@ -430,7 +450,15 @@ def management_bans(request):
 @login_required
 @user_passes_test(can_view_ban_audit)
 def management_ban_audit(request):
-    logs = BanAuditLog.objects.all().select_related('target_user', 'actor', 'ban').order_by('-timestamp')
+    # Pre-fetch Main Character Names for Target and Actor
+    target_main = EveCharacter.objects.filter(user=OuterRef('target_user'), is_main=True)
+    actor_main = EveCharacter.objects.filter(user=OuterRef('actor'), is_main=True)
+
+    logs = BanAuditLog.objects.all().select_related('target_user', 'actor', 'ban').annotate(
+        target_char_name=Subquery(target_main.values('character_name')[:1]),
+        actor_char_name=Subquery(actor_main.values('character_name')[:1])
+    ).order_by('-timestamp')
+
     paginator = Paginator(logs, 20)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
@@ -451,9 +479,6 @@ def api_ban_user(request):
         user_id = data.get('user_id')
         reason = data.get('reason')
         duration = data.get('duration') # "permanent", "5m", "1h", "1d", etc. or custom date?
-        # Requirement: "time picker with varying durations from 5 minutes up to a year should exist"
-        # I'll assume frontend sends either a duration string or specific timestamp.
-        # Let's support minutes as integer or "permanent" string.
     except json.JSONDecodeError:
         return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
 
@@ -498,9 +523,6 @@ def api_ban_user(request):
     )
 
     # Remove from Waitlist (WaitlistEntry)
-    # "banning a user should prevent them from being able to see the waitlist dashboard page or x up a fit on the dashboard"
-    # "Existing 'X Up': yes, they should be removed automatically."
-
     deleted_count, _ = WaitlistEntry.objects.filter(character__user=target_user).delete()
 
     return JsonResponse({'success': True})
@@ -522,9 +544,6 @@ def api_update_ban(request):
         ban.delete()
         BanAuditLog.objects.create(
             target_user=ban.user,
-            # Ban object is deleted, so we can't link it directly if using CASCADE or SET_NULL.
-            # SET_NULL is on the model, but we just deleted it.
-            # Ideally we keep the log but Ban FK becomes null.
             actor=request.user,
             action='remove',
             details=f"Ban removed for {ban.user.username}"
@@ -541,9 +560,6 @@ def api_update_ban(request):
             ban.reason = reason
 
         if duration is not None:
-            # If duration is provided, we recalculate expires_at FROM NOW? Or extend?
-            # Usually "Update ban length" implies setting a new duration from now or setting a specific end date.
-            # Simplified: Reset expiration based on now + duration
             new_expires = None
             if duration != 'permanent':
                 try:
@@ -552,7 +568,7 @@ def api_update_ban(request):
                 except ValueError:
                      return JsonResponse({'success': False, 'error': 'Invalid duration'})
 
-            if new_expires != ban.expires_at: # Simple check doesn't account for 'permanent' vs None
+            if new_expires != ban.expires_at:
                  changes.append(f"Expires: {ban.expires_at} -> {new_expires}")
                  ban.expires_at = new_expires
 
