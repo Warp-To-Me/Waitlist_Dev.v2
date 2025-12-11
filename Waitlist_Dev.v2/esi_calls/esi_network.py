@@ -141,12 +141,12 @@ def call_esi(character, endpoint_name, url, method='GET', params=None, body=None
         # 3. Handle 304 Not Modified
         if response.status_code == 304:
             _update_cache_headers(character, endpoint_name, response.headers, cache_entry)
-            return {'status': 304, 'data': None}
+            return {'status': 304, 'data': None, 'headers': response.headers}
 
         # 4. Handle 200 OK
         if response.status_code == 200:
             _update_cache_headers(character, endpoint_name, response.headers, cache_entry)
-            return {'status': 200, 'data': response.json()}
+            return {'status': 200, 'data': response.json(), 'headers': response.headers}
             
         # Handle Token Errors
         if response.status_code in [401, 403]:

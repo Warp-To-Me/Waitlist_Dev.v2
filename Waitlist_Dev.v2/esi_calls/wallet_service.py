@@ -66,6 +66,9 @@ def sync_corp_wallet(srp_config):
     total_new = 0
     errors = []
 
+    # Store the latest ESI date header encountered
+    latest_esi_date = None
+
     # Iterate divisions 1 through 7
     for division in range(1, 8):
         page = 1
@@ -81,6 +84,16 @@ def sync_corp_wallet(srp_config):
                     errors.append(f"Div {division} Page {page}: {resp.get('error')}")
                 keep_fetching = False
                 continue
+
+            # Capture Date Header for Sync Timestamp
+            if 'headers' in resp:
+                date_header = resp['headers'].get('Date')
+                if date_header:
+                    try:
+                        latest_esi_date = parse(date_header)
+                    except (ValueError, TypeError) as e:
+                        # Log error if date parsing fails but continue
+                        print(f"Warning: Failed to parse Date header '{date_header}': {e}")
 
             data = resp['data']
             if not data:
@@ -153,7 +166,11 @@ def sync_corp_wallet(srp_config):
             page += 1
             if page > 50: keep_fetching = False
 
-    srp_config.last_sync = timezone.now()
+    if latest_esi_date:
+        srp_config.last_sync = latest_esi_date
+    else:
+        srp_config.last_sync = timezone.now()
+
     srp_config.save()
     
     if errors:

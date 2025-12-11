@@ -267,8 +267,10 @@ def api_srp_data(request):
         qs = qs.filter(reason__icontains=f_reason)
 
     # 3. Aggregates (Income/Outcome) - CALCULATED ON FULL SET (POST-FILTER)
-    total_income = qs.filter(amount__gt=0).aggregate(s=Sum('amount'))['s'] or 0
-    total_outcome = qs.filter(amount__lt=0).aggregate(s=Sum('amount'))['s'] or 0
+    # Exclude internal transfers from these specific totals per user request
+    agg_qs = qs.exclude(custom_category='internal_transfer')
+    total_income = agg_qs.filter(amount__gt=0).aggregate(s=Sum('amount'))['s'] or 0
+    total_outcome = agg_qs.filter(amount__lt=0).aggregate(s=Sum('amount'))['s'] or 0
     net_change = total_income + total_outcome
 
     # 4. Division Balances (Snapshot of latest known state)
