@@ -1,6 +1,7 @@
 from django.shortcuts import render, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, HttpResponse
+from collections import defaultdict
 import requests 
 
 from core.permissions import (
@@ -14,7 +15,7 @@ from waitlist_data.models import Fleet, WaitlistEntry, FleetActivity, DoctrineCa
 from waitlist_data.stats import batch_calculate_pilot_stats
 from esi_calls.fleet_service import get_fleet_composition, process_fleet_data, ESI_BASE
 from esi_calls.token_manager import check_token
-from .helpers import _resolve_column
+from .helpers import _resolve_column, get_category_map, get_entry_target_column, get_entry_real_category
 from core.decorators import check_ban_status
 
 @login_required
@@ -28,23 +29,28 @@ def fleet_dashboard(request, token):
     if not fc_name:
         fc_name = fleet.commander.username
 
+    # Fetch Entries
     entries = WaitlistEntry.objects.filter(fleet=fleet).exclude(status__in=['rejected', 'left']).select_related(
         'character', 'fit', 'fit__ship_type', 'fit__category', 'hull'
     ).order_by('created_at')
 
+    # Calculate Stats
     char_ids = [e.character.character_id for e in entries]
     all_stats = batch_calculate_pilot_stats(char_ids)
     
+    # Prep columns
     columns = {'pending': [], 'logi': [], 'dps': [], 'sniper': [], 'other': []}
     
-    # --- BUILD CATEGORY MAP FOR RECURSIVE LOOKUP ---
-    all_cats = DoctrineCategory.objects.values('id', 'parent_id', 'target_column')
-    category_map = {
-        c['id']: {'parent_id': c['parent_id'], 'target': c['target_column']}
-        for c in all_cats
-    }
+    # Get lightweight category map for column resolution
+    category_map = get_category_map()
 
+    # --- PASS 1: Resolve Columns & Build Pilot Map ---
+    char_columns = defaultdict(set) # char_id -> set of active columns
+    
+    processed_entries = []
+    
     for entry in entries:
+        # Determine stats
         stats = all_stats.get(entry.character.character_id, {})
         hull_name = entry.hull.type_name if entry.hull else "Unknown"
         hull_seconds = stats.get('hull_breakdown', {}).get(hull_name, 0)
@@ -54,19 +60,37 @@ def fleet_dashboard(request, token):
             'hull_hours': round(hull_seconds / 3600, 1)
         }
 
-        if entry.status == 'pending':
-            columns['pending'].append(entry)
-        elif entry.fit:
-            # --- RECURSIVE COLUMN RESOLUTION ---
-            target = _resolve_column(entry.fit.category.id, category_map)
+        # Resolve Target Column (Visual)
+        target_visual = get_entry_target_column(entry, category_map)
+        entry.target_column = target_visual 
+        
+        # Resolve REAL Category (For Indicators)
+        real_cat = get_entry_real_category(entry, category_map)
+        entry.real_category = real_cat
+        
+        # Track for Multi-Fit Indicators
+        # We track the REAL category so pending entries still contribute their role info
+        if real_cat in ['logi', 'dps', 'sniper']:
+            char_columns[entry.character.character_id].add(real_cat)
             
-            if target in columns:
-                columns[target].append(entry)
-            else:
-                columns['other'].append(entry)
+        processed_entries.append(entry)
+
+    # --- PASS 2: Assign Indicators & Populate Lists ---
+    for entry in processed_entries:
+        # Calculate other categories for this pilot
+        all_pilot_cats = char_columns.get(entry.character.character_id, set())
+        
+        # Exclude the current card's REAL category from its own indicators
+        # This prevents a pending Logi fit from showing a Logi dot on itself
+        entry.other_categories = list(all_pilot_cats - {entry.real_category})
+        
+        # Add to view list based on visual column
+        if entry.target_column in columns:
+            columns[entry.target_column].append(entry)
         else:
             columns['other'].append(entry)
 
+    # --- User Characters (for X-Up Modal) ---
     user_chars = request.user.characters.filter(x_up_visible=True).prefetch_related('implants')
     
     implant_type_ids = set()
@@ -125,7 +149,6 @@ def fleet_history_view(request, token):
         },
         'base_template': get_template_base(request)
     }
-    # Add management context to render sidebar correctly
     context.update(get_mgmt_context(request.user))
     return render(request, 'management/history.html', context)
 

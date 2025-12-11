@@ -1,7 +1,7 @@
 from django.template.loader import render_to_string
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
-from waitlist_data.models import FleetActivity, FitModule
+from waitlist_data.models import FleetActivity, FitModule, DoctrineCategory, WaitlistEntry
 from pilot_data.models import ItemType, TypeEffect
 from waitlist_data.stats import calculate_pilot_stats
 from core.eft_parser import EFTParser
@@ -51,16 +51,12 @@ def _process_category_icons(category):
     return unique_ships
 
 def _determine_slot(item_type):
-    """
-    Determines the slot layout (High/Mid/Low/Rig) based on Dogma Effects.
-    """
     if not item_type: return 'cargo'
-    
     effects = set(TypeEffect.objects.filter(item=item_type).values_list('effect_id', flat=True))
-    if 12 in effects: return 'high'  # hiPower
-    if 13 in effects: return 'mid'   # medPower
-    if 11 in effects: return 'low'   # loPower
-    if 2663 in effects: return 'rig' # rigSlot
+    if 12 in effects: return 'high'
+    if 13 in effects: return 'mid'
+    if 11 in effects: return 'low'
+    if 2663 in effects: return 'rig'
     try:
         if item_type.group:
             cat_id = item_type.group.category_id
@@ -72,28 +68,42 @@ def _determine_slot(item_type):
     return 'cargo'
 
 def _resolve_column(category_id, category_map):
-    """
-    Starts at the child category (Leaf) and walks UP the tree.
-    Returns the first specific column assignment found.
-    This enables 'Child Overrides Parent' behavior.
-    """
     current_id = category_id
-    
-    # Safety limit to prevent infinite loops (max depth 10)
     for _ in range(10):
         if not current_id: break
-        
         cat_data = category_map.get(current_id)
         if not cat_data: break
-        
-        # If explicit column found (and not inheriting), return it immediately
         if cat_data['target'] != 'inherit':
             return cat_data['target']
-            
-        # If 'inherit', move to parent and loop again
         current_id = cat_data['parent_id']
-        
-    return 'other' # Default fallback if root is reached without a setting
+    return 'other'
+
+def get_category_map():
+    all_cats = DoctrineCategory.objects.values('id', 'parent_id', 'target_column')
+    return {
+        c['id']: {'parent_id': c['parent_id'], 'target': c['target_column']}
+        for c in all_cats
+    }
+
+def get_entry_target_column(entry, category_map):
+    """
+    Determines visual column placement (Pending vs Category).
+    """
+    if entry.status == 'pending':
+        return 'pending'
+    return get_entry_real_category(entry, category_map)
+
+def get_entry_real_category(entry, category_map):
+    """
+    Determines the theoretical category ('logi', 'dps', etc.) regardless of status.
+    Used for indicator lights to show potential capabilities.
+    """
+    if entry.fit_id and entry.fit: # Use fit object relation
+        # Optimisation: entry.fit should be select_related in calling views
+        col = _resolve_column(entry.fit.category_id, category_map)
+        if col in ['logi', 'dps', 'sniper', 'other']:
+            return col
+    return 'other'
 
 def broadcast_update(fleet_id, action, entry, target_col=None):
     channel_layer = get_channel_layer()
@@ -103,7 +113,9 @@ def broadcast_update(fleet_id, action, entry, target_col=None):
         'action': action,
         'entry_id': entry.id
     }
+    
     if action in ['add', 'move']:
+        # 1. Stats
         stats = calculate_pilot_stats(entry.character)
         hull_name = entry.hull.type_name if entry.hull else "Unknown"
         hull_seconds = stats['hull_breakdown'].get(hull_name, 0)
@@ -113,12 +125,54 @@ def broadcast_update(fleet_id, action, entry, target_col=None):
             'hull_hours': round(hull_seconds / 3600, 1)
         }
         
+        # 2. Resolve Column
+        category_map = get_category_map()
+        if not target_col:
+            target_col = get_entry_target_column(entry, category_map)
+        
+        # 3. Indicators (Other Categories)
+        siblings = WaitlistEntry.objects.filter(
+            fleet_id=fleet_id,
+            character_id=entry.character_id
+        ).exclude(status__in=['rejected', 'left']).exclude(id=entry.id).select_related('fit')
+        
+        # Calculate my own category
+        my_real_cat = get_entry_real_category(entry, category_map)
+        
+        other_cats = set()
+        for sib in siblings:
+            # Use REAL category to find what they have X-up, ignoring pending status
+            sib_cat = get_entry_real_category(sib, category_map)
+            
+            # Add to list if it's different from the current card's category
+            # This ensures a DPS card shows Logi/Sniper lights, but not a DPS light (redundant)
+            if sib_cat in ['logi', 'dps', 'sniper'] and sib_cat != my_real_cat:
+                other_cats.add(sib_cat)
+        
+        entry.other_categories = list(other_cats)
+        
+        # 4. Render
         context = {'entry': entry, 'is_fc': True}
         html = render_to_string('waitlist/entry_card.html', context)
         payload['html'] = html
         payload['target_col'] = target_col
 
     async_to_sync(channel_layer.group_send)(group_name, payload)
+
+def trigger_sibling_updates(fleet_id, character_id, exclude_entry_id=None):
+    """
+    Refreshes other cards for this pilot to update their indicators.
+    """
+    siblings = WaitlistEntry.objects.filter(
+        fleet_id=fleet_id,
+        character_id=character_id
+    ).exclude(status__in=['rejected', 'left']).select_related('character', 'fit', 'hull', 'fit__category')
+    
+    if exclude_entry_id:
+        siblings = siblings.exclude(id=exclude_entry_id)
+        
+    for sib in siblings:
+        broadcast_update(fleet_id, 'move', sib)
 
 def _build_fit_analysis_response(raw_eft, fit_obj, hull_obj, character, is_fc):
     try:
@@ -181,7 +235,6 @@ def _build_fit_analysis_response(raw_eft, fit_obj, hull_obj, character, is_fc):
             
             if hull_obj.group_id == 963:
                 for item in parser.items:
-                    # Defensive check: item['obj'] could theoretically be missing if parse failed weirdly
                     if item.get('obj'):
                         attrs = {a.attribute_id: a.value for a in item['obj'].attributes.all()}
                         if 14 in attrs: high_total += int(attrs[14])
@@ -223,7 +276,6 @@ def _build_fit_analysis_response(raw_eft, fit_obj, hull_obj, character, is_fc):
             'is_fc': is_fc
         }
     except Exception as e:
-        # Fallback for ANY error during analysis to prevent UI hang
         print(f"Fit Analysis Error: {e}")
         return {
             'character_name': character.character_name,

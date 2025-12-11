@@ -1,8 +1,12 @@
 ﻿<div class="w-72 flex flex-col bg-slate-900/40 backdrop-blur-md rounded-xl border border-white/10 shadow-2xl h-full flex-shrink-0">
     <!-- Header -->
-    <!-- Maintained amber/brand logic, updated base bg to slate-900/60 for contrast -->
+    <!-- Updated border color logic: Amber for Pending, Blue for Logi, Red for DPS, Green for others -->
     <div class="p-3 border-b border-white/10 flex justify-between items-center bg-slate-900/60 rounded-t-xl
-        {% if color == 'amber' %}border-b-brand-500{% else %}border-b-green-500{% endif %} border-b-2">
+        {% if id == 'pending' %}border-b-yellow-500
+        {% elif id == 'logi' %}border-b-blue-500
+        {% elif id == 'dps' %}border-b-red-500
+        {% elif id == 'sniper' %}border-b-green-500
+        {% else %}border-b-orange-500{% endif %} border-b-2">
         <h3 class="font-bold text-white uppercase text-sm tracking-wider">{{ title }}</h3>
         <!-- Counter ID for JS updates -->
         <span id="count-{{ id }}" class="bg-white/10 text-slate-300 text-xs font-mono px-2 py-0.5 rounded border border-white/5">{{ entries|length }}</span>

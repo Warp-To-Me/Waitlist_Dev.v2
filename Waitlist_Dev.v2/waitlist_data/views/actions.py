@@ -10,7 +10,7 @@ from waitlist_data.models import Fleet, WaitlistEntry, FleetActivity
 from pilot_data.models import EveCharacter
 from waitlist_data.fitting_service import SmartFitMatcher
 from esi_calls.fleet_service import invite_to_fleet
-from .helpers import _log_fleet_action, broadcast_update, _build_fit_analysis_response
+from .helpers import _log_fleet_action, broadcast_update, _build_fit_analysis_response, trigger_sibling_updates
 from core.decorators import check_ban_status
 
 @login_required
@@ -84,9 +84,15 @@ def x_up_submit(request, token):
                 eft_text=fit_text
             )
             
+            # Re-fetch for full depth
             entry = WaitlistEntry.objects.select_related('character__user', 'fit', 'hull', 'fit__ship_type', 'fit__category').get(id=entry.id)
 
+            # 1. Update this card
             broadcast_update(fleet.id, 'add', entry, target_col='pending')
+            
+            # 2. Update siblings (add new dot to them)
+            trigger_sibling_updates(fleet.id, char.character_id, exclude_entry_id=entry.id)
+            
             processed_count += 1
 
     if processed_count == 0 and errors: return JsonResponse({'success': False, 'error': " | ".join(errors[:3])})
@@ -121,7 +127,11 @@ def update_fit(request, entry_id):
 
     entry = WaitlistEntry.objects.select_related('character__user', 'fit', 'hull', 'fit__ship_type', 'fit__category').get(id=entry.id)
 
+    # 1. Update this card
     broadcast_update(entry.fleet.id, 'move', entry, target_col='pending')
+    
+    # 2. Update siblings (category might have changed, updating indicators)
+    trigger_sibling_updates(entry.fleet.id, entry.character.character_id, exclude_entry_id=entry.id)
     
     return JsonResponse({'success': True, 'message': f"Updated to: {new_fit_name}"})
 
@@ -132,11 +142,18 @@ def leave_fleet(request, entry_id):
     if entry.character.user != request.user: return JsonResponse({'success': False, 'error': 'Forbidden'}, status=403)
     
     fleet_id = entry.fleet.id
+    char_id = entry.character.character_id
     
     _log_fleet_action(entry.fleet, entry.character, 'left_waitlist', actor=request.user, details="User initiated leave")
     
     entry.delete()
+    
+    # 1. Remove this card
     broadcast_update(fleet_id, 'remove', entry)
+    
+    # 2. Update siblings (remove dot representing this entry)
+    trigger_sibling_updates(fleet_id, char_id)
+    
     return JsonResponse({'success': True})
 
 @login_required
@@ -173,29 +190,30 @@ def fc_action(request, entry_id, action):
     if not is_fleet_command(request.user): return HttpResponse("Unauthorized", status=403)
     entry = get_object_or_404(WaitlistEntry, id=entry_id)
     fleet = entry.fleet
+    
     if action == 'approve':
         entry.status = 'approved'; entry.approved_at = timezone.now(); entry.save()
         hull_for_log = entry.hull if entry.hull else entry.fit.ship_type if entry.fit else None
         _log_fleet_action(fleet, entry.character, 'approved', actor=request.user, ship_type=hull_for_log)
         
-        # --- RECURSIVE SORTING ---
-        col = 'other'
-        if entry.fit:
-            # Re-used logic for FC action broadcast
-            curr_cat = entry.fit.category
-            for _ in range(10):
-                if not curr_cat: break
-                if curr_cat.target_column != 'inherit':
-                    col = curr_cat.target_column
-                    break
-                curr_cat = curr_cat.parent
+        # Determine column manually or let helper do it
+        # Since we just updated status to approved, helper's 'pending' check will fail and it will check fit category
+        broadcast_update(fleet.id, 'move', entry)
         
-        broadcast_update(fleet.id, 'move', entry, target_col=col)
+        # Approval moves card out of pending -> update sibling dots
+        trigger_sibling_updates(fleet.id, entry.character.character_id, exclude_entry_id=entry.id)
+        
     elif action == 'deny':
         hull_for_log = entry.hull if entry.hull else entry.fit.ship_type if entry.fit else None
         _log_fleet_action(fleet, entry.character, 'denied', actor=request.user, ship_type=hull_for_log, details="Manual FC Rejection")
         entry.status = 'rejected'; entry.save()
+        
+        # Remove card
         broadcast_update(fleet.id, 'remove', entry)
+        
+        # Update siblings (remove dot)
+        trigger_sibling_updates(fleet.id, entry.character.character_id, exclude_entry_id=entry.id)
+        
     elif action == 'invite':
         fc_char = fleet.commander.characters.filter(is_main=True).first() or fleet.commander.characters.first()
         if not fleet.esi_fleet_id: return JsonResponse({'success': False, 'error': 'No ESI Fleet linked.'})
@@ -213,18 +231,10 @@ def fc_action(request, entry_id, action):
                 eft_text=entry.raw_eft
             )
             
-            # --- RECURSIVE SORTING ---
-            col = 'other'
-            if entry.fit:
-                curr_cat = entry.fit.category
-                for _ in range(10):
-                    if not curr_cat: break
-                    if curr_cat.target_column != 'inherit':
-                        col = curr_cat.target_column
-                        break
-                    curr_cat = curr_cat.parent
-                    
-            broadcast_update(fleet.id, 'move', entry, target_col=col)
+            broadcast_update(fleet.id, 'move', entry)
+            # Invite doesn't change column, but maybe status change affects something? Safe to trigger.
+            trigger_sibling_updates(fleet.id, entry.character.character_id, exclude_entry_id=entry.id)
+            
             return JsonResponse({'success': True})
         else: return JsonResponse({'success': False, 'error': f'Invite Failed: {msg}'})
     return JsonResponse({'success': True})
