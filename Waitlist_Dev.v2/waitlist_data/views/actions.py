@@ -11,8 +11,10 @@ from pilot_data.models import EveCharacter
 from waitlist_data.fitting_service import SmartFitMatcher
 from esi_calls.fleet_service import invite_to_fleet
 from .helpers import _log_fleet_action, broadcast_update, _build_fit_analysis_response
+from core.decorators import check_ban_status
 
 @login_required
+@check_ban_status
 @require_POST
 def x_up_submit(request, token):
     fleet = get_object_or_404(Fleet, join_token=token, is_active=True)

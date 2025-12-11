@@ -15,8 +15,10 @@ from waitlist_data.stats import batch_calculate_pilot_stats
 from esi_calls.fleet_service import get_fleet_composition, process_fleet_data, ESI_BASE
 from esi_calls.token_manager import check_token
 from .helpers import _resolve_column
+from core.decorators import check_ban_status
 
 @login_required
+@check_ban_status
 def fleet_dashboard(request, token):
     fleet = get_object_or_404(Fleet, join_token=token)
     

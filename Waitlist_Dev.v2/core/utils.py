@@ -50,6 +50,9 @@ SYSTEM_CAPABILITIES = [
     {"category": "SRP & Finance", "name": "Manage SRP Source", "desc": "Configure the SRP data source character and settings.", "roles": ['Admin', 'Leadership']},
     {"category": "SRP & Finance", "name": "View SRP Dashboard", "desc": "Access the SRP Wallet History and Analytics page.", "roles": ['Admin', 'Leadership', 'Officer']},
 
+    {"category": "User Management", "name": "Manage Bans", "desc": "Ban and unban users from accessing the waitlist and dashboard.", "roles": ROLES_ADMIN + ROLES_MANAGEMENT},
+    {"category": "User Management", "name": "View Ban Audit Log", "desc": "View the audit log of ban actions.", "roles": ROLES_ADMIN},
+
     {"category": "Fleet Operations", "name": "Fleet Command", "desc": "Create/Close Fleets, Take Command, FC Actions (Approve/Invite).", "roles": ROLES_FC},
     {"category": "Fleet Operations", "name": "Inspect Pilots", "desc": "View full pilot details (Skills, Assets) in User Search.", "roles": ROLES_FC},
     {"category": "Fleet Operations", "name": "View Fleet Overview", "desc": "See the live fleet composition sidebar on the dashboard.", "roles": ROLES_MANAGEMENT},

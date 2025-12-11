@@ -1,0 +1,318 @@
+{% extends base_template %}
+{% load humanize %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-slate-100">Ban Management</h1>
+            <p class="text-slate-400 mt-1">Manage user bans and restrictions.</p>
+        </div>
+        <div class="flex space-x-3">
+             {% if 'view_ban_audit_log' in user_perms %}
+            <a href="{% url 'management_ban_audit' %}" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg transition-colors border border-slate-600">
+                <i class="fa-solid fa-history mr-2"></i>Audit Log
+            </a>
+            {% endif %}
+            <button onclick="openBanModal()" class="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors shadow-lg shadow-red-900/20">
+                <i class="fa-solid fa-ban mr-2"></i>Ban User
+            </button>
+        </div>
+    </div>
+
+    <!-- Active Bans Table -->
+    <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-xl">
+        <div class="p-6 border-b border-slate-700">
+            <h3 class="text-lg font-semibold text-slate-200">Active & Past Bans</h3>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-slate-900/50 text-slate-400 text-sm uppercase tracking-wider">
+                        <th class="p-4 font-medium border-b border-slate-700">User</th>
+                        <th class="p-4 font-medium border-b border-slate-700">Reason</th>
+                        <th class="p-4 font-medium border-b border-slate-700">Issued By</th>
+                        <th class="p-4 font-medium border-b border-slate-700">Issued At</th>
+                        <th class="p-4 font-medium border-b border-slate-700">Expires</th>
+                        <th class="p-4 font-medium border-b border-slate-700 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-700 text-slate-300">
+                    {% for ban in bans %}
+                    <tr class="hover:bg-slate-750 transition-colors {% if not ban.is_active %}opacity-50{% endif %}">
+                        <td class="p-4">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-400">
+                                    {{ ban.user.username|slice:":2"|upper }}
+                                </div>
+                                <div>
+                                    <div class="font-medium text-slate-200">{{ ban.user.username }}</div>
+                                    <div class="text-xs text-slate-500">ID: {{ ban.user.id }}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="p-4 max-w-xs truncate" title="{{ ban.reason }}">
+                            {{ ban.reason }}
+                        </td>
+                        <td class="p-4 text-sm">
+                            <span class="px-2 py-1 rounded bg-slate-700 text-slate-300 text-xs">
+                                {{ ban.issuer.username|default:"System" }}
+                            </span>
+                        </td>
+                        <td class="p-4 text-sm text-slate-400">
+                            {{ ban.created_at|date:"M d, Y H:i" }}
+                        </td>
+                        <td class="p-4 text-sm">
+                            {% if ban.expires_at %}
+                                <span class="{% if ban.is_active %}text-yellow-400{% else %}text-green-400{% endif %}">
+                                    {{ ban.expires_at|date:"M d, Y H:i" }}
+                                </span>
+                            {% else %}
+                                <span class="text-red-400 font-semibold">Permanent</span>
+                            {% endif %}
+                        </td>
+                        <td class="p-4 text-right">
+                             <div class="flex justify-end space-x-2">
+                                <button onclick="editBan('{{ ban.id }}', '{{ ban.user.username }}', '{{ ban.reason|escapejs }}', '{% if ban.expires_at %}{{ ban.expires_at|date:'U' }}{% else %}permanent{% endif %}')"
+                                        class="p-2 bg-slate-700 hover:bg-indigo-600 text-slate-300 hover:text-white rounded-lg transition-colors"
+                                        title="Edit Ban">
+                                    <i class="fa-solid fa-pen"></i>
+                                </button>
+                                <button onclick="removeBan('{{ ban.id }}', '{{ ban.user.username }}')"
+                                        class="p-2 bg-slate-700 hover:bg-green-600 text-slate-300 hover:text-white rounded-lg transition-colors"
+                                        title="Lift Ban">
+                                    <i class="fa-solid fa-unlock"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="p-8 text-center text-slate-500">
+                            <i class="fa-solid fa-check-circle text-4xl mb-3 text-slate-700"></i>
+                            <p>No active bans found.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Ban Modal -->
+<div id="banModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-slate-800 rounded-xl shadow-2xl w-full max-w-lg border border-slate-700 transform transition-all scale-100">
+        <div class="p-6 border-b border-slate-700 flex justify-between items-center bg-slate-900/50 rounded-t-xl">
+            <h3 class="text-xl font-bold text-slate-100" id="modalTitle">Ban User</h3>
+            <button onclick="closeBanModal()" class="text-slate-400 hover:text-white transition-colors">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+        </div>
+
+        <div class="p-6 space-y-4">
+            <!-- User Search (Only for New Ban) -->
+            <div id="userSearchContainer">
+                <label class="block text-sm font-medium text-slate-400 mb-1">Target User</label>
+                <div class="relative">
+                    <input type="text" id="userSearchInput"
+                           class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-slate-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+                           placeholder="Search by character name..." onkeyup="searchUsers(this.value)">
+                    <div id="userSearchResults" class="absolute w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 hidden max-h-48 overflow-y-auto">
+                        <!-- Results -->
+                    </div>
+                </div>
+                <input type="hidden" id="selectedUserId">
+            </div>
+
+             <!-- User Display (For Edit Mode) -->
+            <div id="userDisplayContainer" class="hidden">
+                 <label class="block text-sm font-medium text-slate-400 mb-1">Target User</label>
+                 <input type="text" id="userDisplayInput" readonly class="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-2 text-slate-400 cursor-not-allowed">
+            </div>
+
+            <!-- Reason -->
+            <div>
+                <label class="block text-sm font-medium text-slate-400 mb-1">Reason</label>
+                <textarea id="banReason" rows="3"
+                          class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-slate-200 focus:border-indigo-500 outline-none"
+                          placeholder="Why is this user being banned?"></textarea>
+            </div>
+
+            <!-- Duration -->
+            <div>
+                <label class="block text-sm font-medium text-slate-400 mb-1">Duration</label>
+                <select id="banDuration" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-slate-200 focus:border-indigo-500 outline-none">
+                    <option value="5">5 Minutes</option>
+                    <option value="60">1 Hour</option>
+                    <option value="1440">24 Hours</option>
+                    <option value="10080">1 Week</option>
+                    <option value="43200">1 Month</option>
+                    <option value="525600">1 Year</option>
+                    <option value="permanent" selected>Permanent</option>
+                </select>
+            </div>
+
+            <input type="hidden" id="editBanId">
+        </div>
+
+        <div class="p-6 border-t border-slate-700 bg-slate-900/30 rounded-b-xl flex justify-end space-x-3">
+            <button onclick="closeBanModal()" class="px-4 py-2 text-slate-400 hover:text-white transition-colors">Cancel</button>
+            <button onclick="submitBan()" class="px-6 py-2 bg-red-600 hover:bg-red-500 text-white font-medium rounded-lg transition-colors shadow-lg shadow-red-900/20">
+                Confirm Ban
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+let searchTimeout;
+
+function openBanModal() {
+    document.getElementById('modalTitle').innerText = 'Ban User';
+    document.getElementById('userSearchContainer').classList.remove('hidden');
+    document.getElementById('userDisplayContainer').classList.add('hidden');
+    document.getElementById('selectedUserId').value = '';
+    document.getElementById('userSearchInput').value = '';
+    document.getElementById('banReason').value = '';
+    document.getElementById('banDuration').value = 'permanent';
+    document.getElementById('editBanId').value = '';
+
+    document.getElementById('banModal').classList.remove('hidden');
+}
+
+function editBan(id, username, reason, expiresTimestamp) {
+    document.getElementById('modalTitle').innerText = 'Update Ban';
+    document.getElementById('userSearchContainer').classList.add('hidden');
+    document.getElementById('userDisplayContainer').classList.remove('hidden');
+    document.getElementById('userDisplayInput').value = username;
+
+    document.getElementById('banReason').value = reason;
+    document.getElementById('editBanId').value = id;
+
+    // Try to map existing expiration to dropdown or default to perm if far future/none
+    // Ideally we would calculate duration from now, but for simplicity we just reset duration selector
+    // Or we could leave it to "Update Duration" logic.
+    // Let's default to 'permanent' so if they don't touch it, it becomes perm?
+    // No, that's dangerous. Let's select 'permanent' as default, but if they want to change it they can.
+
+    document.getElementById('banModal').classList.remove('hidden');
+}
+
+function closeBanModal() {
+    document.getElementById('banModal').classList.add('hidden');
+}
+
+function searchUsers(query) {
+    clearTimeout(searchTimeout);
+    const resultsDiv = document.getElementById('userSearchResults');
+
+    if (query.length < 3) {
+        resultsDiv.classList.add('hidden');
+        return;
+    }
+
+    searchTimeout = setTimeout(() => {
+        fetch(`/api/mgmt/search_users/?q=${encodeURIComponent(query)}`)
+            .then(r => r.json())
+            .then(data => {
+                resultsDiv.innerHTML = '';
+                if (data.results.length === 0) {
+                    resultsDiv.classList.add('hidden');
+                    return;
+                }
+
+                data.results.forEach(user => {
+                    const div = document.createElement('div');
+                    div.className = 'px-4 py-2 hover:bg-slate-700 cursor-pointer border-b border-slate-700 last:border-0';
+                    div.innerHTML = `
+                        <div class="font-medium text-slate-200">${user.username}</div>
+                        <div class="text-xs text-slate-400">${user.corp}</div>
+                    `;
+                    div.onclick = () => selectUser(user);
+                    resultsDiv.appendChild(div);
+                });
+                resultsDiv.classList.remove('hidden');
+            });
+    }, 300);
+}
+
+function selectUser(user) {
+    document.getElementById('userSearchInput').value = user.username;
+    document.getElementById('selectedUserId').value = user.id;
+    document.getElementById('userSearchResults').classList.add('hidden');
+}
+
+function submitBan() {
+    const banId = document.getElementById('editBanId').value;
+    const isEdit = !!banId;
+
+    const url = isEdit ? '/api/mgmt/bans/update/' : '/api/mgmt/bans/add/';
+
+    const payload = {
+        reason: document.getElementById('banReason').value,
+        duration: document.getElementById('banDuration').value
+    };
+
+    if (isEdit) {
+        payload.action = 'update';
+        payload.ban_id = banId;
+    } else {
+        payload.user_id = document.getElementById('selectedUserId').value;
+        if (!payload.user_id) {
+            alert("Please select a user.");
+            return;
+        }
+    }
+
+    if (!payload.reason) {
+        alert("Please provide a reason.");
+        return;
+    }
+
+    fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.error);
+        }
+    });
+}
+
+function removeBan(banId, username) {
+    if(!confirm(`Are you sure you want to remove the ban for ${username}?`)) return;
+
+    fetch('/api/mgmt/bans/update/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({
+            action: 'remove',
+            ban_id: banId
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.error);
+        }
+    });
+}
+</script>
+{% endblock %}

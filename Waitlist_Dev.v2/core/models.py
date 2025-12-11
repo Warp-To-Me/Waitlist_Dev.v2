@@ -1,5 +1,6 @@
 from django.db import models
-from django.contrib.auth.models import Group
+from django.contrib.auth.models import Group, User
+from django.utils import timezone
 
 class Capability(models.Model):
     """
@@ -31,3 +32,43 @@ class RolePriority(models.Model):
 
     def __str__(self):
         return f"{self.group.name} (Lvl {self.level})"
+
+class Ban(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='bans')
+    issuer = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='bans_issued')
+    reason = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+
+    # Track if we have logged the expiration event to avoid duplicates
+    expiration_logged = models.BooleanField(default=False)
+
+    @property
+    def is_active(self):
+        if self.expires_at and timezone.now() > self.expires_at:
+            return False
+        return True
+
+    def __str__(self):
+        return f"Ban: {self.user.username}"
+
+class BanAuditLog(models.Model):
+    ACTION_CHOICES = [
+        ('create', 'Ban Created'),
+        ('update', 'Ban Updated'),
+        ('remove', 'Ban Removed'),
+        ('expire', 'Ban Expired'),
+    ]
+
+    target_user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='ban_logs')
+    ban = models.ForeignKey(Ban, on_delete=models.SET_NULL, null=True, blank=True, related_name='logs')
+    actor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='ban_actions')
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    details = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-timestamp']
+
+    def __str__(self):
+        return f"{self.action} - {self.target_user}"

@@ -30,6 +30,12 @@ urlpatterns = [
     path('management/sde/', views_management.management_sde, name='management_sde'),
     path('management/system/', views_management.management_celery, name='management_celery'),
     path('management/permissions/', views_management.management_permissions, name='management_permissions'),
+
+    # Ban Management
+    path('management/bans/', views_management.management_bans, name='management_bans'),
+    path('management/bans/audit/', views_management.management_ban_audit, name='management_ban_audit'),
+    path('api/mgmt/bans/add/', views_management.api_ban_user, name='api_ban_user'),
+    path('api/mgmt/bans/update/', views_management.api_update_ban, name='api_update_ban'),
     
     # Roles API
     path('management/roles/', views_management.management_roles, name='management_roles'),
@@ -54,6 +60,7 @@ urlpatterns = [
 
     # --- PROFILE & PUBLIC (views_profile.py & views.py) ---
     path('', core_views.landing_page, name='landing_page'),
+    path('banned/', core_views.banned_view, name='banned_view'),
     path('profile/', views_profile.profile_view, name='profile'),
     path('profile/switch/<int:char_id>/', views_profile.switch_character, name='switch_character'),
     path('profile/make_main/<int:char_id>/', views_profile.make_main, name='make_main'),

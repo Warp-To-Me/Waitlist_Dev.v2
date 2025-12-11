@@ -9,6 +9,8 @@ from django.http import JsonResponse, HttpResponseBadRequest
 from django.utils import timezone
 from datetime import timedelta
 from django.views.decorators.http import require_POST
+from django.core.exceptions import ObjectDoesNotExist
+from django.db import models
 
 # Core Imports - Permissions
 from core.permissions import (
@@ -16,7 +18,9 @@ from core.permissions import (
     is_fleet_command, 
     is_admin, 
     can_manage_roles,
-    can_view_sensitive_data, # NEW IMPORT
+    can_view_sensitive_data,
+    can_manage_bans,
+    can_view_ban_audit,
     get_mgmt_context, 
     get_template_base
 )
@@ -30,11 +34,11 @@ from core.utils import (
     get_user_highest_role
 )
 
-from core.models import Capability, RolePriority
+from core.models import Capability, RolePriority, Ban, BanAuditLog
 
 # Model Imports
 from pilot_data.models import EveCharacter, ItemType, ItemGroup, TypeAttribute
-from waitlist_data.models import Fleet
+from waitlist_data.models import Fleet, WaitlistEntry
 
 @login_required
 @user_passes_test(is_management)
@@ -405,3 +409,163 @@ def api_update_user_role(request):
         target_user.groups.remove(group)
         if role_name == 'Admin': target_user.is_staff = False; target_user.save()
     return JsonResponse({'success': True})
+
+# --- BAN MANAGEMENT ---
+
+@login_required
+@user_passes_test(can_manage_bans)
+def management_bans(request):
+    bans = Ban.objects.all().select_related('user', 'issuer').order_by('-created_at')
+
+    # Filter expired bans if needed, but requirements imply seeing all
+    # Might want to add a filter in the UI
+
+    context = {
+        'bans': bans,
+        'base_template': get_template_base(request)
+    }
+    context.update(get_mgmt_context(request.user))
+    return render(request, 'management/bans.html', context)
+
+@login_required
+@user_passes_test(can_view_ban_audit)
+def management_ban_audit(request):
+    logs = BanAuditLog.objects.all().select_related('target_user', 'actor', 'ban').order_by('-timestamp')
+    paginator = Paginator(logs, 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    context = {
+        'page_obj': page_obj,
+        'base_template': get_template_base(request)
+    }
+    context.update(get_mgmt_context(request.user))
+    return render(request, 'management/ban_audit.html', context)
+
+@login_required
+@user_passes_test(can_manage_bans)
+@require_POST
+def api_ban_user(request):
+    try:
+        data = json.loads(request.body)
+        user_id = data.get('user_id')
+        reason = data.get('reason')
+        duration = data.get('duration') # "permanent", "5m", "1h", "1d", etc. or custom date?
+        # Requirement: "time picker with varying durations from 5 minutes up to a year should exist"
+        # I'll assume frontend sends either a duration string or specific timestamp.
+        # Let's support minutes as integer or "permanent" string.
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+    if not user_id or not reason:
+        return JsonResponse({'success': False, 'error': 'User and Reason required'})
+
+    target_user = get_object_or_404(User, pk=user_id)
+
+    # Check if already banned (Active Ban)
+    active_ban = Ban.objects.filter(
+        user=target_user
+    ).filter(
+        models.Q(expires_at__isnull=True) | models.Q(expires_at__gt=timezone.now())
+    ).exists()
+
+    if active_ban:
+         return JsonResponse({'success': False, 'error': 'User is already banned. Update existing ban.'})
+
+    expires_at = None
+    if duration and duration != 'permanent':
+        try:
+            minutes = int(duration)
+            expires_at = timezone.now() + timedelta(minutes=minutes)
+        except ValueError:
+            return JsonResponse({'success': False, 'error': 'Invalid duration format'})
+
+    # Create Ban
+    ban = Ban.objects.create(
+        user=target_user,
+        issuer=request.user,
+        reason=reason,
+        expires_at=expires_at
+    )
+
+    # Log Action
+    BanAuditLog.objects.create(
+        target_user=target_user,
+        ban=ban,
+        actor=request.user,
+        action='create',
+        details=f"Reason: {reason}, Expires: {expires_at or 'Never'}"
+    )
+
+    # Remove from Waitlist (WaitlistEntry)
+    # "banning a user should prevent them from being able to see the waitlist dashboard page or x up a fit on the dashboard"
+    # "Existing 'X Up': yes, they should be removed automatically."
+
+    deleted_count, _ = WaitlistEntry.objects.filter(character__user=target_user).delete()
+
+    return JsonResponse({'success': True})
+
+@login_required
+@user_passes_test(can_manage_bans)
+@require_POST
+def api_update_ban(request):
+    try:
+        data = json.loads(request.body)
+        ban_id = data.get('ban_id')
+        action = data.get('action') # 'update' or 'remove'
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+    ban = get_object_or_404(Ban, id=ban_id)
+
+    if action == 'remove':
+        ban.delete()
+        BanAuditLog.objects.create(
+            target_user=ban.user,
+            # Ban object is deleted, so we can't link it directly if using CASCADE or SET_NULL.
+            # SET_NULL is on the model, but we just deleted it.
+            # Ideally we keep the log but Ban FK becomes null.
+            actor=request.user,
+            action='remove',
+            details=f"Ban removed for {ban.user.username}"
+        )
+        return JsonResponse({'success': True})
+
+    elif action == 'update':
+        reason = data.get('reason')
+        duration = data.get('duration') # integer minutes or 'permanent'
+
+        changes = []
+        if reason and reason != ban.reason:
+            changes.append(f"Reason: {ban.reason} -> {reason}")
+            ban.reason = reason
+
+        if duration is not None:
+            # If duration is provided, we recalculate expires_at FROM NOW? Or extend?
+            # Usually "Update ban length" implies setting a new duration from now or setting a specific end date.
+            # Simplified: Reset expiration based on now + duration
+            new_expires = None
+            if duration != 'permanent':
+                try:
+                    minutes = int(duration)
+                    new_expires = timezone.now() + timedelta(minutes=minutes)
+                except ValueError:
+                     return JsonResponse({'success': False, 'error': 'Invalid duration'})
+
+            if new_expires != ban.expires_at: # Simple check doesn't account for 'permanent' vs None
+                 changes.append(f"Expires: {ban.expires_at} -> {new_expires}")
+                 ban.expires_at = new_expires
+
+        if changes:
+            ban.save()
+            BanAuditLog.objects.create(
+                target_user=ban.user,
+                ban=ban,
+                actor=request.user,
+                action='update',
+                details=", ".join(changes)
+            )
+
+        return JsonResponse({'success': True})
+
+    return JsonResponse({'success': False, 'error': 'Invalid action'})
