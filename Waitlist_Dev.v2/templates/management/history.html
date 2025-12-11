@@ -1,18 +1,19 @@
-﻿{% extends base_template|default:'base.html' %}
+﻿{% extends 'management/base_management.html' %}
 {% load humanize %}
 {% load core_filters %}
 
 {% block title %}History: {{ fleet.name }}{% endblock %}
 
-{% block content %}
-<div class="flex flex-col h-full bg-dark-950 overflow-hidden relative">
+{% block management_content %}
+<div class="flex flex-col h-[calc(100vh-8rem)] bg-dark-950 overflow-hidden relative rounded-xl border border-white/5 shadow-2xl">
 
     <!-- HEADER -->
-    <div class="glass-header px-6 py-4 flex justify-between items-center shrink-0 z-40 bg-slate-900/90 backdrop-blur-md shadow-lg relative">
+    <div class="glass-header px-6 py-4 flex justify-between items-center shrink-0 z-40 bg-slate-900/90 backdrop-blur-md shadow-lg relative border-b border-white/10">
         <div class="flex items-center gap-4">
-            <a href="{% url 'fleet_dashboard' fleet.join_token %}" class="btn-secondary py-1.5 px-3 text-xs flex items-center gap-2 group">
-                <span class="group-hover:-translate-x-1 transition">&larr;</span> Back to Board
+            <a href="{% url 'management_fleets' %}" class="btn-secondary py-1.5 px-3 text-xs flex items-center gap-2 group">
+                <span class="group-hover:-translate-x-1 transition">&larr;</span> Fleets
             </a>
+            <div class="h-6 w-px bg-white/10"></div>
             <div>
                 <h1 class="text-xl font-bold text-white tracking-tight">{{ fleet.name }} <span class="text-slate-500 font-normal">History Log</span></h1>
                 <p class="text-xs text-slate-400 mt-0.5">Comprehensive audit trail of all fleet events.</p>
@@ -31,12 +32,15 @@
                 <span class="text-xs text-slate-400 uppercase font-bold tracking-wider">Unique Pilots</span>
                 <span class="text-sm font-bold text-white font-mono">{{ stats.pilots }}</span>
             </div>
+            <!-- LINK TO BOARD -->
+            <a href="{% url 'fleet_dashboard' fleet.join_token %}" class="btn-primary text-xs py-1 px-3 shadow-brand-500/20">
+                Open Board ↗
+            </a>
         </div>
     </div>
 
     <!-- FILTER BAR (Glassmorphic Update) -->
-    <!-- Changed bg-slate-900 -> bg-slate-900/80 backdrop-blur-md -->
-    <div class="px-6 py-3 border-b border-white/5 bg-slate-900/80 backdrop-blur-md flex-shrink-0 flex flex-wrap gap-2 items-center relative z-30 overflow-x-auto no-scrollbar shadow-md">
+    <div class="px-6 py-3 border-b border-white/5 bg-slate-900/50 backdrop-blur-md flex-shrink-0 flex flex-wrap gap-2 items-center relative z-30 overflow-x-auto no-scrollbar shadow-sm">
         <!-- Clear Filter -->
         <button onclick="clearHistoryFilters()" class="p-1.5 rounded-md border border-red-500/30 text-red-400 hover:bg-red-500/20 transition mr-2" title="Clear Filters">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -54,7 +58,7 @@
     </div>
 
     <!-- TIMELINE CONTAINER -->
-    <div class="flex-grow overflow-y-auto custom-scrollbar p-6 relative z-0 bg-dark-950">
+    <div class="flex-grow overflow-y-auto custom-scrollbar p-6 relative z-0 bg-dark-950/50">
         <div class="max-w-5xl mx-auto space-y-4" id="history-log-container">
             {% for log in logs %}
             <div class="flex gap-4 group history-row" data-action="{{ log.action }}">
@@ -81,7 +85,7 @@
 
                 <!-- CARD -->
                 <div class="flex-grow pb-4">
-                    <div class="glass-panel p-3 border border-white/5 hover:border-white/10 transition flex justify-between items-center">
+                    <div class="glass-panel p-3 border border-white/5 hover:border-white/10 transition flex justify-between items-center bg-slate-900/80">
                         <div class="flex items-center gap-4">
                             <!-- Avatar -->
                             <img src="https://images.evetech.net/characters/{{ log.character.character_id }}/portrait?size=64"

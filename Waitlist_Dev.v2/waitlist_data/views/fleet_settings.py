@@ -53,7 +53,7 @@ def fleet_settings(request, token):
         'base_template': get_template_base(request)
     }
     context.update(get_mgmt_context(request.user))
-    return render(request, 'waitlist/fleet_settings.html', context)
+    return render(request, 'management/fleet_settings.html', context)
 
 @login_required
 @user_passes_test(is_fleet_command)

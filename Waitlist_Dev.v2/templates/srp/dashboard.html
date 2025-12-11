@@ -30,9 +30,15 @@
 
         <div class="flex gap-4 items-center flex-wrap">
             <div class="flex items-center gap-2 bg-black/30 p-1.5 rounded border border-white/10">
-                <input type="date" id="start-date" class="bg-transparent text-xs text-white outline-none">
+                <!-- Added onchange="loadData(1)" to dates -->
+                <input type="date" id="start-date" class="bg-transparent text-xs text-white outline-none" onchange="loadData(1)">
                 <span class="text-slate-500">-</span>
-                <input type="date" id="end-date" class="bg-transparent text-xs text-white outline-none">
+                <input type="date" id="end-date" class="bg-transparent text-xs text-white outline-none" onchange="loadData(1)">
+
+                <!-- ALL BUTTON -->
+                <button onclick="setAllTime()" class="text-[10px] font-bold text-slate-500 hover:text-brand-400 ml-2 pl-2 border-l border-white/10 uppercase transition" title="Show All Time">
+                    All
+                </button>
             </div>
 
             <div class="flex gap-2 text-xs">
@@ -45,8 +51,16 @@
                 {% endfor %}
             </div>
 
-            <button onclick="loadData(1)" class="btn-primary py-1.5 px-4 text-xs shadow-brand-500/20">Apply</button>
+            <!-- Removed "Apply" button since filters are live -->
+            <button onclick="loadData(1)" class="btn-ghost p-1.5 text-slate-400 hover:text-white" title="Force Refresh">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+            </button>
         </div>
+    </div>
+
+    <!-- NEW: DIVISION BALANCES CONTAINER -->
+    <div id="division-balances-container" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 shrink-0 hidden">
+        <!-- Injected via JS -->
     </div>
 
     <!-- SUMMARY CARDS -->
@@ -72,7 +86,8 @@
             <div class="flex-grow relative min-h-0"><canvas id="chart-monthly"></canvas></div>
         </div>
         <div class="glass-panel p-4 flex flex-col h-80">
-            <h3 class="label-text mb-2">Category Breakdown (Income)</h3>
+            <!-- UPDATED TITLE -->
+            <h3 class="label-text mb-2">Category Breakdown (Volume)</h3>
             <div class="flex-grow relative min-h-0"><canvas id="chart-cat"></canvas></div>
         </div>
     </div>
@@ -114,7 +129,9 @@
                         <th class="p-3 border-b border-white/5 w-32">Date</th>
                         <th class="p-3 border-b border-white/5 text-center w-16">Div</th>
                         <th class="p-3 border-b border-white/5 text-right w-32">Amount</th>
-                        <th class="p-3 border-b border-white/5 w-48">From / To</th>
+                        <!-- Split Columns for From/To -->
+                        <th class="p-3 border-b border-white/5 w-32">From</th>
+                        <th class="p-3 border-b border-white/5 w-32">To</th>
                         <th class="p-3 border-b border-white/5 w-32">Type</th>
                         <th class="p-3 border-b border-white/5 w-48">Category</th>
                         <th class="p-3 border-b border-white/5">Reason</th>
@@ -122,12 +139,18 @@
                     <!-- FILTER ROW -->
                     <tr class="bg-slate-900/90 border-b border-white/10">
                         <td class="p-2"></td> <!-- Date placeholder -->
-                        <td class="p-2"></td> <!-- Div placeholder -->
+                        <td class="p-2">
+                            <!-- New Filter for Division -->
+                            <input type="text" id="filter-division" class="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-[10px] text-center text-slate-300 placeholder-slate-600 focus:border-brand-500 outline-none" placeholder="#" onkeyup="debouncedLoad()">
+                        </td>
                         <td class="p-2">
                             <input type="text" id="filter-amount" class="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-[10px] text-right text-slate-300 placeholder-slate-600 focus:border-brand-500 outline-none" placeholder="Min Amount..." onkeyup="debouncedLoad()">
                         </td>
                         <td class="p-2">
-                            <input type="text" id="filter-party" class="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-[10px] text-slate-300 placeholder-slate-600 focus:border-brand-500 outline-none" placeholder="Filter Name..." onkeyup="debouncedLoad()">
+                            <input type="text" id="filter-from" class="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-[10px] text-slate-300 placeholder-slate-600 focus:border-brand-500 outline-none" placeholder="From..." onkeyup="debouncedLoad()">
+                        </td>
+                        <td class="p-2">
+                            <input type="text" id="filter-to" class="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-[10px] text-slate-300 placeholder-slate-600 focus:border-brand-500 outline-none" placeholder="To..." onkeyup="debouncedLoad()">
                         </td>
                         <td class="p-2">
                             <input type="text" id="filter-type" class="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-[10px] text-slate-300 placeholder-slate-600 focus:border-brand-500 outline-none" placeholder="Filter Type..." onkeyup="debouncedLoad()">
@@ -135,6 +158,7 @@
                         <td class="p-2">
                             <select id="filter-category" class="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-[10px] text-slate-300 focus:border-brand-500 outline-none" onchange="loadData(1)">
                                 <option value="">All Categories</option>
+                                <option value="uncategorised" class="text-brand-400 font-bold">Uncategorised</option>
                                 <option value="srp_in">SRP In</option>
                                 <option value="srp_out">SRP Out</option>
                                 <option value="internal_transfer">Internal Transfer</option>
@@ -146,7 +170,8 @@
                             </select>
                         </td>
                         <td class="p-2">
-                            <input type="text" id="filter-reason" class="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-[10px] text-slate-300 placeholder-slate-600 focus:border-brand-500 outline-none" placeholder="Reason... use [empty]" onkeyup="debouncedLoad()">
+                            <!-- Updated Placeholder -->
+                            <input type="text" id="filter-reason" class="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-[10px] text-slate-300 placeholder-slate-600 focus:border-brand-500 outline-none" placeholder="Reason..." onkeyup="debouncedLoad()">
                         </td>
                     </tr>
                 </thead>
@@ -172,8 +197,6 @@
     </div>
 
 </div>
-
-<!-- CATEGORY MODAL REMOVED -->
 
 <style>
     /* Styling for the dropdowns to match the screenshot vibe */
@@ -223,6 +246,31 @@
         return map[key] || map['other'];
     }
 
+    // --- CHART COLOR MAPPING (Hex codes to match Tailwind classes) ---
+    function getCategoryColor(categoryLabel) {
+        // Normalize label to key format (e.g. "SRP In" -> "srp_in")
+        // The chart labels come from the backend as formatted strings (e.g., "Srp In"),
+        // or raw keys depending on how api_srp_data sends them.
+        // Looking at api_srp_data: category_label = row['custom_category'] OR formatted ref_type.
+        // Let's create a robust mapping for common labels.
+
+        const label = categoryLabel.toLowerCase().replace(/\s+/g, '_');
+
+        const colorMap = {
+            'srp_in': '#16a34a',        // green-600
+            'srp_out': '#dc2626',       // red-600
+            'internal_transfer': '#9333ea', // purple-600
+            'giveaway': '#ea580c',      // orange-600
+            'manual_change': '#2563eb', // blue-600
+            'manual_out': '#2563eb',    // blue-600
+            'tax': '#475569',           // slate-600
+            'other': '#475569',         // slate-600
+            'uncategorised': '#94a3b8'  // slate-400
+        };
+
+        return colorMap[label] || '#475569'; // Default slate-600
+    }
+
     function initSRPDashboard() {
         console.log("Initializing SRP Dashboard...");
 
@@ -251,6 +299,12 @@
         loadData(1);
     }
 
+    function setAllTime() {
+        document.getElementById('start-date').value = '';
+        document.getElementById('end-date').value = '';
+        loadData(1);
+    }
+
     function debouncedLoad() {
         clearTimeout(searchTimer);
         searchTimer = setTimeout(() => {
@@ -266,8 +320,10 @@
         const divs = Array.from(document.querySelectorAll('input[name="div"]:checked')).map(cb => cb.value);
 
         // Get Filter Values
+        const fDiv = document.getElementById('filter-division').value; // NEW
         const fAmount = document.getElementById('filter-amount').value;
-        const fParty = document.getElementById('filter-party').value;
+        const fFrom = document.getElementById('filter-from').value;
+        const fTo = document.getElementById('filter-to').value;
         const fType = document.getElementById('filter-type').value;
         const fCat = document.getElementById('filter-category').value;
         const fReason = document.getElementById('filter-reason').value;
@@ -280,8 +336,10 @@
         divs.forEach(d => params.append('divisions[]', d));
 
         // Append Filters
+        if(fDiv) params.append('f_div', fDiv); // NEW
         if(fAmount) params.append('f_amount', fAmount);
-        if(fParty) params.append('f_party', fParty);
+        if(fFrom) params.append('f_from', fFrom);
+        if(fTo) params.append('f_to', fTo);
         if(fType) params.append('f_type', fType);
         if(fCat) params.append('f_category', fCat);
         if(fReason) params.append('f_reason', fReason);
@@ -300,6 +358,7 @@
                 if(tbody) tbody.style.opacity = '1';
 
                 renderSummary(data.summary);
+                renderDivisionBalances(data.division_balances); // New Renderer
                 renderTable(data.transactions);
                 updatePagination(data.pagination);
 
@@ -311,6 +370,40 @@
                 console.error("Network Error:", err);
                 if(tbody) tbody.style.opacity = '1';
             });
+    }
+
+    // --- NEW: Render Division Balances ---
+    function renderDivisionBalances(balances) {
+        const container = document.getElementById('division-balances-container');
+        if (!container) return;
+
+        // Clear previous
+        container.innerHTML = '';
+
+        // If no balances returned or object empty, hide container
+        if (!balances || Object.keys(balances).length === 0) {
+            container.classList.add('hidden');
+            return;
+        }
+
+        container.classList.remove('hidden');
+
+        // Create a card for each division ID returned
+        Object.keys(balances).sort().forEach(divId => {
+            const balance = parseFloat(balances[divId]);
+            const card = document.createElement('div');
+
+            // Visual logic for low balance warning?
+            // For now, standard glass styling
+            card.className = "glass-panel p-3 flex flex-col justify-center items-center border border-white/5 bg-slate-900/50";
+
+            card.innerHTML = `
+                <span class="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-1">Division ${divId}</span>
+                <span class="text-sm font-mono font-bold text-white whitespace-nowrap">${formatISK(balance)}</span>
+            `;
+
+            container.appendChild(card);
+        });
     }
 
     function updatePagination(meta) {
@@ -392,14 +485,29 @@
             ]
         });
 
-        // 2. Categories (Income)
-        const cats = Object.keys(data.categories.in);
+        // 2. Categories (Merged Volume)
+        // Combine all categories from In and Out
+        const catKeysIn = Object.keys(data.categories.in);
+        const catKeysOut = Object.keys(data.categories.out);
+        const allCats = Array.from(new Set([...catKeysIn, ...catKeysOut])).sort();
+
+        // Calculate Total Volume (Abs(In) + Abs(Out)) for each category
+        const catVolumes = allCats.map(c => {
+            const valIn = data.categories.in[c] || 0;
+            const valOut = data.categories.out[c] || 0;
+            return valIn + Math.abs(valOut);
+        });
+
+        // Generate Colors for each category
+        const catColors = allCats.map(c => getCategoryColor(c));
+
         updateChart('cat', ctxCat, 'doughnut', {
-            labels: cats,
+            labels: allCats,
             datasets: [{
-                data: cats.map(c => data.categories.in[c]),
-                backgroundColor: ['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981', '#ec4899'],
-                borderWidth: 0
+                data: catVolumes,
+                backgroundColor: catColors,
+                borderWidth: 0,
+                hoverOffset: 4
             }]
         });
 

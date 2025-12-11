@@ -7,6 +7,7 @@ from core.permissions import (
     get_template_base, 
     is_fleet_command, 
     can_view_fleet_overview,
+    get_mgmt_context
 )
 from pilot_data.models import EveCharacter, ItemType
 from waitlist_data.models import Fleet, WaitlistEntry, FleetActivity, DoctrineCategory
@@ -122,7 +123,9 @@ def fleet_history_view(request, token):
         },
         'base_template': get_template_base(request)
     }
-    return render(request, 'waitlist/history.html', context)
+    # Add management context to render sidebar correctly
+    context.update(get_mgmt_context(request.user))
+    return render(request, 'management/history.html', context)
 
 @login_required
 def fleet_overview_api(request, token):

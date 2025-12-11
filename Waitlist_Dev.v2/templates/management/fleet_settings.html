@@ -1,0 +1,629 @@
+﻿{% extends 'management/base_management.html' %}
+
+{% block title %}Manage Fleet{% endblock %}
+
+{% block management_content %}
+<!-- CSS OVERRIDE: Fixes EVE <font size="X"> tags rendering as huge in browser -->
+<style>
+    /* CSS Variables for Dynamic Scaling if we used JS to set them,
+       but here we stick to static classes for simplicity/robustness */
+
+    /* Reset styles inside preview */
+    #motd-preview font[size] {
+        font-size: inherit !important;
+    }
+
+    /* Refined Mapping for EVE Font Sizes.
+       EVE Size 12 is roughly "Normal" (1em/14px).
+       Scaling factor reduced to prevent "Very Large" issues.
+    */
+    #motd-preview font[data-size="8"] {
+        font-size: 0.75em;
+    }
+
+    #motd-preview font[data-size="9"] {
+        font-size: 0.8em;
+    }
+
+    #motd-preview font[data-size="10"] {
+        font-size: 0.85em;
+    }
+
+    #motd-preview font[data-size="11"] {
+        font-size: 0.9em;
+    }
+
+    #motd-preview font[data-size="12"] {
+        font-size: 1.0em;
+    }
+    /* Base */
+    #motd-preview font[data-size="13"] {
+        font-size: 1.1em;
+    }
+
+    #motd-preview font[data-size="14"] {
+        font-size: 1.15em;
+    }
+
+    #motd-preview font[data-size="16"] {
+        font-size: 1.25em;
+    }
+
+    #motd-preview font[data-size="18"] {
+        font-size: 1.35em;
+    }
+
+    #motd-preview font[data-size="24"] {
+        font-size: 1.5em;
+    }
+
+    #motd-preview font[data-size="30"] {
+        font-size: 1.75em;
+    }
+    /* Was 2.5em */
+
+    #motd-preview h1, #motd-preview h2, #motd-preview h3 {
+        font-size: 1.1em !important;
+        line-height: 1.2;
+    }
+</style>
+
+<!-- Load Vanilla-Picker (A lightweight, modern color picker with Alpha support) via CDN -->
+<!-- We use this to support 8-digit hex codes properly -->
+<script src="https://cdn.jsdelivr.net/npm/vanilla-picker@2.12.1/dist/vanilla-picker.min.js"></script>
+
+<div class="flex flex-col min-h-[calc(100vh-8rem)] bg-dark-950 relative rounded-xl border border-white/5 shadow-2xl">
+
+    <!-- HEADER -->
+    <div class="glass-header px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4 shrink-0 bg-slate-900/90 z-20 border-b border-white/10">
+        <div>
+            <h1 class="heading-1 flex items-center gap-3">
+                <span class="text-3xl">📡</span> Manage Fleet: {{ fleet.name }}
+            </h1>
+            <p class="text-slate-400 text-sm mt-1 font-mono">ID: {{ fleet.esi_fleet_id|default:"Offline Mode" }}</p>
+        </div>
+
+        <!-- Button Group -->
+        <div class="flex flex-wrap gap-2 items-center justify-center md:justify-end">
+
+            {% if not fleet.esi_fleet_id %}
+            <button onclick="linkEsiFleet()" id="btn-link-esi" class="btn-secondary text-xs py-1.5 px-3 border-blue-500/30 text-blue-400 hover:bg-blue-500/10 shadow-lg shadow-blue-500/10">
+                <span>🔗</span> Link ESI
+            </button>
+            {% endif %}
+
+            <!-- Save Template -->
+            <button onclick="saveTemplate()" class="btn-secondary text-xs py-1.5 px-3 border-brand-500/30 text-brand-400 hover:bg-brand-500/10">
+                <span>💾</span> Save Template
+            </button>
+
+            <button onclick="closeFleet()" class="btn-danger text-xs py-1.5 px-3 shadow-lg shadow-red-500/20 border-red-500/50 hover:bg-red-900/80">
+                <span>☠️</span> Close Fleet
+            </button>
+
+            <a href="{% url 'fleet_dashboard' fleet.join_token %}" class="btn-secondary text-xs py-1.5 px-3">
+                Back to Dashboard
+            </a>
+
+            <button onclick="saveSettings()" id="save-btn" class="btn-primary text-xs py-1.5 px-4 shadow-lg shadow-brand-500/20">
+                <span>💾</span> Update Fleet
+            </button>
+        </div>
+    </div>
+
+    <!-- MAIN GRID -->
+    <div class="flex-grow grid grid-cols-1 lg:grid-cols-2 gap-0">
+
+        <!-- LEFT: CONFIGURATION -->
+        <div class="bg-dark-900/50 p-6 flex flex-col gap-6 border-r border-white/5">
+
+            <!-- MOTD Editor -->
+            <div>
+                <h3 class="label-text mb-2">Message of the Day</h3>
+                <div class="space-y-2">
+                    <!-- Toolbar -->
+                    <div class="flex gap-1 bg-black/20 p-2 rounded border border-white/5 items-center flex-wrap">
+                        <button onclick="insertTag('b')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs font-bold text-slate-300 hover:text-white" title="Bold">B</button>
+                        <button onclick="insertTag('i')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs italic text-slate-300 hover:text-white" title="Italic">I</button>
+                        <button onclick="insertTag('u')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs underline text-slate-300 hover:text-white" title="Underline">U</button>
+                        <button onclick="insertTag('br')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs text-slate-300 hover:text-white" title="Line Break">&crarr;</button>
+
+                        <div class="w-px h-6 bg-white/10 mx-1"></div>
+
+                        <button onclick="insertColor('green')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs text-green-400 hover:text-green-300" title="Green Text">A</button>
+                        <button onclick="insertColor('red')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs text-red-400 hover:text-red-300" title="Red Text">A</button>
+                        <button onclick="insertColor('yellow')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs text-yellow-400 hover:text-yellow-300" title="Yellow Text">A</button>
+                        <button onclick="insertColor('blue')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs text-blue-400 hover:text-blue-300" title="Blue">A</button>
+                        <button onclick="insertColor('#b2b2b2')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs text-slate-400 hover:text-white" title="Grey">A</button>
+
+                        <div class="w-px h-6 bg-white/10 mx-1"></div>
+
+                        <!-- Modern Color Picker Button -->
+                        <div class="relative group" title="Custom Color">
+                            <button id="picker-btn" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs hover:bg-slate-700 flex items-center justify-center gap-2">
+                                <span class="text-lg leading-none">🎨</span>
+                                <!-- Show current color logic handled by picker popup -->
+                            </button>
+                            <!-- Picker Container will be attached here by JS -->
+                        </div>
+                    </div>
+
+                    <textarea id="motd-input" maxlength="4000" class="input-field h-32 text-xs font-mono resize-none" placeholder="Enter fleet MOTD...">{{ fleet.motd }}</textarea>
+                    <div class="text-[10px] text-slate-500 text-right"><span id="char-count">{{ fleet.motd|length }}</span>/4000</div>
+
+                    <div class="mt-2 pt-2 border-t border-white/5">
+                        <label class="label-text mb-1 text-[13px]">Preview</label>
+                        <div id="motd-preview" class="bg-black/40 border border-white/10 rounded p-2 text-slate-300 font-sans whitespace-pre-wrap h-32 overflow-y-auto text-[13px] leading-tight"></div>
+                    </div>
+                </div>
+            </div>
+
+            <hr class="border-white/5">
+
+            <!-- Templates -->
+            <div>
+                <div class="flex justify-between items-end mb-2">
+                    <h3 class="label-text mb-0">Apply Template</h3>
+                </div>
+                <div class="space-y-2" id="templates-list">
+                    <button onclick="loadDefault()" class="w-full text-left p-3 rounded bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 transition group">
+                        <div class="font-bold text-sm text-slate-200 group-hover:text-white">Default Basic</div>
+                        <div class="text-[10px] text-slate-500">1 Wing, 2 Squads</div>
+                    </button>
+
+                    {% for t in templates %}
+                    <div class="relative group" id="template-card-{{ t.id }}">
+                        <button onclick="loadTemplate('{{ t.id }}')" class="w-full text-left p-3 rounded bg-white/5 hover:bg-white/10 border border-white/5 hover:border-brand-500/50 transition pr-8" id="tpl-btn-{{ t.id }}">
+                            <div class="font-bold text-sm text-slate-200 group-hover:text-brand-400">{{ t.name }}</div>
+                            <div class="text-[10px] text-slate-500">{{ t.wings.count }} Wings</div>
+
+                            <div class="hidden tpl-data">
+                                {
+                                "wings": [
+                                {% for w in t.wings.all %}
+                                {
+                                "name": "{{ w.name|escapejs }}",
+                                "squads": [{% for s in w.squads.all %}"{{ s.name|escapejs }}"{% if not forloop.last %},{% endif %}{% endfor %}]
+                                }{% if not forloop.last %},{% endif %}
+                                {% endfor %}
+                                ],
+                                "motd": "{{ t.default_motd|escapejs }}"
+                                }
+                            </div>
+                        </button>
+                        <button onclick="deleteTemplate('{{ t.id }}', '{{ t.name|escapejs }}')"
+                                class="absolute top-2 right-2 p-1.5 text-slate-500 hover:text-red-400 hover:bg-white/5 rounded transition opacity-0 group-hover:opacity-100 z-10"
+                                title="Delete Template">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                        </button>
+                    </div>
+                    {% empty %}
+                    <div class="text-xs text-slate-500 italic p-2">No custom templates saved.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT: STRUCTURE BUILDER -->
+        <div class="lg:col-span-1 flex flex-col bg-slate-900/50">
+            <div class="p-4 border-b border-white/5 bg-slate-900 flex justify-between items-center">
+                <h3 class="label-text mb-0 text-brand-500">Active Fleet Structure</h3>
+                <button onclick="addWing()" class="btn-secondary py-1 px-3 text-xs bg-slate-800 border-slate-700 hover:border-white/30">
+                    + Add Wing
+                </button>
+            </div>
+
+            <div id="structure-container" class="flex-grow p-6 space-y-6 bg-black/20">
+                <div class="text-center text-slate-500 py-12 italic">Fetching active structure...</div>
+            </div>
+
+            <div class="p-4 text-[10px] text-slate-500 italic border-t border-white/5 bg-slate-900">
+                Removing wings or squads from this list will DELETE them in-game immediately upon saving.
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    var CSRF_TOKEN = '{{ csrf_token }}';
+    var structure = [];
+    var picker = null; // Global picker instance
+
+    // --- INITIALIZATION ---
+    function initSettings() {
+        // Parse initial structure
+        try {
+            const raw = `{{ initial_structure|escapejs }}`;
+            structure = JSON.parse(raw);
+            renderStructure();
+        } catch(e) {
+            console.error("Structure Parse Error", e);
+            document.getElementById('structure-container').innerHTML = '<div class="text-red-400 text-center text-xs">Error loading structure.</div>';
+        }
+
+        // Init Vanilla Picker
+        const pickerBtn = document.getElementById('picker-btn');
+        if (typeof Picker !== 'undefined' && pickerBtn) {
+            picker = new Picker({
+                parent: pickerBtn.parentElement,
+                popup: 'bottom', // 'right', 'bottom', 'top', 'left'
+                color: '#ffffff',
+                alpha: true, // Enable alpha channel
+                editor: true,
+                onDone: function(color) {
+                    // color.hex is #RRGGBBAA
+                    // EVE expects 0xAARRGGBB usually or #RRGGBB.
+                    // For MOTD, it supports <font color="#AARRGGBB">.
+                    // VanillaPicker output: hex is #RRGGBBAA (RGBA)
+
+                    // Convert #RRGGBBAA to #AARRGGBB for EVE
+                    let hex = color.hex.substring(0, 7); // #RRGGBB
+                    let alpha = color.rgba[3]; // Alpha 0-1
+
+                    if (alpha < 1) {
+                        // Convert alpha float to hex
+                        let alphaHex = Math.round(alpha * 255).toString(16).padStart(2, '0');
+                        // EVE Format: #AARRGGBB
+                        let eveColor = '#' + alphaHex + hex.substring(1);
+                        insertColorCode(eveColor);
+                    } else {
+                        // Opaque: just use #RRGGBB
+                        insertColorCode(hex);
+                    }
+                }
+            });
+
+            pickerBtn.onclick = function() {
+                picker.openHandler();
+            };
+        }
+
+        // Char Counter & Preview Init
+        const motdInput = document.getElementById('motd-input');
+        const preview = document.getElementById('motd-preview');
+        const count = document.getElementById('char-count');
+
+        if (motdInput) {
+            motdInput.addEventListener('input', function() {
+                const val = this.value;
+                count.innerText = val.length;
+
+                // --- EVE TO HTML PREVIEW CONVERSION ---
+                let html = val;
+
+                // 1. Handle Newlines
+                html = html.replace(/\n/g, "<br>");
+
+                // 2. Handle Color Transparency Mismatch
+                // EVE MOTD often uses #AARRGGBB (Alpha First). Browsers use #RRGGBBAA (Alpha Last).
+                // We regex find <font color="#xxxxxxxx"> and swap the hex if it's 8 chars
+                html = html.replace(/<font\s+color=['"]?#([0-9a-fA-F]{8})['"]?>/g, function(match, hex) {
+                    // hex is AARRGGBB
+                    const alpha = hex.substring(0, 2);
+                    const color = hex.substring(2, 8);
+                    // Convert to CSS standard #RRGGBBAA
+                    return `<font color="#${color}${alpha}">`;
+                });
+
+                // 3. Handle Font Sizes (EVE 8-30 vs HTML attribute)
+                html = html.replace(/\bsize=['"]?(\d+)['"]?/g, "data-size='$1'");
+
+                preview.innerHTML = html;
+            });
+
+            if(motdInput.value) {
+                motdInput.dispatchEvent(new Event('input'));
+            }
+        }
+
+        loadDefault();
+    }
+
+    // --- MOTD LOGIC ---
+    function insertTag(tag) {
+        const input = document.getElementById('motd-input');
+        const start = input.selectionStart;
+        const end = input.selectionEnd;
+        const text = input.value;
+        const selected = text.substring(start, end);
+
+        let replace = "";
+        if (tag === 'br') replace = "<br>";
+        else replace = `<${tag}>${selected}</${tag}>`;
+
+        input.value = text.substring(0, start) + replace + text.substring(end);
+        input.focus();
+        input.selectionStart = start + replace.length;
+        input.selectionEnd = start + replace.length;
+        input.dispatchEvent(new Event('input'));
+    }
+
+    function insertColor(color) {
+        // Standard preset colors
+        let hex = color;
+        if(color === 'green') hex = "#00ff00";
+        if(color === 'red') hex = "#ff0000";
+        if(color === 'yellow') hex = "#ffff00";
+        if(color === 'blue') hex = "#00ffff";
+        insertColorCode(hex);
+    }
+
+    function insertColorCode(hexCode) {
+        const input = document.getElementById('motd-input');
+        const start = input.selectionStart;
+        const end = input.selectionEnd;
+        const text = input.value;
+        const selected = text.substring(start, end);
+
+        const replace = `<font color="${hexCode}">${selected}</font>`;
+        input.value = text.substring(0, start) + replace + text.substring(end);
+        input.focus();
+        input.selectionStart = start + replace.length;
+        input.selectionEnd = start + replace.length;
+        input.dispatchEvent(new Event('input'));
+    }
+
+    // --- TEMPLATE LOGIC ---
+    function loadDefault() {
+        if(!confirm("Load default structure? This will replace your current configuration.")) return;
+        structure = [
+            {
+                name: "Wing 1",
+                squads: ["Squad 1", "Squad 2"]
+            }
+        ];
+        renderStructure();
+    }
+
+    function loadTemplate(tplId) {
+        if(!confirm("Apply template? This will replace your current structure and MOTD in this editor.")) return;
+        const btn = document.getElementById(`tpl-btn-${tplId}`);
+        const jsonText = btn.querySelector('.tpl-data').textContent;
+        try {
+            const data = JSON.parse(jsonText);
+            structure = data.wings;
+            const motd = data.motd || "";
+            const input = document.getElementById('motd-input');
+            if(input) {
+                input.value = motd;
+                input.dispatchEvent(new Event('input'));
+            }
+            renderStructure();
+        } catch(e) {
+            alert("Error loading template data.");
+            console.error(e);
+        }
+    }
+
+    function deleteTemplate(tplId, name) {
+        if (!confirm(`Are you sure you want to delete template "${name}"?`)) return;
+
+        fetch("{% url 'api_delete_structure_template' %}", {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': CSRF_TOKEN,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ template_id: tplId })
+        })
+        .then(r => r.json())
+        .then(d => {
+            if (d.success) {
+                const el = document.getElementById(`template-card-${tplId}`);
+                if (el) el.remove();
+            } else {
+                alert("Error deleting template: " + d.error);
+            }
+        })
+        .catch(e => alert("Network Error"));
+    }
+
+    // --- SAVE TEMPLATE LOGIC ---
+    function saveTemplate() {
+        const name = prompt("Enter a name for this template:", "My Fleet Setup");
+        if (!name) return;
+        const charId = "{{ fc_char.character_id }}";
+        const motd = document.getElementById('motd-input').value;
+
+        fetch("{% url 'api_save_structure_template' %}", {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': CSRF_TOKEN,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                character_id: charId,
+                template_name: name,
+                structure: structure,
+                motd: motd
+            })
+        })
+        .then(r => r.json())
+        .then(d => {
+            if(d.success) {
+                alert("Template saved!");
+                location.reload();
+            } else {
+                alert("Error: " + d.error);
+            }
+        });
+    }
+
+    // --- STRUCTURE LOGIC ---
+    function renderStructure() {
+        const container = document.getElementById('structure-container');
+        container.innerHTML = '';
+
+        if (structure.length === 0) {
+            container.innerHTML = '<div class="text-center text-slate-500 py-12 italic">No wings defined.</div>';
+            return;
+        }
+
+        structure.forEach((wing, wIndex) => {
+            const wingEl = document.createElement('div');
+            wingEl.className = "bg-slate-800 rounded-lg border border-slate-700 overflow-hidden group/wing";
+
+            let squadsHtml = '';
+            wing.squads.forEach((squad, sIndex) => {
+                squadsHtml += `
+                <div class="flex items-center gap-2 mb-2 pl-4 relative">
+                    <div class="absolute left-2 top-0 bottom-1/2 border-l-2 border-slate-600 w-2 h-full rounded-bl"></div>
+                    <div class="w-2 border-b-2 border-slate-600 h-0 mr-1"></div>
+                    <input type="text" value="${squad}"
+                           class="bg-dark-900 border border-slate-700 rounded px-2 py-1 text-xs text-white w-full focus:border-brand-500 outline-none"
+                           onchange="updateSquad(${wIndex}, ${sIndex}, this.value)">
+                    <button onclick="removeSquad(${wIndex}, ${sIndex})" class="text-slate-600 hover:text-red-400 px-1">×</button>
+                </div>`;
+            });
+
+            wingEl.innerHTML = `
+                <div class="p-2 bg-slate-700/50 flex justify-between items-center border-b border-slate-700">
+                    <div class="flex items-center gap-2 w-full">
+                        <span class="text-slate-400 text-[10px] font-bold uppercase w-8">Wing</span>
+                        <input type="text" value="${wing.name}"
+                               class="bg-transparent border-b border-transparent hover:border-slate-500 focus:border-brand-500 text-white font-bold text-sm outline-none w-full transition px-1"
+                               onchange="updateWing(${wIndex}, this.value)">
+                    </div>
+                    <div class="flex gap-1 opacity-0 group-hover/wing:opacity-100 transition shrink-0 ml-2">
+                        <button onclick="addSquad(${wIndex})" class="text-[10px] bg-slate-600 hover:bg-slate-500 px-1.5 py-0.5 rounded text-white border border-slate-500/50">+Sq</button>
+                        <button onclick="removeWing(${wIndex})" class="text-[10px] bg-red-900/30 text-red-400 hover:bg-red-900/50 px-1.5 py-0.5 rounded border border-red-900/50">Del</button>
+                    </div>
+                </div>
+                <div class="p-2 bg-dark-900/30">
+                    ${squadsHtml}
+                    ${wing.squads.length === 0 ? '<div class="text-[10px] text-slate-600 italic pl-8">No squads</div>' : ''}
+                </div>
+            `;
+            container.appendChild(wingEl);
+        });
+    }
+
+    function addWing() {
+        structure.push({ name: `Wing ${structure.length + 1}`, squads: [] });
+        renderStructure();
+    }
+
+    function removeWing(index) {
+        if(!confirm("Deleting a Wing deletes all its Squads. Pilots may be kicked. Continue?")) return;
+        structure.splice(index, 1);
+        renderStructure();
+    }
+
+    function updateWing(index, val) {
+        structure[index].name = val;
+    }
+
+    function addSquad(wIndex) {
+        const count = structure[wIndex].squads.length + 1;
+        structure[wIndex].squads.push(`Squad ${count}`);
+        renderStructure();
+    }
+
+    function removeSquad(wIndex, sIndex) {
+        structure[wIndex].squads.splice(sIndex, 1);
+        renderStructure();
+    }
+
+    function updateSquad(wIndex, sIndex, val) {
+        structure[wIndex].squads[sIndex] = val;
+    }
+
+    // --- SAVE ---
+    function saveSettings() {
+        const btn = document.getElementById('save-btn');
+        const orig = btn.innerHTML;
+        btn.textContent = "Updating...";
+        btn.disabled = true;
+
+        const motd = document.getElementById('motd-input').value;
+
+        fetch("{% url 'api_update_fleet_settings' fleet.join_token %}", {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': CSRF_TOKEN,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                motd: motd,
+                structure: structure
+            })
+        })
+        .then(r => r.json())
+        .then(d => {
+            if(d.success) {
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-success');
+                btn.textContent = "Synced!";
+                setTimeout(() => {
+                    btn.classList.remove('btn-success');
+                    btn.classList.add('btn-primary');
+                    btn.innerHTML = orig;
+                    btn.disabled = false;
+                }, 2000);
+            } else {
+                alert("Update Failed: " + d.error);
+                btn.innerHTML = orig;
+                btn.disabled = false;
+            }
+        })
+        .catch(e => {
+            alert("Network Error");
+            btn.innerHTML = orig;
+            btn.disabled = false;
+        });
+    }
+
+    // --- CLOSE FLEET ---
+    function closeFleet() {
+        if (!confirm("Are you sure you want to CLOSE this fleet? This stops the waitlist.")) return;
+
+        fetch("{% url 'api_close_fleet' fleet.join_token %}", {
+            method: 'POST',
+            headers: { 'X-CSRFToken': CSRF_TOKEN }
+        })
+        .then(r => r.json())
+        .then(d => {
+            if (d.success) {
+                window.location.href = "{% url 'management_fleets' %}";
+            } else {
+                alert("Error closing fleet: " + d.error);
+            }
+        })
+        .catch(e => alert("Network error"));
+    }
+
+    // --- LINK ESI FLEET ---
+    function linkEsiFleet() {
+        const btn = document.getElementById('btn-link-esi');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = 'Linking...';
+        btn.disabled = true;
+
+        fetch("{% url 'api_link_esi_fleet' fleet.join_token %}", {
+            method: 'POST',
+            headers: { 'X-CSRFToken': CSRF_TOKEN }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                alert("Fleet successfully linked! ID: " + data.fleet_id);
+                location.reload();
+            } else {
+                alert("Link Failed: " + data.error);
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        })
+        .catch(e => {
+            alert("Network Error");
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        });
+    }
+
+    initSettings();
+</script>
+{% endblock %}

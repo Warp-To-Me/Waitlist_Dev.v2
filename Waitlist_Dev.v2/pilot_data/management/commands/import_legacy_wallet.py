@@ -9,9 +9,15 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument('file_path', type=str, help='Path to the SQL file')
+        parser.add_argument(
+            '--fix-divisions',
+            action='store_true',
+            help='Update division numbers for existing entries based on the SQL file.',
+        )
 
     def handle(self, *args, **options):
         file_path = options['file_path']
+        fix_divisions = options['fix_divisions']
 
         if not os.path.exists(file_path):
             self.stdout.write(self.style.ERROR(f'File not found: {file_path}'))
@@ -38,53 +44,41 @@ class Command(BaseCommand):
             
             count = 0
             skipped = 0
+            updated = 0
             errors_printed = 0
             
-            # Cache characters to avoid DB hammering
-            char_cache = {}
+            # Helper to safely convert numbers that might be 'NULL'
+            def safe_val(val, type_func, default):
+                if val == 'NULL' or val is None:
+                    return default
+                try:
+                    return type_func(val)
+                except (ValueError, TypeError):
+                    return default
 
             for i, parts in enumerate(rows):
                 try:
                     # Filter out header rows (like `transaction_id`, `corporation_id`, etc.)
-                    # If the first column isn't a number (after stripping quotes/backticks), it's a column definition.
                     if not parts[0].replace("'", "").replace("`", "").isdigit():
                         continue
 
-                    # Mapping based on your provided SQL snippet:
-                    # 0: transaction_id
-                    # 1: corporation_id
-                    # 2: division
-                    # 3: date
-                    # 4: ref_type
-                    # 5: first_party_id
-                    # 6: first_party_name
-                    # 7: second_party_id
-                    # 8: second_party_name
-                    # 9: amount
-                    # 10: balance
-                    # 11: reason
-                    # 12: tax_receiver_id (Ignored)
-                    # 13: tax_amount
-                    # 16: description
-                    
                     if len(parts) < 17:
                         continue
 
                     entry_id = int(parts[0])
+                    division = safe_val(parts[2], int, 1)
                     
                     # Check if exists
-                    if CorpWalletJournal.objects.filter(entry_id=entry_id).exists():
+                    existing = CorpWalletJournal.objects.filter(entry_id=entry_id).first()
+                    
+                    if existing:
+                        if fix_divisions:
+                            if existing.division != division:
+                                existing.division = division
+                                existing.save(update_fields=['division'])
+                                updated += 1
                         skipped += 1
                         continue
-
-                    # Helper to safely convert numbers that might be 'NULL'
-                    def safe_val(val, type_func, default):
-                        if val == 'NULL' or val is None:
-                            return default
-                        try:
-                            return type_func(val)
-                        except (ValueError, TypeError):
-                            return default
 
                     # Parse Date
                     date_str = parts[3]
@@ -113,9 +107,8 @@ class Command(BaseCommand):
                         first_party_name=first_party_name,
                         second_party_id=safe_val(parts[7], int, 0),
                         second_party_name=parts[8] if parts[8] != 'NULL' else '',
-                        # Map tax from column 13
                         tax=safe_val(parts[13], float, 0.0),
-                        # Assign the default configuration found earlier
+                        division=division, # Now correctly mapped
                         config=default_config
                     )
                     entry.save()
@@ -126,14 +119,15 @@ class Command(BaseCommand):
 
                 except Exception as e:
                     skipped += 1
-                    # Print the first few errors to help debug data issues
                     if errors_printed < 5:
                         self.stdout.write(self.style.WARNING(f"Error on row {i+1}: {e}"))
                         self.stdout.write(f"Row data: {parts}")
                         errors_printed += 1
                     continue
 
-            self.stdout.write(self.style.SUCCESS(f'Successfully imported {count} wallet journal entries. Skipped {skipped} existing/invalid.'))
+            self.stdout.write(self.style.SUCCESS(f'Import Complete: {count} new, {skipped} skipped.'))
+            if fix_divisions:
+                self.stdout.write(self.style.SUCCESS(f'Updates: {updated} records corrected.'))
 
         except Exception as e:
             self.stdout.write(self.style.ERROR(f'An error occurred: {e}'))

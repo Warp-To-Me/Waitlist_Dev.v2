@@ -53,7 +53,8 @@ class Command(BaseCommand):
                 entry.reason, 
                 entry.first_party_id, 
                 entry.second_party_id, 
-                corp_id
+                corp_id,
+                entry.ref_type # Passed ref_type for robust tax/fee checking
             )
             
             if new_cat:

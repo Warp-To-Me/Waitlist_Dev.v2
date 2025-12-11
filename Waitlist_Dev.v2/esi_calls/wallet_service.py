@@ -8,18 +8,28 @@ from esi_calls.fleet_service import resolve_unknown_names
 
 ESI_BASE = "https://esi.evetech.net/latest"
 
-def determine_auto_category(amount, reason, first_party_id, second_party_id, corp_id):
+def determine_auto_category(amount, reason, first_party_id, second_party_id, corp_id, ref_type=None):
     """
     Applies business rules to guess the category.
     Shared by Sync and Backfill tools.
     """
     reason = str(reason or "").lower() # Normalize to lowercase string
     
-    # 1. Internal Transfer (Corp to Corp)
+    # 1. Tax / Broker Fees (Check ref_type first as it is most reliable)
+    if ref_type:
+        # Standard ESI ref_types for taxes and fees
+        if ref_type in ['contract_brokers_fee', 'brokers_fee', 'transaction_tax', 'tax']:
+            return 'tax'
+
+    # Fallback text check for broker fees if ref_type wasn't definitive
+    if "broker's fee" in reason or "brokers fee" in reason:
+        return 'tax'
+
+    # 2. Internal Transfer (Corp to Corp)
     if first_party_id == corp_id and second_party_id == corp_id:
         return 'internal_transfer'
 
-    # 2. SRP In (Positive Amount)
+    # 3. SRP In (Positive Amount)
     if amount > 0:
         if "srp" in reason:
             return 'srp_in'
@@ -31,7 +41,7 @@ def determine_auto_category(amount, reason, first_party_id, second_party_id, cor
         except:
             pass
 
-    # 3. SRP Out (Negative Amount)
+    # 4. SRP Out (Negative Amount)
     if amount < 0:
         if "srp" in reason:
             return 'srp_out'
@@ -111,9 +121,10 @@ def sync_corp_wallet(srp_config):
                 reason = row.get('reason', '')
                 f_id = row.get('first_party_id')
                 s_id = row.get('second_party_id')
+                ref_type = row.get('ref_type', '')
 
                 # Using shared logic
-                auto_cat = determine_auto_category(amount, reason, f_id, s_id, corp_id)
+                auto_cat = determine_auto_category(amount, reason, f_id, s_id, corp_id, ref_type)
 
                 db_objects.append(CorpWalletJournal(
                     config=srp_config,
@@ -127,7 +138,7 @@ def sync_corp_wallet(srp_config):
                     first_party_id=f_id,
                     second_party_id=s_id,
                     reason=reason,
-                    ref_type=row.get('ref_type', ''),
+                    ref_type=ref_type,
                     tax=row.get('tax'),
                     division=division,
                     first_party_name=names_map.get(f_id, ''),

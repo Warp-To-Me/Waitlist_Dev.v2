@@ -187,8 +187,10 @@ def api_srp_data(request):
     divisions = request.GET.getlist('divisions[]') # List of ints
     
     # 2. Text/Search Filters (NEW)
+    f_div = request.GET.get('f_div', '').strip()   # NEW
     f_amount = request.GET.get('f_amount', '').strip()
-    f_party = request.GET.get('f_party', '').strip()
+    f_from = request.GET.get('f_from', '').strip() # Renamed from f_party
+    f_to = request.GET.get('f_to', '').strip()     # New 'To' filter
     f_type = request.GET.get('f_type', '').strip()
     f_category = request.GET.get('f_category', '').strip()
     f_reason = request.GET.get('f_reason', '').strip()
@@ -212,6 +214,13 @@ def api_srp_data(request):
     if divisions: qs = qs.filter(division__in=divisions)
 
     # Apply Column Search Filters
+    if f_div:
+        # Strict exact match for division number
+        try:
+            qs = qs.filter(division=int(f_div))
+        except ValueError:
+            pass # Ignore invalid non-integer searches
+
     if f_amount:
         if f_amount.startswith('>'):
             try: qs = qs.filter(amount__gt=float(f_amount[1:]))
@@ -222,28 +231,50 @@ def api_srp_data(request):
         else:
             qs = qs.filter(amount__icontains=f_amount) # String match fallback
 
-    if f_party:
-        qs = qs.filter(Q(first_party_name__icontains=f_party) | Q(second_party_name__icontains=f_party))
+    # Changed: Split party filter into From and To
+    if f_from:
+        qs = qs.filter(first_party_name__icontains=f_from)
+        
+    if f_to:
+        qs = qs.filter(second_party_name__icontains=f_to)
     
     if f_type:
         qs = qs.filter(ref_type__icontains=f_type)
         
     if f_category:
-        qs = qs.filter(custom_category__iexact=f_category)
+        if f_category == 'uncategorised':
+            # Filter for NULL or Empty string
+            qs = qs.filter(Q(custom_category__isnull=True) | Q(custom_category=''))
+        else:
+            qs = qs.filter(custom_category__iexact=f_category)
         
     if f_reason:
-        # Check for special 'empty' token
-        if f_reason.lower() == '[empty]':
-            qs = qs.filter(Q(reason__exact='') | Q(reason__isnull=True))
-        else:
-            qs = qs.filter(reason__icontains=f_reason)
+        # Standard contains search (Removed [empty] token logic)
+        qs = qs.filter(reason__icontains=f_reason)
 
     # 3. Aggregates (Income/Outcome) - CALCULATED ON FULL SET (POST-FILTER)
     total_income = qs.filter(amount__gt=0).aggregate(s=Sum('amount'))['s'] or 0
     total_outcome = qs.filter(amount__lt=0).aggregate(s=Sum('amount'))['s'] or 0
     net_change = total_income + total_outcome
 
-    # 4. Process Data for Charts - CALCULATED ON FULL SET (POST-FILTER)
+    # 4. Division Balances (Snapshot of latest known state)
+    # We fetch the absolute latest entry for each selected division, ignoring date filters
+    div_balances = {}
+    if divisions:
+        for div_id in divisions:
+            # FIX: Order by entry_id DESC primarily. Date can be unreliable for same-tick transactions.
+            # ESI entry_id is strictly sequential.
+            latest_entry = CorpWalletJournal.objects.filter(
+                config=config, 
+                division=div_id
+            ).order_by('-entry_id').values('balance').first()
+            
+            if latest_entry:
+                div_balances[div_id] = latest_entry['balance']
+            else:
+                div_balances[div_id] = 0
+
+    # 5. Process Data for Charts - CALCULATED ON FULL SET (POST-FILTER)
     chart_data = qs.values('amount', 'date', 'ref_type', 'first_party_name', 'second_party_name', 'custom_category').order_by('date')
     
     monthly_stats = {}
@@ -309,6 +340,7 @@ def api_srp_data(request):
             'outcome': total_outcome,
             'net': net_change
         },
+        'division_balances': div_balances, # NEW FIELD
         'monthly': monthly_stats,
         'categories': ref_type_breakdown,
         'top_payers': top_payers,

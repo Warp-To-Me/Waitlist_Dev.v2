@@ -15,7 +15,9 @@
     }
 </style>
 
-<div class="flex flex-col h-[calc(100vh-8rem)] bg-dark-950 overflow-hidden relative rounded-xl border border-white/5 shadow-2xl">
+<!-- REMOVED: h-[calc(100vh-8rem)] and overflow-hidden -->
+<!-- ADDED: min-h-[calc(100vh-8rem)] to ensure it fills screen if content is short, but grows if long -->
+<div class="flex flex-col min-h-[calc(100vh-8rem)] bg-dark-950 relative rounded-xl border border-white/5 shadow-2xl">
 
     <!-- HEADER -->
     <div class="glass-header px-6 py-4 flex justify-between items-center shrink-0 bg-slate-900/90 z-20 border-b border-white/10">
@@ -42,10 +44,12 @@
     </div>
 
     <!-- MAIN GRID -->
-    <div class="flex-grow grid grid-cols-1 lg:grid-cols-2 gap-0 overflow-hidden">
+    <!-- REMOVED: overflow-hidden -->
+    <div class="flex-grow grid grid-cols-1 lg:grid-cols-2 gap-0">
 
         <!-- LEFT: CONFIGURATION -->
-        <div class="bg-dark-900/50 p-6 flex flex-col gap-6 overflow-y-auto custom-scrollbar border-r border-white/5">
+        <!-- REMOVED: overflow-y-auto custom-scrollbar -->
+        <div class="bg-dark-900/50 p-6 flex flex-col gap-6 border-r border-white/5">
 
             <!-- Fleet Details -->
             <div>
@@ -169,6 +173,7 @@
         </div>
 
         <!-- RIGHT: STRUCTURE BUILDER -->
+        <!-- KEPT: overflow-hidden and inner scrollbar on right side to allow independent scrolling if desired, or it will just expand -->
         <div class="lg:col-span-1 flex flex-col overflow-hidden bg-slate-900/50">
             <div class="p-4 border-b border-white/5 bg-slate-900 flex justify-between items-center">
                 <h3 class="label-text mb-0 text-brand-500">Structure Preview</h3>
@@ -270,11 +275,11 @@
         })
         .then(r => r.json())
         .then(d => {
-            if (data.success) {
+            if (d.success) {
                 const el = document.getElementById(`template-card-${tplId}`);
                 if (el) el.remove();
             } else {
-                alert("Error deleting template: " + data.error);
+                alert("Error deleting template: " + d.error);
             }
         })
         .catch(e => alert("Network Error"));
