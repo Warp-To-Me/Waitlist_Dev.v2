@@ -143,30 +143,22 @@ class SmartFitMatcher:
         self.pilot_items_raw = parser_result.items 
 
     def find_best_match(self):
-        print(f"DEBUG: SmartFitMatcher looking for hull: {self.hull.type_name} (ID: {self.hull.type_id})")
-
         # 1. Primary: Try matching by specific ItemType ID
         candidates = DoctrineFit.objects.filter(ship_type=self.hull).prefetch_related('modules__item_type')
         
         # 2. Fallback: Try matching by Exact Name
         if not candidates.exists():
-            print(f"DEBUG: ID match failed. Trying Exact Name: {self.hull.type_name}")
             candidates = DoctrineFit.objects.filter(
                 ship_type__type_name__iexact=self.hull.type_name
             ).prefetch_related('modules__item_type')
 
         # 3. Last Resort: Try 'Contains' Name (Handles "Kronos" vs "Kronos ")
         if not candidates.exists():
-            print(f"DEBUG: Exact Name match failed. Trying Contains: {self.hull.type_name}")
             candidates = DoctrineFit.objects.filter(
                 ship_type__type_name__icontains=self.hull.type_name
             ).prefetch_related('modules__item_type')
 
         if not candidates.exists():
-            print(f"DEBUG: No candidates found. Aborting.")
-            # Debug: what DOES exist?
-            exists = DoctrineFit.objects.filter(ship_type__type_name__icontains="Kronos").count()
-            print(f"DEBUG: Total 'Kronos' fits in DB: {exists}")
             return None, None
 
         best_fit = None
