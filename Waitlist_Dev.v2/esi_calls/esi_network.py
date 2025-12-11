@@ -1,5 +1,6 @@
 import requests
 import email.utils
+import asyncio
 from django.utils import timezone
 from datetime import datetime, timezone as dt_timezone
 from pilot_data.models import EsiHeaderCache
@@ -78,24 +79,27 @@ def _broadcast_ratelimit(user, headers):
     if payload:
         try:
             channel_layer = get_channel_layer()
-            # FIX: Check if we are already in an async loop (e.g. gevent)
-            # If so, we can't use AsyncToSync easily. 
-            # For now, we wrap it in a try/except to prevent crashing the ESI call.
-            # Ideally, we should schedule this on the event loop if one exists.
-            
-            async_to_sync(channel_layer.group_send)(
-                f"user_{user.id}",
-                {
-                    "type": "user_notification",
-                    "data": payload
-                }
-            )
-        except Exception as e:
-            # Log specific warning for the loop issue but don't crash
-            if "AsyncToSync" in str(e):
-                pass # Silent fail on async conflict is better than log spam
+            group_name = f"user_{user.id}"
+            message = {
+                "type": "user_notification",
+                "data": payload
+            }
+
+            # Check for existing event loop to determine how to send
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+
+            if loop and loop.is_running():
+                # We are already in an async loop, schedule the task directly
+                loop.create_task(channel_layer.group_send(group_name, message))
             else:
-                print(f"Error broadcasting ratelimit: {e}")
+                # We are in sync mode, use async_to_sync
+                async_to_sync(channel_layer.group_send)(group_name, message)
+
+        except Exception as e:
+            print(f"Error broadcasting ratelimit: {e}")
 
 def call_esi(character, endpoint_name, url, method='GET', params=None, body=None, force_refresh=False):
     """
