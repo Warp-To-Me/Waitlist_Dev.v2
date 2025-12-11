@@ -5,18 +5,12 @@
 {% block management_content %}
 <!-- CSS OVERRIDE: Fixes EVE <font size="X"> tags rendering as huge in browser -->
 <style>
-    /* CSS Variables for Dynamic Scaling if we used JS to set them,
-       but here we stick to static classes for simplicity/robustness */
-
     /* Reset styles inside preview */
     #motd-preview font[size] {
         font-size: inherit !important;
     }
 
-    /* Refined Mapping for EVE Font Sizes.
-       EVE Size 12 is roughly "Normal" (1em/14px).
-       Scaling factor reduced to prevent "Very Large" issues.
-    */
+    /* Refined Mapping for EVE Font Sizes (Relative EM units) */
     #motd-preview font[data-size="8"] {
         font-size: 0.75em;
     }
@@ -60,16 +54,27 @@
     #motd-preview font[data-size="30"] {
         font-size: 1.75em;
     }
-    /* Was 2.5em */
 
     #motd-preview h1, #motd-preview h2, #motd-preview h3 {
         font-size: 1.1em !important;
         line-height: 1.2;
     }
+
+    /* Picker Override to match dark theme */
+    .picker_wrapper {
+        background: #1e293b !important; /* slate-800 */
+        border: 1px solid #475569 !important; /* slate-600 */
+        border-radius: 8px !important;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5) !important;
+    }
+
+    .picker_arrow::before, .picker_arrow::after {
+        background: #1e293b !important;
+        border-color: #475569 !important;
+    }
 </style>
 
-<!-- Load Vanilla-Picker (A lightweight, modern color picker with Alpha support) via CDN -->
-<!-- We use this to support 8-digit hex codes properly -->
+<!-- Load Vanilla-Picker (Modern Color Picker with Alpha) -->
 <script src="https://cdn.jsdelivr.net/npm/vanilla-picker@2.12.1/dist/vanilla-picker.min.js"></script>
 
 <div class="flex flex-col min-h-[calc(100vh-8rem)] bg-dark-950 relative rounded-xl border border-white/5 shadow-2xl">
@@ -138,13 +143,11 @@
 
                         <div class="w-px h-6 bg-white/10 mx-1"></div>
 
-                        <!-- Modern Color Picker Button -->
+                        <!-- Modern Picker Trigger -->
                         <div class="relative group" title="Custom Color">
-                            <button id="picker-btn" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs hover:bg-slate-700 flex items-center justify-center gap-2">
+                            <button id="picker-btn" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs hover:bg-slate-700 flex items-center justify-center gap-2 min-w-[40px]">
                                 <span class="text-lg leading-none">🎨</span>
-                                <!-- Show current color logic handled by picker popup -->
                             </button>
-                            <!-- Picker Container will be attached here by JS -->
                         </div>
                     </div>
 

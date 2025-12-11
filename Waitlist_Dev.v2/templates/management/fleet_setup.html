@@ -5,18 +5,78 @@
 {% block management_content %}
 <!-- CSS OVERRIDE: Fixes EVE <font size="X"> tags rendering as huge in browser -->
 <style>
+    /* Reset styles inside preview */
     #motd-preview font[size] {
         font-size: inherit !important;
+    }
+
+    /* Refined Mapping for EVE Font Sizes (Relative EM units) */
+    #motd-preview font[data-size="8"] {
+        font-size: 0.75em;
+    }
+
+    #motd-preview font[data-size="9"] {
+        font-size: 0.8em;
+    }
+
+    #motd-preview font[data-size="10"] {
+        font-size: 0.85em;
+    }
+
+    #motd-preview font[data-size="11"] {
+        font-size: 0.9em;
+    }
+
+    #motd-preview font[data-size="12"] {
+        font-size: 1.0em;
+    }
+    /* Base */
+    #motd-preview font[data-size="13"] {
+        font-size: 1.1em;
+    }
+
+    #motd-preview font[data-size="14"] {
+        font-size: 1.15em;
+    }
+
+    #motd-preview font[data-size="16"] {
+        font-size: 1.25em;
+    }
+
+    #motd-preview font[data-size="18"] {
+        font-size: 1.35em;
+    }
+
+    #motd-preview font[data-size="24"] {
+        font-size: 1.5em;
+    }
+
+    #motd-preview font[data-size="30"] {
+        font-size: 1.75em;
     }
 
     #motd-preview h1, #motd-preview h2, #motd-preview h3 {
         font-size: 1.1em !important;
         line-height: 1.2;
     }
+
+    /* Picker Override to match dark theme */
+    .picker_wrapper {
+        background: #1e293b !important; /* slate-800 */
+        border: 1px solid #475569 !important; /* slate-600 */
+        border-radius: 8px !important;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5) !important;
+    }
+
+    .picker_arrow::before, .picker_arrow::after {
+        background: #1e293b !important;
+        border-color: #475569 !important;
+    }
 </style>
 
-<!-- REMOVED: h-[calc(100vh-8rem)] and overflow-hidden -->
-<!-- ADDED: min-h-[calc(100vh-8rem)] to ensure it fills screen if content is short, but grows if long -->
+<!-- Load Vanilla-Picker (Modern Color Picker with Alpha) -->
+<script src="https://cdn.jsdelivr.net/npm/vanilla-picker@2.12.1/dist/vanilla-picker.min.js"></script>
+
 <div class="flex flex-col min-h-[calc(100vh-8rem)] bg-dark-950 relative rounded-xl border border-white/5 shadow-2xl">
 
     <!-- HEADER -->
@@ -44,11 +104,9 @@
     </div>
 
     <!-- MAIN GRID -->
-    <!-- REMOVED: overflow-hidden -->
     <div class="flex-grow grid grid-cols-1 lg:grid-cols-2 gap-0">
 
         <!-- LEFT: CONFIGURATION -->
-        <!-- REMOVED: overflow-y-auto custom-scrollbar -->
         <div class="bg-dark-900/50 p-6 flex flex-col gap-6 border-r border-white/5">
 
             <!-- Fleet Details -->
@@ -100,15 +158,16 @@
                         <button onclick="insertColor('green')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs text-green-400 hover:text-green-300" title="Green Text">A</button>
                         <button onclick="insertColor('red')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs text-red-400 hover:text-red-300" title="Red Text">A</button>
                         <button onclick="insertColor('yellow')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs text-yellow-400 hover:text-yellow-300" title="Yellow Text">A</button>
+                        <button onclick="insertColor('blue')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs text-blue-400 hover:text-blue-300" title="Blue">A</button>
+                        <button onclick="insertColor('#b2b2b2')" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs text-slate-400 hover:text-white" title="Grey">A</button>
 
                         <div class="w-px h-6 bg-white/10 mx-1"></div>
 
-                        <!-- Full Color Picker -->
-                        <div class="relative group cursor-pointer" title="Custom Color">
-                            <button onclick="triggerColorPicker()" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs hover:bg-slate-700 flex items-center justify-center">
+                        <!-- Modern Picker Trigger -->
+                        <div class="relative group" title="Custom Color">
+                            <button id="picker-btn" class="p-1 px-2 bg-slate-800 rounded border border-white/10 text-xs hover:bg-slate-700 flex items-center justify-center gap-2 min-w-[40px]">
                                 <span class="text-lg leading-none">🎨</span>
                             </button>
-                            <input type="color" id="color-picker" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full" onchange="insertColor(this.value)">
                         </div>
                     </div>
 
@@ -173,7 +232,6 @@
         </div>
 
         <!-- RIGHT: STRUCTURE BUILDER -->
-        <!-- KEPT: overflow-hidden and inner scrollbar on right side to allow independent scrolling if desired, or it will just expand -->
         <div class="lg:col-span-1 flex flex-col overflow-hidden bg-slate-900/50">
             <div class="p-4 border-b border-white/5 bg-slate-900 flex justify-between items-center">
                 <h3 class="label-text mb-0 text-brand-500">Structure Preview</h3>
@@ -194,7 +252,8 @@
 <script>
     // --- STATE ---
     var CSRF_TOKEN = '{{ csrf_token }}';
-    let structure = [];
+    var structure = [];
+    var picker = null; // Global picker instance
 
     // --- INITIALIZATION ---
     function initSetup() {
@@ -211,6 +270,43 @@
             });
         }
 
+        // Init Vanilla Picker
+        const pickerBtn = document.getElementById('picker-btn');
+        if (typeof Picker !== 'undefined' && pickerBtn) {
+            picker = new Picker({
+                parent: pickerBtn.parentElement,
+                popup: 'bottom', // 'right', 'bottom', 'top', 'left'
+                color: '#ffffff',
+                alpha: true, // Enable alpha channel
+                editor: true,
+                onDone: function(color) {
+                    // color.hex is #RRGGBBAA
+                    // EVE expects 0xAARRGGBB usually or #RRGGBB.
+                    // For MOTD, it supports <font color="#AARRGGBB">.
+                    // VanillaPicker output: hex is #RRGGBBAA (RGBA)
+
+                    // Convert #RRGGBBAA to #AARRGGBB for EVE
+                    let hex = color.hex.substring(0, 7); // #RRGGBB
+                    let alpha = color.rgba[3]; // Alpha 0-1
+
+                    if (alpha < 1) {
+                        // Convert alpha float to hex
+                        let alphaHex = Math.round(alpha * 255).toString(16).padStart(2, '0');
+                        // EVE Format: #AARRGGBB
+                        let eveColor = '#' + alphaHex + hex.substring(1);
+                        insertColorCode(eveColor);
+                    } else {
+                        // Opaque: just use #RRGGBB
+                        insertColorCode(hex);
+                    }
+                }
+            });
+
+            pickerBtn.onclick = function() {
+                picker.openHandler();
+            };
+        }
+
         // Char Counter & Preview Init
         const motdInput = document.getElementById('motd-input');
         const preview = document.getElementById('motd-preview');
@@ -220,75 +316,42 @@
             motdInput.addEventListener('input', function() {
                 const val = this.value;
                 count.innerText = val.length;
-                preview.innerHTML = val;
+
+                // --- EVE TO HTML PREVIEW CONVERSION ---
+                let html = val;
+
+                // 1. Handle Newlines
+                html = html.replace(/\n/g, "<br>");
+
+                // 2. Handle Color Transparency Mismatch
+                // EVE MOTD often uses #AARRGGBB (Alpha First). Browsers use #RRGGBBAA (Alpha Last).
+                // We regex find <font color="#xxxxxxxx"> and swap the hex if it's 8 chars
+                html = html.replace(/<font\s+color=['"]?#([0-9a-fA-F]{8})['"]?>/g, function(match, hex) {
+                    // hex is AARRGGBB
+                    const alpha = hex.substring(0, 2);
+                    const color = hex.substring(2, 8);
+                    // Convert to CSS standard #RRGGBBAA
+                    return `<font color="#${color}${alpha}">`;
+                });
+
+                // 3. Handle Font Sizes (EVE 8-30 vs HTML attribute)
+                html = html.replace(/\bsize=['"]?(\d+)['"]?/g, "data-size='$1'");
+
+                preview.innerHTML = html;
             });
+            // Initial run
+            if(motdInput.value) {
+                motdInput.dispatchEvent(new Event('input'));
+            }
         }
 
         // Load Default Logic immediately
         loadDefault();
     }
 
-    function loadDefault() {
-        structure = [
-            {
-                name: "Wing 1",
-                squads: ["Squad 1", "Squad 2"]
-            }
-        ];
-        const input = document.getElementById('motd-input');
-        if(input) {
-            input.value = "";
-            input.dispatchEvent(new Event('input')); // Update preview/counter
-        }
-        renderStructure();
-    }
-
-    function loadTemplate(tplId) {
-        const btn = document.getElementById(`tpl-btn-${tplId}`);
-        const jsonText = btn.querySelector('.tpl-data').textContent;
-        try {
-            const data = JSON.parse(jsonText);
-            structure = data.wings;
-            const motd = data.motd || "";
-            const input = document.getElementById('motd-input');
-            if(input) {
-                input.value = motd;
-                input.dispatchEvent(new Event('input')); // Update preview/counter
-            }
-            renderStructure();
-        } catch(e) {
-            alert("Error loading template data.");
-            console.error(e);
-        }
-    }
-
-    function deleteTemplate(tplId, name) {
-        if (!confirm(`Are you sure you want to delete template "${name}"?`)) return;
-
-        fetch("{% url 'api_delete_structure_template' %}", {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': CSRF_TOKEN,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ template_id: tplId })
-        })
-        .then(r => r.json())
-        .then(d => {
-            if (d.success) {
-                const el = document.getElementById(`template-card-${tplId}`);
-                if (el) el.remove();
-            } else {
-                alert("Error deleting template: " + d.error);
-            }
-        })
-        .catch(e => alert("Network Error"));
-    }
-
     // --- COLOR PICKER HELPER ---
-    function triggerColorPicker() {
-        document.getElementById('color-picker').click();
-    }
+    // (Deprecated but kept for manual buttons)
+    // No triggerColorPicker since we use Vanilla Picker now
 
     // --- MOTD HELPERS ---
     function insertTag(tag) {
@@ -331,6 +394,21 @@
         input.selectionStart = start + replace.length;
         input.selectionEnd = start + replace.length;
 
+        input.dispatchEvent(new Event('input'));
+    }
+
+    function insertColorCode(hexCode) {
+        const input = document.getElementById('motd-input');
+        const start = input.selectionStart;
+        const end = input.selectionEnd;
+        const text = input.value;
+        const selected = text.substring(start, end);
+
+        const replace = `<font color="${hexCode}">${selected}</font>`;
+        input.value = text.substring(0, start) + replace + text.substring(end);
+        input.focus();
+        input.selectionStart = start + replace.length;
+        input.selectionEnd = start + replace.length;
         input.dispatchEvent(new Event('input'));
     }
 
