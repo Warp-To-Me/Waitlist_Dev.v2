@@ -12,20 +12,17 @@
         <div class="flex items-center gap-6">
             <div>
                 <h1 class="text-lg font-bold text-white tracking-tight">Corporation Wallet Monitor</h1>
-                <p class="text-xs text-slate-400">Last Sync: {{ config.last_sync|timesince }} ago</p>
+                <!-- UPDATED: Replaced static timesince with JS-controlled span -->
+                <p class="text-xs text-slate-400">
+                    Last Sync: <span id="last-sync-text" class="text-slate-300">Checking...</span>
+                </p>
             </div>
 
             <!-- NEXT SYNC TIMER -->
-            {% if next_sync %}
             <div class="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-black/20 border border-white/5" id="sync-timer-container">
                 <span class="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Next Sync</span>
-                <span class="text-xs font-mono text-brand-400 font-bold" id="next-sync-timer">--:--</span>
+                <span class="text-xs font-mono text-slate-400 font-bold" id="next-sync-timer">Processing...</span>
             </div>
-            <script>
-                // Pass Django timestamp to JS
-                window.NEXT_SYNC_ISO = "{{ next_sync.isoformat }}";
-            </script>
-            {% endif %}
         </div>
 
         <div class="flex gap-4 items-center flex-wrap">
@@ -106,13 +103,27 @@
 
     <!-- TRANSACTIONS -->
     <div class="glass-panel flex flex-col overflow-hidden min-h-[500px]">
-        <div class="p-4 border-b border-white/5 bg-slate-900/50 shrink-0 flex justify-between items-center">
-            <h3 class="label-text mb-0">Recent Transactions</h3>
+        <div class="p-4 border-b border-white/5 bg-slate-900/50 shrink-0 flex items-center justify-between">
+            <!-- Left: Title -->
+            <div class="w-1/3">
+                <h3 class="label-text mb-0">Recent Transactions</h3>
+            </div>
 
-            <!-- Rows Selector -->
-            <div class="flex items-center gap-2">
+            <!-- Center: Top Pagination (Compact) -->
+            <div class="w-1/3 flex justify-center items-center gap-2">
+                <button onclick="changePage(-1)" class="btn-prev btn-secondary py-1 px-2 text-[10px] disabled:opacity-50 disabled:cursor-not-allowed">
+                    &larr;
+                </button>
+                <span class="text-slate-500 text-[10px] font-mono page-info-simple">1 / 1</span>
+                <button onclick="changePage(1)" class="btn-next btn-secondary py-1 px-2 text-[10px] disabled:opacity-50 disabled:cursor-not-allowed">
+                    &rarr;
+                </button>
+            </div>
+
+            <!-- Right: Rows Selector -->
+            <div class="w-1/3 flex justify-end items-center gap-2">
                 <span class="text-[10px] text-slate-500 uppercase font-bold">Rows:</span>
-                <select id="limit-select" onchange="loadData(1)" class="bg-black/30 border border-slate-700 text-slate-300 text-xs rounded px-2 py-1 outline-none focus:border-brand-500">
+                <select id="limit-select" onchange="loadData(1, false)" class="bg-black/30 border border-slate-700 text-slate-300 text-xs rounded px-2 py-1 outline-none focus:border-brand-500">
                     <option value="10">10</option>
                     <option value="25" selected>25</option>
                     <option value="50">50</option>
@@ -126,37 +137,37 @@
                 <thead class="bg-slate-900/95 text-[10px] uppercase font-bold sticky top-0 z-10 backdrop-blur-md shadow-sm">
                     <!-- MAIN HEADER ROW -->
                     <tr>
-                        <th class="p-3 border-b border-white/5 w-32">Date</th>
-                        <th class="p-3 border-b border-white/5 text-center w-16">Div</th>
-                        <th class="p-3 border-b border-white/5 text-right w-32">Amount</th>
+                        <th class="px-2 py-2 border-b border-white/5 w-24">Date</th>
+                        <th class="px-2 py-2 border-b border-white/5 text-center w-12">Div</th>
+                        <th class="px-2 py-2 border-b border-white/5 text-right w-32">Amount</th>
                         <!-- Split Columns for From/To -->
-                        <th class="p-3 border-b border-white/5 w-32">From</th>
-                        <th class="p-3 border-b border-white/5 w-32">To</th>
-                        <th class="p-3 border-b border-white/5 w-32">Type</th>
-                        <th class="p-3 border-b border-white/5 w-48">Category</th>
-                        <th class="p-3 border-b border-white/5">Reason</th>
+                        <th class="px-2 py-2 border-b border-white/5 w-32">From</th>
+                        <th class="px-2 py-2 border-b border-white/5 w-32">To</th>
+                        <th class="px-2 py-2 border-b border-white/5 w-32">Type</th>
+                        <th class="px-2 py-2 border-b border-white/5 w-48">Category</th>
+                        <th class="px-2 py-2 border-b border-white/5">Reason</th>
                     </tr>
                     <!-- FILTER ROW -->
                     <tr class="bg-slate-900/90 border-b border-white/10">
-                        <td class="p-2"></td> <!-- Date placeholder -->
-                        <td class="p-2">
+                        <td class="p-1"></td> <!-- Date placeholder -->
+                        <td class="p-1">
                             <!-- New Filter for Division -->
-                            <input type="text" id="filter-division" class="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-[10px] text-center text-slate-300 placeholder-slate-600 focus:border-brand-500 outline-none" placeholder="#" onkeyup="debouncedLoad()">
+                            <input type="text" id="filter-division" class="w-full bg-black/40 border border-white/10 rounded px-1 py-0.5 text-[10px] text-center text-slate-300 placeholder-slate-600 focus:border-brand-500 outline-none" placeholder="#" onkeyup="debouncedLoad()">
                         </td>
-                        <td class="p-2">
-                            <input type="text" id="filter-amount" class="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-[10px] text-right text-slate-300 placeholder-slate-600 focus:border-brand-500 outline-none" placeholder="Min Amount..." onkeyup="debouncedLoad()">
+                        <td class="p-1">
+                            <input type="text" id="filter-amount" class="w-full bg-black/40 border border-white/10 rounded px-1 py-0.5 text-[10px] text-right text-slate-300 placeholder-slate-600 focus:border-brand-500 outline-none" placeholder="Min Amount..." onkeyup="debouncedLoad()">
                         </td>
-                        <td class="p-2">
-                            <input type="text" id="filter-from" class="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-[10px] text-slate-300 placeholder-slate-600 focus:border-brand-500 outline-none" placeholder="From..." onkeyup="debouncedLoad()">
+                        <td class="p-1">
+                            <input type="text" id="filter-from" class="w-full bg-black/40 border border-white/10 rounded px-1 py-0.5 text-[10px] text-slate-300 placeholder-slate-600 focus:border-brand-500 outline-none" placeholder="From..." onkeyup="debouncedLoad()">
                         </td>
-                        <td class="p-2">
-                            <input type="text" id="filter-to" class="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-[10px] text-slate-300 placeholder-slate-600 focus:border-brand-500 outline-none" placeholder="To..." onkeyup="debouncedLoad()">
+                        <td class="p-1">
+                            <input type="text" id="filter-to" class="w-full bg-black/40 border border-white/10 rounded px-1 py-0.5 text-[10px] text-slate-300 placeholder-slate-600 focus:border-brand-500 outline-none" placeholder="To..." onkeyup="debouncedLoad()">
                         </td>
-                        <td class="p-2">
-                            <input type="text" id="filter-type" class="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-[10px] text-slate-300 placeholder-slate-600 focus:border-brand-500 outline-none" placeholder="Filter Type..." onkeyup="debouncedLoad()">
+                        <td class="p-1">
+                            <input type="text" id="filter-type" class="w-full bg-black/40 border border-white/10 rounded px-1 py-0.5 text-[10px] text-slate-300 placeholder-slate-600 focus:border-brand-500 outline-none" placeholder="Filter Type..." onkeyup="debouncedLoad()">
                         </td>
-                        <td class="p-2">
-                            <select id="filter-category" class="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-[10px] text-slate-300 focus:border-brand-500 outline-none" onchange="loadData(1)">
+                        <td class="p-1">
+                            <select id="filter-category" class="w-full bg-black/40 border border-white/10 rounded px-1 py-0.5 text-[10px] text-slate-300 focus:border-brand-500 outline-none" onchange="loadData(1)">
                                 <option value="">All Categories</option>
                                 <option value="uncategorised" class="text-brand-400 font-bold">Uncategorised</option>
                                 <option value="srp_in">SRP In</option>
@@ -169,9 +180,9 @@
                                 <option value="other">Other</option>
                             </select>
                         </td>
-                        <td class="p-2">
+                        <td class="p-1">
                             <!-- Updated Placeholder -->
-                            <input type="text" id="filter-reason" class="w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-[10px] text-slate-300 placeholder-slate-600 focus:border-brand-500 outline-none" placeholder="Reason..." onkeyup="debouncedLoad()">
+                            <input type="text" id="filter-reason" class="w-full bg-black/40 border border-white/10 rounded px-1 py-0.5 text-[10px] text-slate-300 placeholder-slate-600 focus:border-brand-500 outline-none" placeholder="Reason..." onkeyup="debouncedLoad()">
                         </td>
                     </tr>
                 </thead>
@@ -179,20 +190,26 @@
             </table>
         </div>
 
-        <!-- PAGINATION CONTROLS -->
-        <div class="p-3 bg-slate-900/80 border-t border-white/5 flex justify-between items-center text-xs shrink-0" id="pagination-controls">
-            <button onclick="changePage(-1)" id="btn-prev" class="btn-secondary py-1 px-3 text-[10px] disabled:opacity-50 disabled:cursor-not-allowed">
-                &larr; Previous
-            </button>
+        <!-- PAGINATION CONTROLS (BOTTOM) -->
+        <div class="p-3 bg-slate-900/80 border-t border-white/5 flex justify-center items-center text-xs shrink-0 relative" id="pagination-controls">
 
+            <!-- Centered Navigation -->
             <div class="flex items-center gap-4">
-                <span class="text-slate-500" id="page-info">Page 1 of 1</span>
-                <span class="text-slate-600 text-[10px] font-mono" id="total-count">0 entries</span>
+                <button onclick="changePage(-1)" class="btn-prev btn-secondary py-1 px-3 text-[10px] disabled:opacity-50 disabled:cursor-not-allowed">
+                    &larr; Previous
+                </button>
+
+                <span class="text-slate-500 page-info-detailed">Page 1 of 1</span>
+
+                <button onclick="changePage(1)" class="btn-next btn-secondary py-1 px-3 text-[10px] disabled:opacity-50 disabled:cursor-not-allowed">
+                    Next &rarr;
+                </button>
             </div>
 
-            <button onclick="changePage(1)" id="btn-next" class="btn-secondary py-1 px-3 text-[10px] disabled:opacity-50 disabled:cursor-not-allowed">
-                Next &rarr;
-            </button>
+            <!-- Right-Aligned Count -->
+            <div class="absolute right-4 flex items-center">
+                <span class="text-slate-600 text-[10px] font-mono" id="total-count-display">0 entries</span>
+            </div>
         </div>
     </div>
 
@@ -225,6 +242,8 @@
     var currentPage = 1;
     var totalPages = 1;
     var searchTimer = null;
+    var timerInterval = null; // Local Countdown Timer
+    var pollingTimeout = null; // Adaptive Poller
 
     // Cache for delayed rendering
     var cachedChartData = null;
@@ -232,7 +251,6 @@
     // --- COLOR MAPPING (Solid Bar Style) ---
     function getCategoryClass(key) {
         const map = {
-            // Solid colors with white text for the selected state
             'srp_in': 'bg-green-600 border-green-500 text-white',
             'srp_out': 'bg-red-600 border-red-500 text-white',
             'internal_transfer': 'bg-purple-600 border-purple-500 text-white',
@@ -241,78 +259,131 @@
             'manual_out': 'bg-blue-600 border-blue-500 text-white',
             'tax': 'bg-slate-600 border-slate-500 text-white',
             'other': 'bg-slate-600 border-slate-500 text-white',
-            '': 'bg-slate-800 border-slate-700 text-slate-400' // Default/Empty
+            '': 'bg-slate-800 border-slate-700 text-slate-400'
         };
         return map[key] || map['other'];
     }
 
-    // --- CHART COLOR MAPPING (Hex codes to match Tailwind classes) ---
+    // --- CHART COLOR MAPPING ---
     function getCategoryColor(categoryLabel) {
-        // Normalize label to key format (e.g. "SRP In" -> "srp_in")
-        // The chart labels come from the backend as formatted strings (e.g., "Srp In"),
-        // or raw keys depending on how api_srp_data sends them.
-        // Looking at api_srp_data: category_label = row['custom_category'] OR formatted ref_type.
-        // Let's create a robust mapping for common labels.
-
         const label = categoryLabel.toLowerCase().replace(/\s+/g, '_');
-
         const colorMap = {
-            'srp_in': '#16a34a',        // green-600
-            'srp_out': '#dc2626',       // red-600
-            'internal_transfer': '#9333ea', // purple-600
-            'giveaway': '#ea580c',      // orange-600
-            'manual_change': '#2563eb', // blue-600
-            'manual_out': '#2563eb',    // blue-600
-            'tax': '#475569',           // slate-600
-            'other': '#475569',         // slate-600
-            'uncategorised': '#94a3b8'  // slate-400
+            'srp_in': '#16a34a',
+            'srp_out': '#dc2626',
+            'internal_transfer': '#9333ea',
+            'giveaway': '#ea580c',
+            'manual_change': '#2563eb',
+            'manual_out': '#2563eb',
+            'tax': '#475569',
+            'other': '#475569',
+            'uncategorised': '#94a3b8'
         };
-
-        return colorMap[label] || '#475569'; // Default slate-600
+        return colorMap[label] || '#475569';
     }
 
     function initSRPDashboard() {
         console.log("Initializing SRP Dashboard...");
 
-        // START SYNC TIMER
-        if (window.NEXT_SYNC_ISO) {
-            startSyncTimer(window.NEXT_SYNC_ISO);
-        }
+        // FETCH SYNC STATUS (Starts the adaptive polling loop)
+        fetchSyncStatus();
 
+        // Standard Init Logic
         const startEl = document.getElementById('start-date');
         const endEl = document.getElementById('end-date');
         if (!startEl || !endEl) return;
 
-        // Set default dates: Last day of previous month -> Last day of current month
         const now = new Date();
         const y = now.getFullYear();
         const m = now.getMonth();
-
         const startDate = new Date(y, m, 0);
         const endDate = new Date(y, m + 1, 0);
-
         const fmt = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 
         startEl.value = fmt(startDate);
         endEl.value = fmt(endDate);
 
-        loadData(1);
+        loadData(1, true);
+    }
+
+    // --- ADAPTIVE STATUS POLLER ---
+    function fetchSyncStatus() {
+        if (pollingTimeout) clearTimeout(pollingTimeout);
+
+        fetch("{% url 'api_srp_status' %}")
+            .then(r => r.json())
+            .then(data => {
+                let nextPollDelay = 30000; // Default fallback: 30s
+
+                if(data.active) {
+                    // 1. Update UI Elements
+                    if(data.last_sync) {
+                        const lastSyncTime = new Date(data.last_sync);
+                        const timeAgo = formatTimeAgo(lastSyncTime);
+                        document.getElementById('last-sync-text').textContent = `${timeAgo} ago`;
+                    } else {
+                        document.getElementById('last-sync-text').textContent = "Never";
+                    }
+
+                    if(data.next_sync) {
+                        const nextSyncTime = new Date(data.next_sync);
+                        const now = new Date();
+                        const diff = nextSyncTime - now;
+
+                        document.getElementById('sync-timer-container').classList.remove('hidden');
+                        document.getElementById('sync-timer-container').classList.add('flex');
+
+                        // Restart visual countdown
+                        startSyncTimer(data.next_sync);
+
+                        // 2. Calculate Smart Delay
+                        if (diff > 300000) {
+                            // If > 5 minutes away, sleep for 5 minutes (check for manual syncs occasionally)
+                            nextPollDelay = 300000;
+                        } else if (diff > 15000) {
+                            // If > 15s away, wake up exactly when it expires
+                            nextPollDelay = diff;
+                        } else {
+                            // If expired or very close, poll fast (15s) to catch the DB update
+                            nextPollDelay = 15000;
+                        }
+                    }
+                }
+
+                console.log(`Next status check in ${Math.round(nextPollDelay/1000)}s`);
+                pollingTimeout = setTimeout(fetchSyncStatus, nextPollDelay);
+            })
+            .catch(err => {
+                console.error("Error polling SRP status", err);
+                pollingTimeout = setTimeout(fetchSyncStatus, 60000); // Retry slow on error
+            });
+    }
+
+    function formatTimeAgo(date) {
+        const now = new Date();
+        const seconds = Math.floor((now - date) / 1000);
+        if(seconds < 60) return `${seconds}s`;
+        const minutes = Math.floor(seconds / 60);
+        if(minutes < 60) return `${minutes}m`;
+        const hours = Math.floor(minutes / 60);
+        if(hours < 24) return `${hours}h`;
+        const days = Math.floor(hours / 24);
+        return `${days}d`;
     }
 
     function setAllTime() {
         document.getElementById('start-date').value = '';
         document.getElementById('end-date').value = '';
-        loadData(1);
+        loadData(1, true);
     }
 
     function debouncedLoad() {
         clearTimeout(searchTimer);
         searchTimer = setTimeout(() => {
-            loadData(1);
+            loadData(1, true);
         }, 400);
     }
 
-    function loadData(page = 1) {
+    function loadData(page = 1, updateCharts = true) {
         currentPage = page;
         const start = document.getElementById('start-date').value;
         const end = document.getElementById('end-date').value;
@@ -320,7 +391,7 @@
         const divs = Array.from(document.querySelectorAll('input[name="div"]:checked')).map(cb => cb.value);
 
         // Get Filter Values
-        const fDiv = document.getElementById('filter-division').value; // NEW
+        const fDiv = document.getElementById('filter-division').value;
         const fAmount = document.getElementById('filter-amount').value;
         const fFrom = document.getElementById('filter-from').value;
         const fTo = document.getElementById('filter-to').value;
@@ -335,8 +406,7 @@
         params.append('limit', limit);
         divs.forEach(d => params.append('divisions[]', d));
 
-        // Append Filters
-        if(fDiv) params.append('f_div', fDiv); // NEW
+        if(fDiv) params.append('f_div', fDiv);
         if(fAmount) params.append('f_amount', fAmount);
         if(fFrom) params.append('f_from', fFrom);
         if(fTo) params.append('f_to', fTo);
@@ -357,14 +427,15 @@
 
                 if(tbody) tbody.style.opacity = '1';
 
-                renderSummary(data.summary);
-                renderDivisionBalances(data.division_balances); // New Renderer
                 renderTable(data.transactions);
                 updatePagination(data.pagination);
 
-                // Handle Charts (with lazy loading)
-                cachedChartData = data;
-                ensureChartsRender();
+                if (updateCharts) {
+                    renderSummary(data.summary);
+                    renderDivisionBalances(data.division_balances);
+                    cachedChartData = data;
+                    ensureChartsRender();
+                }
             })
             .catch(err => {
                 console.error("Network Error:", err);
@@ -372,57 +443,52 @@
             });
     }
 
-    // --- NEW: Render Division Balances ---
     function renderDivisionBalances(balances) {
         const container = document.getElementById('division-balances-container');
         if (!container) return;
-
-        // Clear previous
         container.innerHTML = '';
-
-        // If no balances returned or object empty, hide container
         if (!balances || Object.keys(balances).length === 0) {
             container.classList.add('hidden');
             return;
         }
-
         container.classList.remove('hidden');
-
-        // Create a card for each division ID returned
         Object.keys(balances).sort().forEach(divId => {
             const balance = parseFloat(balances[divId]);
             const card = document.createElement('div');
-
-            // Visual logic for low balance warning?
-            // For now, standard glass styling
             card.className = "glass-panel p-3 flex flex-col justify-center items-center border border-white/5 bg-slate-900/50";
-
             card.innerHTML = `
                 <span class="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-1">Division ${divId}</span>
-                <span class="text-sm font-mono font-bold text-white whitespace-nowrap">${formatISK(balance)}</span>
+                <span class="text-xs font-mono font-bold text-white whitespace-nowrap">${formatISK(balance)}</span>
             `;
-
             container.appendChild(card);
         });
     }
 
     function updatePagination(meta) {
         if (!meta) return;
-
         totalPages = meta.total_pages;
         currentPage = meta.current_page;
 
-        document.getElementById('page-info').textContent = `Page ${meta.current_page} of ${meta.total_pages}`;
-        document.getElementById('total-count').textContent = `${meta.total_count} total entries`;
+        // Update Labels (Both top and bottom)
+        document.querySelectorAll('.page-info-simple').forEach(el => el.textContent = `${meta.current_page} / ${meta.total_pages}`);
+        document.querySelectorAll('.page-info-detailed').forEach(el => el.textContent = `Page ${meta.current_page} of ${meta.total_pages}`);
 
-        document.getElementById('btn-prev').disabled = !meta.has_previous;
-        document.getElementById('btn-next').disabled = !meta.has_next;
+        // Update Total Count
+        const countEl = document.getElementById('total-count-display');
+        if(countEl) countEl.textContent = `${meta.total_count} total entries`;
+
+        // Update Buttons (All classes)
+        const prevBtns = document.querySelectorAll('.btn-prev');
+        const nextBtns = document.querySelectorAll('.btn-next');
+
+        prevBtns.forEach(btn => btn.disabled = !meta.has_previous);
+        nextBtns.forEach(btn => btn.disabled = !meta.has_next);
     }
 
     function changePage(delta) {
         const newPage = currentPage + delta;
         if (newPage > 0 && newPage <= totalPages) {
-            loadData(newPage);
+            loadData(newPage, false);
         }
     }
 
@@ -438,17 +504,13 @@
         return parseFloat(val).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' ISK';
     }
 
-    // --- CHART LOADING LOGIC ---
+    // --- CHART LOADING LOGIC (Unchanged) ---
     function ensureChartsRender() {
         if (typeof Chart !== 'undefined') {
-            // Library ready, render immediately
             renderChartsInternal(cachedChartData);
         } else {
-            // Library missing
             const existingScript = document.querySelector('script[src*="chart.js"]');
             if (existingScript) {
-                // Script tag exists but Chart is undefined (Still Loading)
-                // Poll until ready
                 const checkInterval = setInterval(() => {
                     if (typeof Chart !== 'undefined') {
                         clearInterval(checkInterval);
@@ -456,8 +518,6 @@
                     }
                 }, 100);
             } else {
-                // Not requested yet, inject it
-                console.log("Fetching Chart.js...");
                 const script = document.createElement('script');
                 script.src = 'https://cdn.jsdelivr.net/npm/chart.js';
                 script.onload = () => {
@@ -475,7 +535,6 @@
         const ctxPayerC = document.getElementById('chart-payers-count');
         const ctxPayerI = document.getElementById('chart-payers-isk');
 
-        // 1. Monthly
         const months = Object.keys(data.monthly).sort();
         updateChart('monthly', ctxMonthly, 'bar', {
             labels: months,
@@ -485,20 +544,14 @@
             ]
         });
 
-        // 2. Categories (Merged Volume)
-        // Combine all categories from In and Out
         const catKeysIn = Object.keys(data.categories.in);
         const catKeysOut = Object.keys(data.categories.out);
         const allCats = Array.from(new Set([...catKeysIn, ...catKeysOut])).sort();
-
-        // Calculate Total Volume (Abs(In) + Abs(Out)) for each category
         const catVolumes = allCats.map(c => {
             const valIn = data.categories.in[c] || 0;
             const valOut = data.categories.out[c] || 0;
             return valIn + Math.abs(valOut);
         });
-
-        // Generate Colors for each category
         const catColors = allCats.map(c => getCategoryColor(c));
 
         updateChart('cat', ctxCat, 'doughnut', {
@@ -511,7 +564,6 @@
             }]
         });
 
-        // 3. Top Payers
         const payers = Object.entries(data.top_payers).sort((a, b) => b[1].total - a[1].total).slice(0, 5);
         const pLabels = payers.map(p => p[0]);
 
@@ -530,11 +582,7 @@
 
     function updateChart(key, ctx, type, data) {
         if (!ctx) return;
-
-        if (srpCharts[key]) {
-            srpCharts[key].destroy();
-        }
-
+        if (srpCharts[key]) srpCharts[key].destroy();
         srpCharts[key] = new Chart(ctx, {
             type: type,
             data: data,
@@ -551,10 +599,7 @@
                 scales: type !== 'doughnut' ? {
                     x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
                     y: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } }
-                } : {
-                    x: { display: false },
-                    y: { display: false }
-                },
+                } : { x: { display: false }, y: { display: false } },
                 layout: { padding: 0 }
             }
         });
@@ -582,36 +627,26 @@
         ];
 
         body.innerHTML = txs.map(t => {
-            // Use custom category if set, else fallback
             const currentCat = t.custom_category || '';
             const style = getCategoryClass(currentCat);
             const refLabel = t.ref_type.replace(/_/g, ' ');
-
-            // Build Options
-            const optionsHtml = options.map(opt =>
-                `<option value="${opt.id}" ${opt.id === currentCat ? 'selected' : ''}>${opt.label}</option>`
-            ).join('');
+            const optionsHtml = options.map(opt => `<option value="${opt.id}" ${opt.id === currentCat ? 'selected' : ''}>${opt.label}</option>`).join('');
 
             return `
             <tr class="hover:bg-white/5 transition group">
-                <td class="p-3 font-mono text-[10px] whitespace-nowrap text-slate-500 group-hover:text-slate-300">${new Date(t.date).toLocaleDateString()} <span class="opacity-50">${new Date(t.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></td>
-                <td class="p-3 text-center"><span class="bg-white/5 px-1.5 py-0.5 rounded text-[10px] border border-white/5">${t.division}</span></td>
-                <td class="p-3 text-right font-mono font-bold ${t.amount > 0 ? 'text-green-400' : 'text-red-400'} text-xs">${formatISK(t.amount)}</td>
-                <td class="p-3 truncate max-w-[120px] text-slate-300" title="${t.first_party_name}">${t.first_party_name}</td>
-                <td class="p-3 truncate max-w-[120px] text-slate-300" title="${t.second_party_name}">${t.second_party_name}</td>
-
-                <!-- TYPE COLUMN -->
-                <td class="p-3"><span class="badge badge-slate text-[9px] text-slate-500">${refLabel}</span></td>
-
-                <!-- DROPDOWN CATEGORY COLUMN -->
-                <td class="p-3">
-                    <select class="category-select w-full ${style} rounded px-2 py-1 text-[10px] font-bold border outline-none appearance-none cursor-pointer transition-colors duration-300 focus:ring-1 focus:ring-white/50"
+                <td class="px-2 py-1 font-mono text-[10px] whitespace-nowrap text-slate-500 group-hover:text-slate-300">${new Date(t.date).toLocaleDateString()} <span class="opacity-50">${new Date(t.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></td>
+                <td class="px-2 py-1 text-center"><span class="bg-white/5 px-1.5 py-0.5 rounded text-[10px] border border-white/5">${t.division}</span></td>
+                <td class="px-2 py-1 text-right font-mono font-bold ${t.amount > 0 ? 'text-green-400' : 'text-red-400'} text-xs whitespace-nowrap">${formatISK(t.amount)}</td>
+                <td class="px-2 py-1 truncate max-w-[120px] text-slate-300" title="${t.first_party_name}">${t.first_party_name}</td>
+                <td class="px-2 py-1 truncate max-w-[120px] text-slate-300" title="${t.second_party_name}">${t.second_party_name}</td>
+                <td class="px-2 py-1 whitespace-nowrap"><span class="badge badge-slate text-[9px] text-slate-500">${refLabel}</span></td>
+                <td class="px-2 py-1">
+                    <select class="category-select w-full ${style} rounded px-1 py-0.5 text-[10px] font-bold border outline-none appearance-none cursor-pointer transition-colors duration-300 focus:ring-1 focus:ring-white/50"
                             onchange="saveCategory('${t.entry_id}', this.value, this)">
                         ${optionsHtml}
                     </select>
                 </td>
-
-                <td class="p-3 truncate max-w-[200px] italic text-slate-500 text-[10px]" title="${t.reason}">${t.reason}</td>
+                <td class="px-2 py-1 truncate max-w-[200px] italic text-slate-500 text-[10px]" title="${t.reason}">${t.reason}</td>
             </tr>
         `}).join('');
     }
@@ -619,27 +654,18 @@
     function saveCategory(entryId, category, selectElement) {
         if(selectElement) {
             const newStyle = getCategoryClass(category);
-            selectElement.className = `category-select w-full ${newStyle} rounded px-2 py-1 text-[10px] font-bold border outline-none appearance-none cursor-pointer transition-colors duration-300 focus:ring-1 focus:ring-white/50`;
+            selectElement.className = `category-select w-full ${newStyle} rounded px-1 py-0.5 text-[10px] font-bold border outline-none appearance-none cursor-pointer transition-colors duration-300 focus:ring-1 focus:ring-white/50`;
         }
-
         fetch("{% url 'api_update_transaction_category' %}", {
             method: 'POST',
-            headers: {
-                'X-CSRFToken': CSRF_TOKEN,
-                'Content-Type': 'application/json'
-            },
+            headers: { 'X-CSRFToken': CSRF_TOKEN, 'Content-Type': 'application/json' },
             body: JSON.stringify({ entry_id: entryId, category: category })
-        })
-        .then(r => r.json())
-        .then(d => {
-            if(!d.success) {
-                alert("Error updating category: " + d.error);
-            }
-        });
+        }).then(r => r.json()).then(d => { if(!d.success) alert("Error: " + d.error); });
     }
 
-    // --- SYNC TIMER LOGIC ---
+    // --- VISUAL COUNTDOWN TIMER ---
     function startSyncTimer(isoDateString) {
+        if (timerInterval) clearInterval(timerInterval);
         const timerEl = document.getElementById('next-sync-timer');
         const target = new Date(isoDateString).getTime();
 
@@ -648,23 +674,31 @@
             const diff = target - now;
 
             if (diff <= 0) {
-                timerEl.textContent = "Processing...";
+                timerEl.textContent = "Sync Ready";
                 timerEl.classList.add('animate-pulse', 'text-green-400');
-                timerEl.classList.remove('text-brand-400');
+                timerEl.classList.remove('text-brand-400', 'text-slate-400');
                 return;
+            } else {
+                timerEl.classList.remove('animate-pulse', 'text-green-400', 'text-brand-400');
+                timerEl.classList.add('text-slate-400');
             }
 
+            const hours = Math.floor(diff / (1000 * 60 * 60));
             const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
             const seconds = Math.floor((diff % (1000 * 60)) / 1000);
 
-            timerEl.textContent = `${minutes}m ${seconds}s`;
+            if (hours > 0) {
+                timerEl.textContent = `${hours}h ${minutes}m ${seconds}s`;
+            } else {
+                timerEl.textContent = `${minutes}m ${seconds}s`;
+            }
         };
 
-        updateTimer(); // Run once immediately
-        setInterval(updateTimer, 1000);
+        updateTimer();
+        timerInterval = setInterval(updateTimer, 1000);
     }
 
-    // --- INITIALIZATION START ---
+    // --- INITIALIZATION ---
     initSRPDashboard();
 </script>
 {% endblock %}

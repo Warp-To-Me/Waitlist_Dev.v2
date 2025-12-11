@@ -144,33 +144,47 @@ def api_update_transaction_category(request):
 def srp_dashboard(request):
     config = SRPConfiguration.objects.first()
     
-    # Calculate Next Sync based on ESI Cache Headers (Expires)
-    next_sync = None
-    if config:
-        # 1. Try to get the actual ESI expiration time
-        if config.character and config.character.corporation_id:
-            # Matches format in wallet_service.py: corp_wallet_{id}_{div}_{page}
-            prefix = f"corp_wallet_{config.character.corporation_id}"
-            
-            cache_entry = EsiHeaderCache.objects.filter(
-                character=config.character,
-                endpoint_name__startswith=prefix
-            ).order_by('-expires').first()
-            
-            if cache_entry and cache_entry.expires:
-                next_sync = cache_entry.expires
-
-        # 2. Fallback to 1 hour if no cache headers found (e.g., first run)
-        if not next_sync and config.last_sync:
-            next_sync = config.last_sync + timedelta(hours=1)
-    
     context = {
         'config': config,
-        'next_sync': next_sync,
+        # 'next_sync' is now fetched via API to ensure client-side freshness
         'base_template': get_template_base(request)
     }
     context.update(get_mgmt_context(request.user))
     return render(request, 'srp/dashboard.html', context)
+
+@login_required
+@user_passes_test(can_view_srp)
+def api_srp_status(request):
+    """
+    Lightweight endpoint for polling Sync Status (Last Sync / Next Sync).
+    """
+    config = SRPConfiguration.objects.first()
+    if not config:
+        return JsonResponse({'active': False})
+
+    next_sync = None
+    if config.character and config.character.corporation_id:
+        # Matches format in wallet_service.py: corp_wallet_{id}_{div}_{page}
+        prefix = f"corp_wallet_{config.character.corporation_id}"
+        
+        cache_entry = EsiHeaderCache.objects.filter(
+            character=config.character,
+            endpoint_name__startswith=prefix
+        ).order_by('-expires').first()
+        
+        if cache_entry and cache_entry.expires:
+            next_sync = cache_entry.expires
+
+    # Fallback to 1 hour if no cache headers found
+    if not next_sync and config.last_sync:
+        next_sync = config.last_sync + timedelta(hours=1)
+
+    return JsonResponse({
+        'active': True,
+        'last_sync': config.last_sync.isoformat() if config.last_sync else None,
+        'next_sync': next_sync.isoformat() if next_sync else None,
+        'server_time': timezone.now().isoformat()
+    })
 
 @login_required
 @user_passes_test(can_view_srp)

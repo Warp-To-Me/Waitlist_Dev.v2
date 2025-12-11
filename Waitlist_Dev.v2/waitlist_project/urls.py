@@ -1,7 +1,5 @@
 from django.contrib import admin
 from django.urls import path, include
-
-# New Modular Imports
 from core import views as core_views
 from core import views_management, views_profile, views_rules, views_srp # Added views_srp
 
@@ -9,17 +7,6 @@ urlpatterns = [
     # Django Admin
     path('admin/', admin.site.urls),
     
-    # --- CORE MANAGEMENT (views_management.py) ---
-    path('management/', views_management.management_dashboard, name='custom_admin'),
-    path('management/users/', views_management.management_users, name='management_users'),
-    path('management/users/<int:user_id>/inspect/', views_management.management_user_inspect, name='management_user_inspect'),
-    path('management/users/<int:user_id>/inspect/<int:char_id>/', views_management.management_user_inspect, name='management_user_inspect_char'),
-
-    path('management/fleets/', views_management.management_fleets, name='management_fleets'),
-    path('management/sde/', views_management.management_sde, name='management_sde'),
-    path('management/system/', views_management.management_celery, name='management_celery'),
-    path('management/permissions/', views_management.management_permissions, name='management_permissions'),
-
     # --- SRP MANAGEMENT ---
     path('management/srp/config/', views_srp.srp_config, name='srp_config'),
     path('api/mgmt/srp/set_source/', views_srp.api_set_srp_source, name='api_set_srp_source'),
@@ -31,6 +18,18 @@ urlpatterns = [
     # --- SRP DASHBOARD ---
     path('srp/dashboard/', views_srp.srp_dashboard, name='srp_dashboard'),
     path('api/srp/data/', views_srp.api_srp_data, name='api_srp_data'),
+    path('api/srp/status/', views_srp.api_srp_status, name='api_srp_status'), # NEW STATUS POLLER
+    
+    # --- CORE MANAGEMENT (views_management.py) ---
+    path('management/', views_management.management_dashboard, name='custom_admin'),
+    path('management/users/', views_management.management_users, name='management_users'),
+    path('management/users/<int:user_id>/inspect/', views_management.management_user_inspect, name='management_user_inspect'),
+    path('management/users/<int:user_id>/inspect/<int:char_id>/', views_management.management_user_inspect, name='management_user_inspect_char'),
+
+    path('management/fleets/', views_management.management_fleets, name='management_fleets'),
+    path('management/sde/', views_management.management_sde, name='management_sde'),
+    path('management/system/', views_management.management_celery, name='management_celery'),
+    path('management/permissions/', views_management.management_permissions, name='management_permissions'),
     
     # Roles API
     path('management/roles/', views_management.management_roles, name='management_roles'),
@@ -59,7 +58,7 @@ urlpatterns = [
     path('profile/switch/<int:char_id>/', views_profile.switch_character, name='switch_character'),
     path('profile/make_main/<int:char_id>/', views_profile.make_main, name='make_main'),
     path('api/refresh_profile/<int:char_id>/', views_profile.api_refresh_profile, name='api_refresh_profile'),
-    path('api/profile/toggle_visibility/', views_profile.api_toggle_xup_visibility, name='api_toggle_xup_visibility'), # NEW
+    path('api/profile/toggle_visibility/', views_profile.api_toggle_xup_visibility, name='api_toggle_xup_visibility'),
     
     path('access-denied/', core_views.access_denied, name='access_denied'),
 
