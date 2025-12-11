@@ -300,19 +300,41 @@
                 // 1. Handle Newlines
                 html = html.replace(/\n/g, "<br>");
 
-                // 2. Handle Color Transparency Mismatch
-                // EVE MOTD often uses #AARRGGBB (Alpha First). Browsers use #RRGGBBAA (Alpha Last).
-                // We regex find <font color="#xxxxxxxx"> and swap the hex if it's 8 chars
-                html = html.replace(/<font\s+color=['"]?#([0-9a-fA-F]{8})['"]?>/g, function(match, hex) {
-                    // hex is AARRGGBB
+                // 2. Support Unity-style <color> tags (convert to font for unified processing)
+                // Pattern: <color=0xff00ff00> or <color=#ff00ff00>
+                html = html.replace(/<color=['"]?(?:0x|#)?([0-9a-fA-F]{8})['"]?>/g, '<font color="#$1">');
+                html = html.replace(/<\/color>/g, '</font>');
+
+                // 3. Handle Color Transparency Mismatch
+                // EVE MOTD uses #AARRGGBB (Alpha First). Browsers use #RRGGBBAA (Alpha Last).
+                // We regex find color="#xxxxxxxx" and swap the hex if it's 8 chars
+                html = html.replace(/\bcolor=(['"]?)(?:#|0x)?([0-9a-fA-F]{8})\1/g, function(match, quote, hex) {
                     const alpha = hex.substring(0, 2);
                     const color = hex.substring(2, 8);
-                    // Convert to CSS standard #RRGGBBAA
-                    return `<font color="#${color}${alpha}">`;
+                    // Output standard CSS hex: #RRGGBBAA
+                    return `color=${quote}#${color}${alpha}${quote}`;
                 });
 
-                // 3. Handle Font Sizes (EVE 8-30 vs HTML attribute)
+                // 4. Handle Font Sizes (EVE 8-30 vs HTML attribute)
                 html = html.replace(/\bsize=['"]?(\d+)['"]?/g, "data-size='$1'");
+
+                // 5. Handle EVE Link Tags (Colors)
+                // Pattern: <a href="showinfo:123">...</a>
+                html = html.replace(/<a\s+href=(?:['"])([^'"]+)(?:['"])>(.*?)<\/a>/gi, function(match, url, label) {
+                    let color = '#ffd700'; // Default Yellow (showinfo, normal urls)
+                    const lower = url.toLowerCase();
+
+                    if (lower.startsWith('overviewpreset')) {
+                        color = '#00ffff'; // Teal
+                    } else if (lower.startsWith('joinchannel')) {
+                        color = '#a0a0ff'; // Blue/Purple
+                    } else if (lower.startsWith('showinfo')) {
+                        color = '#ffd700'; // Yellow
+                    }
+
+                    // Render as a span to prevent actual navigation in preview, but style it to look like a link
+                    return `<span style="color: ${color}; text-decoration: underline; cursor: help;" title="${url}">${label}</span>`;
+                });
 
                 preview.innerHTML = html;
             });
