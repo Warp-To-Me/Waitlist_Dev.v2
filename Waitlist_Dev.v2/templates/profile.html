@@ -17,15 +17,19 @@
 
 <!-- Scripts -->
 <script>
-    // New Helper Function to handle scrolling
+    // Define variable on window to ensure it persists correctly across re-renders
+    if (typeof window.profilePollingInterval !== 'undefined') {
+        clearInterval(window.profilePollingInterval);
+    }
+    window.profilePollingInterval = null;
+
+    var initialTimestamp = "{{ active_char.last_updated.isoformat }}";
+
     function scrollToActiveChar() {
-        // Allow a tiny delay for DOM rendering
         setTimeout(() => {
             const activeId = "{{ active_char.character_id }}";
             const activeCard = document.getElementById("char-card-" + activeId);
-
             if (activeCard) {
-                // 'inline: center' handles the horizontal scrolling
                 activeCard.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
             }
         }, 50);
@@ -33,12 +37,10 @@
 
     function initProfilePage() {
         console.log("Initializing Profile Page...");
-
-        // 1. Scroll on initial load
         scrollToActiveChar();
 
         const lastUpdatedStr = "{{ active_char.last_updated|date:'c' }}";
-        if (!lastUpdatedStr) return; // Exit if no char loaded
+        if (!lastUpdatedStr) return;
 
         const lastUpdated = new Date(lastUpdatedStr);
         const now = new Date();
@@ -47,6 +49,7 @@
         const isStale = diffMinutes > 5;
         const isEmpty = {{ active_char.total_sp|default:0 }} === 0;
 
+        // Check if we just completed a refresh to avoid loops
         const justRefreshed = sessionStorage.getItem("just_refreshed");
         if (justRefreshed) {
             sessionStorage.removeItem("just_refreshed");
@@ -58,41 +61,92 @@
         }
     }
 
-    function triggerRefresh() {
-        const overlay = document.getElementById('refresh-overlay');
-        if(overlay) overlay.classList.remove('hidden');
+    // NON-BLOCKING REFRESH LOGIC
+    window.triggerRefresh = function() {
+        const timeDisplay = document.getElementById('last-updated-time');
+        if (timeDisplay) {
+            // Show inline spinner/indicator
+            timeDisplay.innerHTML = `
+                <span class="text-brand-400 animate-pulse flex items-center gap-1">
+                    <svg class="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Syncing...
+                </span>`;
+        }
 
+        // Fire and Forget (Queue Task)
         fetch("{% url 'api_refresh_profile' active_char.character_id %}")
             .then(response => response.json())
             .then(data => {
-                if (data.success) {
-                    console.log("Data refreshed successfully.");
-                    // Fetch Partial specifically using 'partial=true' to distinguish from full page nav
-                    return fetch("{% url 'profile' %}?partial=true", {
-                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-                    })
-                    .then(htmlResp => htmlResp.text())
-                    .then(html => {
-                        const contentArea = document.getElementById('profile-content-area');
-                        if (contentArea) {
-                            contentArea.innerHTML = html;
-                            sessionStorage.setItem("just_refreshed", "true");
-
-                            // 2. Scroll after content refresh
-                            scrollToActiveChar();
-                        }
-                    });
+                if (data.success && data.status === 'queued') {
+                    console.log("Update queued. Starting poll...");
+                    startPolling();
                 } else {
-                    if(overlay) overlay.classList.add('hidden');
+                    console.error("Failed to queue update");
                 }
             })
-            .catch(err => {
-                console.error("API Error", err);
-                if(overlay) overlay.classList.add('hidden');
-            });
+            .catch(err => console.error("API Error", err));
     }
 
-    // Global scope UI functions
+    function startPolling() {
+        if (window.profilePollingInterval) clearInterval(window.profilePollingInterval);
+
+        let attempts = 0;
+        const maxAttempts = 60; // Stop after ~2 minutes
+
+        window.profilePollingInterval = setInterval(() => {
+            // --- CRITICAL SAFETY CHECK ---
+            // If the user has navigated away (element is gone), STOP POLLING immediately.
+            const indicator = document.getElementById('last-updated-time');
+            if (!indicator) {
+                console.log("User navigated away. Stopping background poll.");
+                clearInterval(window.profilePollingInterval);
+                return;
+            }
+            // -----------------------------
+
+            attempts++;
+            if(attempts > maxAttempts) {
+                clearInterval(window.profilePollingInterval);
+                return;
+            }
+
+            fetch("{% url 'api_pilot_status' active_char.character_id %}")
+                .then(r => r.json())
+                .then(status => {
+                    // Compare timestamps
+                    if (status.last_updated && status.last_updated !== initialTimestamp) {
+                        console.log("Data updated detected!");
+                        clearInterval(window.profilePollingInterval);
+                        reloadPartial();
+                    }
+                })
+                .catch(e => console.warn("Poll failed", e));
+
+        }, 2000); // Check every 2s
+    }
+
+    function reloadPartial() {
+        // Safety check before reloading
+        if (!document.getElementById('profile-content-area')) return;
+
+        fetch("{% url 'profile' %}?partial=true", {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(htmlResp => htmlResp.text())
+        .then(html => {
+            const contentArea = document.getElementById('profile-content-area');
+            if (contentArea) {
+                contentArea.innerHTML = html;
+                sessionStorage.setItem("just_refreshed", "true");
+                scrollToActiveChar();
+            }
+        });
+    }
+
+    // UI Helpers
     window.scrollContainer = function(direction) {
         const container = document.getElementById('char-scroll-container');
         if (container) {
@@ -117,7 +171,6 @@
         }
     };
 
-    // Run Init
     initProfilePage();
 </script>
 {% endblock %}

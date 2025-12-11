@@ -7,18 +7,20 @@ from django.http import JsonResponse
 from django.utils import timezone
 from django.db.models import Sum
 from django.conf import settings
-from itertools import chain # Needed for merging lists efficiently
+from itertools import chain 
 
 # Core Imports
 from core.permissions import get_template_base, is_fleet_command, is_admin
 from core.utils import get_character_data
-from core.models import BanAuditLog # Import BanAuditLog
+from core.models import BanAuditLog
 
 # Models & Services
 from pilot_data.models import EveCharacter
 from waitlist_data.models import FleetActivity
 from waitlist_data.stats import calculate_pilot_stats
-from esi_calls.token_manager import update_character_data
+# Remove direct synchronous call
+# from esi_calls.token_manager import update_character_data
+from scheduler.tasks import refresh_character_task
 
 @login_required
 def profile_view(request):
@@ -40,21 +42,18 @@ def profile_view(request):
         .select_related('fleet', 'actor').order_by('-timestamp')[:50]
 
     # 2. Fetch Ban Logs (Targeting the User account)
-    # We assume 'active_char' belongs to the user we want to see bans for.
     ban_logs = BanAuditLog.objects.filter(target_user=active_char.user)\
         .select_related('actor').order_by('-timestamp')[:20]
 
     # 3. Merge & Sort
-    # We combine them into a single list sorted by timestamp descending
     combined_logs = sorted(
         chain(fleet_logs, ban_logs),
         key=lambda x: x.timestamp,
         reverse=True
-    )[:50] # Keep the top 50 most recent combined events
+    )[:50]
 
     service_record['history_logs'] = combined_logs
     
-    # Convert hull dict to sorted list for template
     service_record['hull_breakdown'] = sorted(
         service_record['hull_breakdown'].items(), 
         key=lambda x: x[1], 
@@ -99,10 +98,29 @@ def profile_view(request):
 
 @login_required
 def api_refresh_profile(request, char_id):
+    """
+    Triggers a background refresh task via Celery.
+    Returns immediately so the UI doesn't block.
+    """
     character = get_object_or_404(EveCharacter, character_id=char_id, user=request.user)
     if not character.refresh_token: return JsonResponse({'success': False, 'error': 'No refresh token'})
-    success = update_character_data(character)
-    return JsonResponse({'success': success, 'last_updated': timezone.now().isoformat()})
+    
+    # Queue the task
+    refresh_character_task.delay(character.character_id)
+    
+    return JsonResponse({'success': True, 'status': 'queued'})
+
+@login_required
+def api_pilot_status(request, char_id):
+    """
+    Lightweight endpoint to check the 'last_updated' timestamp.
+    Used by the frontend to poll for completion.
+    """
+    character = get_object_or_404(EveCharacter, character_id=char_id, user=request.user)
+    return JsonResponse({
+        'id': character.character_id,
+        'last_updated': character.last_updated.isoformat() if character.last_updated else None
+    })
 
 @login_required
 def switch_character(request, char_id):

@@ -37,7 +37,7 @@ INSTALLED_APPS = [
     'fernet_fields',
     
     # Third party
-    'channels',
+    'channels', # REQUIRED: Core ASGI/WebSocket support
     #'django_apscheduler',
     
     # Local Apps
@@ -150,26 +150,28 @@ EVE_SCOPES_SRP = (
 # 4. Combined Master List (For Auditing/Backwards Compatibility)
 EVE_SCOPES = f"{EVE_SCOPES_BASE} {EVE_SCOPES_FC} {EVE_SCOPES_SRP}"
 
-# CHANNEL LAYERS
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer", # Recommended to switch to Redis here too eventually
-        "CONFIG": {
-            "hosts": [("127.0.0.1", 6379)],
-        },
-    },
-}
-
 # --- CELERY SETTINGS ---
 # 1. Connection to Redis (Running in WSL)
-CELERY_BROKER_URL = 'redis://127.0.0.1:6379/0'
-CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/0'
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://127.0.0.1:6379/0')
+CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://127.0.0.1:6379/0')
 
 # 2. Timezone matches Django
 CELERY_TIMEZONE = "UTC"
 
 # 3. Connection Retry (Required for newer Celery versions)
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+
+# --- CHANNEL LAYERS (Redis Config) ---
+# We reuse the CELERY_BROKER_URL for Channels to keep config DRY.
+# This ensures WebSockets work across multiple worker processes.
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [CELERY_BROKER_URL],
+        },
+    },
+}
 
 # 4. Beat Schedule (Replaces APScheduler)
 from celery.schedules import crontab
