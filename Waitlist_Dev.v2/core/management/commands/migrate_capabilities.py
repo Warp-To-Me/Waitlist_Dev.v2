@@ -5,13 +5,14 @@ from core.models import Capability
 from core.utils import SYSTEM_CAPABILITIES
 
 class Command(BaseCommand):
-    help = 'Imports hardcoded SYSTEM_CAPABILITIES from utils.py into the Capability database model.'
+    help = 'Imports hardcoded SYSTEM_CAPABILITIES from utils.py into the Capability database model and cleans up duplicates.'
 
     def handle(self, *args, **options):
         self.stdout.write("Migrating Capabilities...")
 
         created_count = 0
         updated_count = 0
+        merged_count = 0
 
         # --- FIX: Correct legacy slug if it exists to preserve permissions ---
         try:
@@ -41,12 +42,17 @@ class Command(BaseCommand):
             if "Manage Doctrines" in cap_data['name']: slug = "manage_doctrines"
             if "Promote/Demote Users" in cap_data['name']: slug = "promote_demote_users"
             if "Manage Analysis Rules" in cap_data['name']: slug = "manage_analysis_rules"
-            if "View Sensitive Data" in cap_data['name']: slug = "view_sensitive_data" # NEW SLUG
+            if "View Sensitive Data" in cap_data['name']: slug = "view_sensitive_data"
 
             # --- NEW SRP SLUGS ---
             if "Manage SRP Source" in cap_data['name']: slug = "manage_srp_source"
             if "View SRP Dashboard" in cap_data['name']: slug = "view_srp_dashboard"
 
+            # --- BAN SLUGS (Explicitly Defined) ---
+            if "Manage Bans" in cap_data['name']: slug = "manage_bans"
+            if "View Ban Audit Log" in cap_data['name']: slug = "view_ban_audit_log"
+
+            # 1. Create or Update the CORRECT capability
             capability, created = Capability.objects.get_or_create(
                 slug=slug,
                 defaults={
@@ -56,7 +62,7 @@ class Command(BaseCommand):
                 }
             )
 
-            # Assign Groups based on the hardcoded roles list
+            # 2. Assign Groups (Reset/Ensure defaults)
             if 'roles' in cap_data:
                 for role_name in cap_data['roles']:
                     try:
@@ -70,6 +76,24 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.SUCCESS(f"+ Created: {slug}"))
             else:
                 updated_count += 1
-                self.stdout.write(f". Exists: {slug}")
+                self.stdout.write(f". Verified: {slug}")
 
-        self.stdout.write(self.style.SUCCESS(f"Migration Complete. Created {created_count}, Checked {updated_count}."))
+            # 3. CLEANUP: Check for legacy hyphenated duplicate (e.g., manage-bans vs manage_bans)
+            # This happens because slugify defaults to hyphens, but we want underscores.
+            legacy_slug = slug.replace('_', '-')
+            if legacy_slug != slug:
+                try:
+                    legacy_cap = Capability.objects.get(slug=legacy_slug)
+                    
+                    # Merge groups from legacy to new
+                    for grp in legacy_cap.groups.all():
+                        capability.groups.add(grp)
+                    
+                    # Delete the duplicate
+                    legacy_cap.delete()
+                    merged_count += 1
+                    self.stdout.write(self.style.WARNING(f"   -> Merged & Deleted duplicate slug: '{legacy_slug}'"))
+                except Capability.DoesNotExist:
+                    pass
+
+        self.stdout.write(self.style.SUCCESS(f"Migration Complete. Created {created_count}, Verified {updated_count}, Merged {merged_count} Duplicates."))

@@ -151,6 +151,7 @@
     <Folder Include="esi_calls\" />
     <Folder Include="esi_calls\management\" />
     <Folder Include="esi_calls\management\commands\" />
+    <Folder Include="static\" />
     <Folder Include="pilot_data\management\" />
     <Folder Include="pilot_data\management\commands\" />
     <Folder Include="scheduler\" />
