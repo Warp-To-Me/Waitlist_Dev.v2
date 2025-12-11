@@ -137,21 +137,19 @@
                 <thead class="bg-slate-900/95 text-[10px] uppercase font-bold sticky top-0 z-10 backdrop-blur-md shadow-sm">
                     <!-- MAIN HEADER ROW -->
                     <tr>
-                        <th class="px-2 py-2 border-b border-white/5 w-24">Date</th>
+                        <th class="px-2 py-2 border-b border-white/5 w-24 whitespace-nowrap">Date</th>
                         <th class="px-2 py-2 border-b border-white/5 text-center w-12">Div</th>
-                        <th class="px-2 py-2 border-b border-white/5 text-right w-32">Amount</th>
-                        <!-- Split Columns for From/To -->
+                        <th class="px-2 py-2 border-b border-white/5 text-right w-32 whitespace-nowrap">Amount</th>
                         <th class="px-2 py-2 border-b border-white/5 w-32">From</th>
                         <th class="px-2 py-2 border-b border-white/5 w-32">To</th>
-                        <th class="px-2 py-2 border-b border-white/5 w-32">Type</th>
+                        <th class="px-2 py-2 border-b border-white/5 w-32 whitespace-nowrap">Type</th>
                         <th class="px-2 py-2 border-b border-white/5 w-48">Category</th>
                         <th class="px-2 py-2 border-b border-white/5">Reason</th>
                     </tr>
                     <!-- FILTER ROW -->
                     <tr class="bg-slate-900/90 border-b border-white/10">
-                        <td class="p-1"></td> <!-- Date placeholder -->
+                        <td class="p-1"></td>
                         <td class="p-1">
-                            <!-- New Filter for Division -->
                             <input type="text" id="filter-division" class="w-full bg-black/40 border border-white/10 rounded px-1 py-0.5 text-[10px] text-center text-slate-300 placeholder-slate-600 focus:border-brand-500 outline-none" placeholder="#" onkeyup="debouncedLoad()">
                         </td>
                         <td class="p-1">
@@ -181,7 +179,6 @@
                             </select>
                         </td>
                         <td class="p-1">
-                            <!-- Updated Placeholder -->
                             <input type="text" id="filter-reason" class="w-full bg-black/40 border border-white/10 rounded px-1 py-0.5 text-[10px] text-slate-300 placeholder-slate-600 focus:border-brand-500 outline-none" placeholder="Reason..." onkeyup="debouncedLoad()">
                         </td>
                     </tr>
@@ -216,39 +213,37 @@
 </div>
 
 <style>
-    /* Styling for the dropdowns to match the screenshot vibe */
     select.category-select {
         background-position: right 0.5rem center;
         background-repeat: no-repeat;
         background-size: 1em 1em;
-        padding-right: 2rem; /* Space for arrow */
+        padding-right: 2rem;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
     }
 
-        /* Ensure options have dark background so text is readable when opened */
         select.category-select option {
-            background-color: #1e293b; /* slate-800 */
+            background-color: #1e293b;
             color: white;
         }
 </style>
 
 <script>
-    // Use var to avoid re-declaration errors in SPA
     var srpCharts = {};
     var CSRF_TOKEN = '{{ csrf_token }}';
 
-    // Pagination State
     var currentPage = 1;
     var totalPages = 1;
     var searchTimer = null;
-    var timerInterval = null; // Local Countdown Timer
-    var pollingTimeout = null; // Adaptive Poller
+    var timerInterval = null; // Countdown Timer
+    var pollingTimeout = null; // Status Poller
+    var lastSyncInterval = null; // Local updater for "Time Ago" text
 
-    // Cache for delayed rendering
+    // Global variable to store last sync timestamp for the local updater
+    var globalLastSyncDate = null;
+
     var cachedChartData = null;
 
-    // --- COLOR MAPPING (Solid Bar Style) ---
     function getCategoryClass(key) {
         const map = {
             'srp_in': 'bg-green-600 border-green-500 text-white',
@@ -264,7 +259,6 @@
         return map[key] || map['other'];
     }
 
-    // --- CHART COLOR MAPPING ---
     function getCategoryColor(categoryLabel) {
         const label = categoryLabel.toLowerCase().replace(/\s+/g, '_');
         const colorMap = {
@@ -284,10 +278,13 @@
     function initSRPDashboard() {
         console.log("Initializing SRP Dashboard...");
 
-        // FETCH SYNC STATUS (Starts the adaptive polling loop)
+        // Start polling for backend sync status
         fetchSyncStatus();
 
-        // Standard Init Logic
+        // Start local ticker to update "Last Sync: X mins ago" text every minute
+        if (lastSyncInterval) clearInterval(lastSyncInterval);
+        lastSyncInterval = setInterval(updateLastSyncLabel, 60000);
+
         const startEl = document.getElementById('start-date');
         const endEl = document.getElementById('end-date');
         if (!startEl || !endEl) return;
@@ -312,18 +309,18 @@
         fetch("{% url 'api_srp_status' %}")
             .then(r => r.json())
             .then(data => {
-                let nextPollDelay = 30000; // Default fallback: 30s
+                let nextPollDelay = 30000; // Default: 30s
 
                 if(data.active) {
-                    // 1. Update UI Elements
+                    // 1. Update Last Sync (And store global for local ticker)
                     if(data.last_sync) {
-                        const lastSyncTime = new Date(data.last_sync);
-                        const timeAgo = formatTimeAgo(lastSyncTime);
-                        document.getElementById('last-sync-text').textContent = `${timeAgo} ago`;
+                        globalLastSyncDate = new Date(data.last_sync);
+                        updateLastSyncLabel(); // Update immediately
                     } else {
                         document.getElementById('last-sync-text').textContent = "Never";
                     }
 
+                    // 2. Update Next Sync Timer
                     if(data.next_sync) {
                         const nextSyncTime = new Date(data.next_sync);
                         const now = new Date();
@@ -332,40 +329,48 @@
                         document.getElementById('sync-timer-container').classList.remove('hidden');
                         document.getElementById('sync-timer-container').classList.add('flex');
 
-                        // Restart visual countdown
                         startSyncTimer(data.next_sync);
 
-                        // 2. Calculate Smart Delay
+                        // Adaptive Logic: Sleep longer if sync is far away
                         if (diff > 300000) {
-                            // If > 5 minutes away, sleep for 5 minutes (check for manual syncs occasionally)
-                            nextPollDelay = 300000;
+                            nextPollDelay = 300000; // 5 mins
                         } else if (diff > 15000) {
-                            // If > 15s away, wake up exactly when it expires
-                            nextPollDelay = diff;
+                            nextPollDelay = diff; // Wake up exactly when expired
                         } else {
-                            // If expired or very close, poll fast (15s) to catch the DB update
-                            nextPollDelay = 15000;
+                            nextPollDelay = 15000; // Fast poll (15s) when expired/processing
                         }
                     }
                 }
 
-                console.log(`Next status check in ${Math.round(nextPollDelay/1000)}s`);
+                // console.log(`Next status check in ${Math.round(nextPollDelay/1000)}s`);
                 pollingTimeout = setTimeout(fetchSyncStatus, nextPollDelay);
             })
             .catch(err => {
                 console.error("Error polling SRP status", err);
-                pollingTimeout = setTimeout(fetchSyncStatus, 60000); // Retry slow on error
+                pollingTimeout = setTimeout(fetchSyncStatus, 60000);
             });
+    }
+
+    // Runs locally to keep the "ago" text fresh without network calls
+    function updateLastSyncLabel() {
+        if (!globalLastSyncDate) return;
+        const timeAgo = formatTimeAgo(globalLastSyncDate);
+        const el = document.getElementById('last-sync-text');
+        if(el) el.textContent = `${timeAgo} ago`;
     }
 
     function formatTimeAgo(date) {
         const now = new Date();
         const seconds = Math.floor((now - date) / 1000);
-        if(seconds < 60) return `${seconds}s`;
+
+        if(seconds < 60) return "Just now";
+
         const minutes = Math.floor(seconds / 60);
         if(minutes < 60) return `${minutes}m`;
+
         const hours = Math.floor(minutes / 60);
-        if(hours < 24) return `${hours}h`;
+        if(hours < 24) return `${hours}h ${minutes % 60}m`;
+
         const days = Math.floor(hours / 24);
         return `${days}d`;
     }
@@ -390,7 +395,7 @@
         const limit = document.getElementById('limit-select').value;
         const divs = Array.from(document.querySelectorAll('input[name="div"]:checked')).map(cb => cb.value);
 
-        // Get Filter Values
+        // Filters
         const fDiv = document.getElementById('filter-division').value;
         const fAmount = document.getElementById('filter-amount').value;
         const fFrom = document.getElementById('filter-from').value;
@@ -504,7 +509,6 @@
         return parseFloat(val).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' ISK';
     }
 
-    // --- CHART LOADING LOGIC (Unchanged) ---
     function ensureChartsRender() {
         if (typeof Chart !== 'undefined') {
             renderChartsInternal(cachedChartData);
