@@ -228,6 +228,32 @@
         }
     }
 
+    // --- SORTING LOGIC ---
+    function insertSorted(column, newCard) {
+        // Parse the created timestamp
+        const newTs = parseInt(newCard.getAttribute('data-created') || "0");
+        const children = column.children;
+        let inserted = false;
+
+        // Find the first child that is NEWER than us, and insert before it
+        // This maintains ASC order (Oldest at top)
+        for (let i = 0; i < children.length; i++) {
+            const child = children[i];
+            const childTs = parseInt(child.getAttribute('data-created') || "0");
+
+            if (newTs < childTs) {
+                column.insertBefore(newCard, child);
+                inserted = true;
+                break;
+            }
+        }
+
+        // If we are newer than everyone, append to end
+        if (!inserted) {
+            column.appendChild(newCard);
+        }
+    }
+
     function handleFleetUpdate(data) {
         const entryId = data.entry_id;
         const existingCard = document.getElementById(`entry-${entryId}`);
@@ -248,7 +274,9 @@
             const colId = `col-${data.target_col}`;
             const column = document.getElementById(colId);
             if (column) {
-                column.appendChild(newCard);
+                // OLD: column.appendChild(newCard);
+                // NEW: Use sorted insert
+                insertSorted(column, newCard);
                 newCard.classList.add('animate-fade-in');
             }
             updateCounts();

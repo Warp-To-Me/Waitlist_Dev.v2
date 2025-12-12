@@ -2,7 +2,8 @@
      class="glass-panel p-1 relative group hover:border-brand-500/50 hover:bg-slate-800/60 transition-all duration-300 mb-0.5 entry-card cursor-pointer border border-white/5 shadow-lg shadow-black/20"
      onclick="openEntry({{ entry.id }})"
      data-entry-id="{{ entry.id }}"
-     data-owner-id="{{ entry.character.user_id }}">
+     data-owner-id="{{ entry.character.user_id }}"
+     data-created="{{ entry.created_at|date:'U' }}">
 
     <!-- Time Indicator (Modern Badge) -->
     <div class="absolute top-2 right-2">

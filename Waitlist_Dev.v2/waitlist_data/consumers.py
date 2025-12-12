@@ -7,7 +7,7 @@ from django.utils import timezone
 from django.core.cache import cache
 
 # Local Imports
-from waitlist_data.models import Fleet, FleetActivity, WaitlistEntry
+from waitlist_data.models import Fleet, FleetActivity, WaitlistEntry, CharacterStats # Added CharacterStats
 from pilot_data.models import EveCharacter, EsiHeaderCache, ItemType
 from core.utils import ROLE_HIERARCHY
 from esi_calls.fleet_service import get_fleet_composition, process_fleet_data, resolve_unknown_names, ESI_BASE
@@ -37,10 +37,6 @@ class FleetConsumer(AsyncWebsocketConsumer):
             self.overview_task = asyncio.create_task(self.poll_fleet_overview())
 
     async def disconnect(self, close_code):
-        # FIX: Cancel the task immediately but do NOT await it.
-        # Awaiting a cancelled sync_to_async task can block the disconnect flow 
-        # if the underlying thread is busy with I/O (ESI calls), triggering 
-        # "Application instance took too long to shut down" warnings.
         if hasattr(self, 'overview_task'):
             self.overview_task.cancel()
 
@@ -80,7 +76,6 @@ class FleetConsumer(AsyncWebsocketConsumer):
                         resolved_names = await sync_to_async(resolve_unknown_names)(all_ids)
 
                         # 2. Audit Logic (Pass names to avoid re-fetch)
-                        # audit_fleet_members is decorated with @sync_to_async, so we await the call
                         await self.audit_fleet_members(self.fleet_id, composite_data, resolved_names)
 
                         # 3. Process Data for UI (Inject resolved names)
@@ -154,23 +149,22 @@ class FleetConsumer(AsyncWebsocketConsumer):
         RUNS SYNCHRONOUSLY inside a thread via @sync_to_async.
         """
         members = composite_data.get('members', [])
-        wings_structure = composite_data.get('wings', []) # Get Structure
+        wings_structure = composite_data.get('wings', [])
         
         if not members: return
 
         # --- NEW: Build ID -> Name Map for Wings/Squads ---
         structure_map = {}
         for w in wings_structure:
-            structure_map[w['id']] = w['name'] # "Wing 1"
+            structure_map[w['id']] = w['name'] 
             for s in w.get('squads', []):
-                structure_map[s['id']] = s['name'] # "Squad 1"
+                structure_map[s['id']] = s['name'] 
 
         def get_pos_name(wing_id, squad_id):
             w_name = structure_map.get(wing_id, f"Wing {wing_id}")
             s_name = structure_map.get(squad_id, f"Squad {squad_id}")
-            # If IDs are -1 or 0 (Fleet Command), handle gracefully
             if wing_id <= 0: return "Fleet Command"
-            if squad_id <= 0: return w_name # Only Wing defined (Wing Cmd)
+            if squad_id <= 0: return w_name
             return f"{w_name} / {s_name}"
 
         # 1. Build Current State Map
@@ -200,14 +194,12 @@ class FleetConsumer(AsyncWebsocketConsumer):
 
         if not joined_ids and not left_ids and not common_ids: return
 
-        # Resolve Objects
         all_relevant_ids = list(joined_ids | left_ids | common_ids)
         known_chars = EveCharacter.objects.filter(character_id__in=all_relevant_ids).in_bulk(field_name='character_id')
         
         fleet = Fleet.objects.get(id=fleet_db_id)
         new_logs = []
-
-        # --- Helper: Resolve Ship Name ---
+        
         needed_ship_ids = set(m['ship_type_id'] for m in members if m['character_id'] in all_relevant_ids)
         ship_map = ItemType.objects.filter(type_id__in=needed_ship_ids).in_bulk(field_name='type_id')
 
@@ -223,20 +215,71 @@ class FleetConsumer(AsyncWebsocketConsumer):
                 
             return char, ship_id, ship_name
 
+        # --- Helper for Stats Update ---
+        def update_char_stats(character, event_type, ship_name, timestamp):
+            """
+            Optimized stats updater.
+            event_type: 'join', 'leave', 'reship'
+            """
+            stats, _ = CharacterStats.objects.get_or_create(character=character)
+            
+            if event_type == 'join':
+                # Start new session
+                # If there was a previous open session, close it first (safety)
+                if stats.active_session_start:
+                    diff = (timestamp - stats.active_session_start).total_seconds()
+                    if 0 < diff < 86400:
+                        stats.total_seconds += int(diff)
+                        h_name = stats.active_hull or "Unknown"
+                        stats.hull_stats[h_name] = stats.hull_stats.get(h_name, 0) + int(diff)
+                
+                stats.active_session_start = timestamp
+                stats.active_hull = ship_name
+                stats.save()
+
+            elif event_type == 'leave':
+                # Close session
+                if stats.active_session_start:
+                    diff = (timestamp - stats.active_session_start).total_seconds()
+                    if diff > 0:
+                        stats.total_seconds += int(diff)
+                        h_name = stats.active_hull or "Unknown"
+                        stats.hull_stats[h_name] = stats.hull_stats.get(h_name, 0) + int(diff)
+                    
+                    stats.active_session_start = None
+                    stats.active_hull = None
+                    stats.save()
+
+            elif event_type == 'reship':
+                # Close current leg, start new leg
+                if stats.active_session_start:
+                    diff = (timestamp - stats.active_session_start).total_seconds()
+                    if diff > 0:
+                        stats.total_seconds += int(diff)
+                        h_name = stats.active_hull or "Unknown"
+                        stats.hull_stats[h_name] = stats.hull_stats.get(h_name, 0) + int(diff)
+                
+                stats.active_session_start = timestamp
+                stats.active_hull = ship_name
+                stats.save()
+
+        now = timezone.now()
+
         # A. HANDLE JOINS
         for cid in joined_ids:
             char, sid, sname = get_char_and_ship(cid)
             if not char: continue
 
-            # --- WAITLIST CHECK ---
+            # Update Stats Model
+            update_char_stats(char, 'join', sname, now)
+
+            # Waitlist Logic
             wl_entries = WaitlistEntry.objects.filter(fleet=fleet, character=char)
-            
             details = "Manual Join (In-Game)"
             action = 'esi_join'
 
             if wl_entries.exists():
                 details = "Joined Fleet (Waitlist Cleared)"
-                
                 for entry in wl_entries:
                     async_to_sync(self.channel_layer.group_send)(
                         self.room_group_name,
@@ -261,12 +304,16 @@ class FleetConsumer(AsyncWebsocketConsumer):
             for cid in left_ids:
                 char, sid, sname = get_char_and_ship(cid)
                 if not char: continue
+                
+                # Update Stats Model
+                update_char_stats(char, 'leave', sname, now)
+                
                 new_logs.append(FleetActivity(
                     fleet=fleet, character=char, action='left_fleet',
                     ship_name=sname, hull_id=sid, details="Detected departure via ESI"
                 ))
 
-        # C. HANDLE MOVES
+        # C. HANDLE MOVES & CHANGES
         if previous_state:
             for cid in common_ids:
                 char, sid, sname = get_char_and_ship(cid)
@@ -280,20 +327,20 @@ class FleetConsumer(AsyncWebsocketConsumer):
                     old_ship_name = "Unknown"
                     if old['ship_type_id'] in ship_map: old_ship_name = ship_map[old['ship_type_id']].type_name
                     
+                    # Update Stats Model
+                    update_char_stats(char, 'reship', sname, now)
+                    
                     details = f"Reshipped: {old_ship_name} -> {sname}"
                     new_logs.append(FleetActivity(
                         fleet=fleet, character=char, action='ship_change',
                         ship_name=sname, hull_id=sid, details=details
                     ))
 
-                # 2. Position Change (UPDATED NAME RESOLUTION)
+                # 2. Position Change
                 if old['wing_id'] != new['wing_id'] or old['squad_id'] != new['squad_id']:
-                    
                     old_pos = get_pos_name(old['wing_id'], old['squad_id'])
                     new_pos = get_pos_name(new['wing_id'], new['squad_id'])
-                    
                     details = f"Moved: {old_pos} -> {new_pos}"
-                    
                     new_logs.append(FleetActivity(
                         fleet=fleet, character=char, action='moved',
                         ship_name=sname, hull_id=sid, details=details
@@ -306,10 +353,8 @@ class FleetConsumer(AsyncWebsocketConsumer):
                     elif 'member' in new['role'] and 'commander' in old['role']: act = 'demoted'
                     else: act = 'promoted'
                     
-                    # Clean up role names
                     clean_old = old['role'].replace('fleet_', '').replace('wing_', '').replace('squad_', '').title()
                     clean_new = new['role'].replace('fleet_', '').replace('wing_', '').replace('squad_', '').title()
-                    
                     details = f"{clean_old} -> {clean_new}"
                     new_logs.append(FleetActivity(
                         fleet=fleet, character=char, action=act,

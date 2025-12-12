@@ -115,7 +115,7 @@ def broadcast_update(fleet_id, action, entry, target_col=None):
     }
     
     if action in ['add', 'move']:
-        # 1. Stats
+        # 1. Stats (Now uses the optimized CharacterStats table)
         stats = calculate_pilot_stats(entry.character)
         hull_name = entry.hull.type_name if entry.hull else "Unknown"
         hull_seconds = stats['hull_breakdown'].get(hull_name, 0)
@@ -145,7 +145,6 @@ def broadcast_update(fleet_id, action, entry, target_col=None):
             sib_cat = get_entry_real_category(sib, category_map)
             
             # Add to list if it's different from the current card's category
-            # This ensures a DPS card shows Logi/Sniper lights, but not a DPS light (redundant)
             if sib_cat in ['logi', 'dps', 'sniper'] and sib_cat != my_real_cat:
                 other_cats.add(sib_cat)
         
@@ -162,11 +161,20 @@ def broadcast_update(fleet_id, action, entry, target_col=None):
 def trigger_sibling_updates(fleet_id, character_id, exclude_entry_id=None):
     """
     Refreshes other cards for this pilot to update their indicators.
+    OPTIMIZED: Pre-fetches related objects to avoid N+1 queries during broadcast.
     """
     siblings = WaitlistEntry.objects.filter(
         fleet_id=fleet_id,
         character_id=character_id
-    ).exclude(status__in=['rejected', 'left']).select_related('character', 'fit', 'hull', 'fit__category')
+    ).exclude(status__in=['rejected', 'left']).select_related(
+        'character',
+        'character__user',      # Needed for permission check in template
+        'character__stats',     # New Stats Model
+        'fit',
+        'fit__ship_type',       # Needed for icons
+        'fit__category',        # Needed for column logic
+        'hull'
+    )
     
     if exclude_entry_id:
         siblings = siblings.exclude(id=exclude_entry_id)

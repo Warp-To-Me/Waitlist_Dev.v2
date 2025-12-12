@@ -201,3 +201,26 @@ class FleetActivity(models.Model):
 
     def __str__(self):
         return f"[{self.fleet.name}] {self.character.character_name} - {self.action}"
+
+# --- NEW: STATS AGGREGATION MODEL ---
+
+class CharacterStats(models.Model):
+    """
+    Stores aggregated service record data to avoid scanning FleetActivity logs on every request.
+    Updated incrementally by fleet consumers.
+    """
+    character = models.OneToOneField(EveCharacter, on_delete=models.CASCADE, related_name='stats')
+    total_seconds = models.BigIntegerField(default=0)
+    
+    # Stores per-ship stats: {"Megathron": 3600, "Guardian": 1200}
+    hull_stats = models.JSONField(default=dict, blank=True)
+    
+    # Active Session Tracking
+    # If not null, user is currently online in a fleet with this ship
+    active_session_start = models.DateTimeField(null=True, blank=True)
+    active_hull = models.CharField(max_length=100, null=True, blank=True)
+    
+    last_updated = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Stats: {self.character.character_name}"

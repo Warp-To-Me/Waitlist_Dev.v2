@@ -188,7 +188,20 @@ def api_history_fit_details(request, log_id):
 @login_required
 def fc_action(request, entry_id, action):
     if not is_fleet_command(request.user): return HttpResponse("Unauthorized", status=403)
-    entry = get_object_or_404(WaitlistEntry, id=entry_id)
+    
+    # Pre-fetch relations needed for broadcasting to avoid N+1 issues in broadcast_update
+    # This speeds up the request significantly
+    entry = get_object_or_404(
+        WaitlistEntry.objects.select_related(
+            'fleet', 
+            'character__user', 
+            'character__stats',  # New stats relation
+            'fit__ship_type', 
+            'fit__category',
+            'hull'
+        ), 
+        id=entry_id
+    )
     fleet = entry.fleet
     
     if action == 'approve':
