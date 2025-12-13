@@ -1,3 +1,4 @@
+# ... existing imports ...
 import json
 import base64
 from django.shortcuts import render, redirect, get_object_or_404
@@ -9,9 +10,11 @@ from django.db import transaction
 
 from core.permissions import can_manage_doctrines, get_template_base, get_mgmt_context
 from core.eft_parser import EFTParser
-from waitlist_data.models import DoctrineCategory, DoctrineFit, DoctrineTag, FitModule
+from waitlist_data.models import DoctrineCategory, DoctrineFit, DoctrineTag, FitModule, SkillRequirement, SkillGroup, SkillGroupMember, SkillTier
 from pilot_data.models import ItemType
 from .helpers import _process_category_icons, _determine_slot
+
+# ... (doctrine_list, public_skill_requirements, doctrine_detail_api, manage_doctrines) ...
 
 def doctrine_list(request):
     categories = DoctrineCategory.objects.filter(parent__isnull=True).prefetch_related(
@@ -28,6 +31,50 @@ def doctrine_list(request):
         'base_template': get_template_base(request)
     }
     return render(request, 'doctrines/public_index.html', context)
+
+def public_skill_requirements(request):
+    """
+    Public page showing skill requirements.
+    """
+    # Fetch all requirements including Tiers
+    reqs = SkillRequirement.objects.select_related('hull', 'doctrine_fit', 'skill', 'group', 'tier', 'doctrine_fit__ship_type').order_by('hull__type_name', 'doctrine_fit__name', 'tier__order')
+    
+    # Group by Ship/Fit
+    grouped = {}
+    for r in reqs:
+        key = None
+        name = "Unknown"
+        icon_id = 0
+        
+        if r.hull:
+            key = f"hull_{r.hull.type_id}"
+            name = r.hull.type_name
+            icon_id = r.hull.type_id
+        elif r.doctrine_fit:
+            key = f"fit_{r.doctrine_fit.id}"
+            name = f"{r.doctrine_fit.ship_type.type_name} - {r.doctrine_fit.name}"
+            icon_id = r.doctrine_fit.ship_type.type_id
+            
+        if key:
+            if key not in grouped:
+                grouped[key] = {'name': name, 'icon_id': icon_id, 'tiers': defaultdict(list)}
+            
+            # Tier grouping (None = Minimum)
+            tier_name = r.tier.name if r.tier else "Minimum"
+            
+            entry = {}
+            if r.group:
+                entry = {'type': 'group', 'name': r.group.name, 'count': r.group.members.count()}
+            else:
+                entry = {'type': 'skill', 'name': r.skill.type_name, 'level': r.level}
+            
+            grouped[key]['tiers'][tier_name].append(entry)
+            
+    context = {
+        'requirements': grouped,
+        'base_template': get_template_base(request)
+    }
+    return render(request, 'doctrines/public_skills.html', context)
 
 def doctrine_detail_api(request, fit_id):
     fit = get_object_or_404(DoctrineFit, id=fit_id)
@@ -120,7 +167,6 @@ def manage_doctrines(request):
                     FitModule.objects.create(fit=fit, item_type=item['obj'], quantity=item['quantity'], slot=slot)
             return redirect('manage_doctrines')
     
-    # Prefetch deeply nested subcategories to ensure the dropdown has all levels available
     categories = DoctrineCategory.objects.filter(parent__isnull=True).prefetch_related(
         'subcategories',
         'subcategories__subcategories',
@@ -135,188 +181,248 @@ def manage_doctrines(request):
 
 @login_required
 @user_passes_test(can_manage_doctrines)
+def manage_skill_requirements(request):
+    reqs = SkillRequirement.objects.select_related('hull', 'doctrine_fit', 'skill', 'doctrine_fit__ship_type', 'group', 'tier').order_by('hull__type_name', 'doctrine_fit__name')
+    
+    fits = DoctrineFit.objects.select_related('ship_type').all().order_by('ship_type__type_name', 'name')
+    groups = SkillGroup.objects.prefetch_related('members__skill').order_by('name')
+    tiers = SkillTier.objects.all().order_by('order')
+    
+    context = {
+        'requirements': reqs,
+        'fits': fits,
+        'groups': groups,
+        'tiers': tiers,
+        'base_template': get_template_base(request)
+    }
+    context.update(get_mgmt_context(request.user))
+    return render(request, 'management/skill_requirements.html', context)
+
+@login_required
+@user_passes_test(can_manage_doctrines)
+@require_POST
+def api_skill_req_add(request):
+    try:
+        data = json.loads(request.body)
+        target_type = data.get('target_type') 
+        target_id = data.get('target_id')
+        req_type = data.get('req_type', 'skill')
+        
+        # Args
+        skill_name = data.get('skill_name')
+        level = int(data.get('level', 1))
+        group_id = data.get('group_id')
+        tier_id = data.get('tier_id') # New Tier ID
+        
+        tier_obj = None
+        if tier_id and tier_id != "":
+            tier_obj = SkillTier.objects.get(id=tier_id)
+
+    except (json.JSONDecodeError, ValueError, SkillTier.DoesNotExist):
+        return JsonResponse({'success': False, 'error': 'Invalid Input'})
+
+    # 1. Resolve Requirement
+    skill_item = None
+    group_obj = None
+    
+    if req_type == 'skill':
+        skill_item = ItemType.objects.filter(type_name__iexact=skill_name, group__category_id=16).first()
+        if not skill_item:
+            skill_item = ItemType.objects.filter(type_name__icontains=skill_name, group__category_id=16).first()
+        if not skill_item:
+            return JsonResponse({'success': False, 'error': f"Skill '{skill_name}' not found."})
+    elif req_type == 'group':
+        group_obj = get_object_or_404(SkillGroup, id=group_id)
+    else:
+        return JsonResponse({'success': False, 'error': 'Invalid Requirement Type'})
+
+    # 2. Resolve Target & Create
+    try:
+        defaults = {'tier': tier_obj}
+        if req_type == 'skill':
+            defaults.update({'skill': skill_item, 'level': level})
+        else:
+            defaults.update({'group': group_obj})
+
+        if target_type == 'fit':
+            fit = DoctrineFit.objects.get(id=target_id)
+            SkillRequirement.objects.create(doctrine_fit=fit, **defaults)
+        elif target_type == 'hull':
+            hull = ItemType.objects.get(type_id=target_id)
+            SkillRequirement.objects.create(hull=hull, **defaults)
+        else:
+            return JsonResponse({'success': False, 'error': 'Invalid Target Type'})
+            
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+    return JsonResponse({'success': True})
+
+@login_required
+@user_passes_test(can_manage_doctrines)
+@require_POST
+def api_skill_req_delete(request):
+    try:
+        data = json.loads(request.body)
+        req_id = data.get('req_id')
+        SkillRequirement.objects.filter(id=req_id).delete()
+        return JsonResponse({'success': True})
+    except:
+        return JsonResponse({'success': False, 'error': 'Error deleting'})
+
+# ... (API Group Manage, Export, Import, Search Hull) ...
+@login_required
+@user_passes_test(can_manage_doctrines)
+@require_POST
+def api_skill_group_manage(request):
+    try:
+        data = json.loads(request.body)
+        action = data.get('action')
+        name = data.get('name')
+        group_id = data.get('group_id')
+    except: return JsonResponse({'success': False, 'error': 'Invalid JSON'})
+
+    if action == 'create':
+        if not name: return JsonResponse({'success': False, 'error': 'Name required'})
+        if SkillGroup.objects.filter(name=name).exists(): return JsonResponse({'success': False, 'error': 'Group name taken'})
+        SkillGroup.objects.create(name=name)
+        return JsonResponse({'success': True})
+    
+    elif action == 'delete':
+        SkillGroup.objects.filter(id=group_id).delete()
+        return JsonResponse({'success': True})
+        
+    return JsonResponse({'success': False, 'error': 'Unknown action'})
+
+@login_required
+@user_passes_test(can_manage_doctrines)
+@require_POST
+def api_skill_group_member_add(request):
+    try:
+        data = json.loads(request.body)
+        group_id = data.get('group_id')
+        skill_name = data.get('skill_name')
+        level = int(data.get('level', 1))
+    except: return JsonResponse({'success': False, 'error': 'Invalid JSON'})
+
+    group = get_object_or_404(SkillGroup, id=group_id)
+    skill = ItemType.objects.filter(type_name__iexact=skill_name, group__category_id=16).first()
+    if not skill:
+        skill = ItemType.objects.filter(type_name__icontains=skill_name, group__category_id=16).first()
+    if not skill:
+        return JsonResponse({'success': False, 'error': 'Skill not found'})
+
+    SkillGroupMember.objects.update_or_create(
+        group=group, skill=skill, defaults={'level': level}
+    )
+    return JsonResponse({'success': True})
+
+@login_required
+@user_passes_test(can_manage_doctrines)
+@require_POST
+def api_skill_group_member_remove(request):
+    try:
+        data = json.loads(request.body)
+        member_id = data.get('member_id')
+        SkillGroupMember.objects.filter(id=member_id).delete()
+        return JsonResponse({'success': True})
+    except:
+        return JsonResponse({'success': False, 'error': 'Delete failed'})
+
+@login_required
+@user_passes_test(can_manage_doctrines)
+def api_search_hull(request):
+    q = request.GET.get('q', '')
+    if len(q) < 3: return JsonResponse({'results': []})
+    hulls = ItemType.objects.filter(type_name__icontains=q, group__category_id=6, published=True)[:10]
+    return JsonResponse({'results': [{'id': h.type_id, 'name': h.type_name} for h in hulls]})
+
+@login_required
+@user_passes_test(can_manage_doctrines)
 def api_export_doctrines(request):
-    """
-    Exports full doctrine configuration to a Base64 encoded JSON string.
-    Includes: Tags, Categories (nested), Fits, and Modules.
-    """
     export_data = {
         'tags': [],
         'categories': [],
         'fits': [],
         'timestamp': timezone.now().isoformat()
     }
-
-    # 1. Tags
     for tag in DoctrineTag.objects.all().order_by('order'):
-        export_data['tags'].append({
-            'name': tag.name,
-            'style': tag.style_classes,
-            'order': tag.order
-        })
-
-    # 2. Categories
-    # We export hierarchy via slug references
+        export_data['tags'].append({'name': tag.name, 'style': tag.style_classes, 'order': tag.order})
     for cat in DoctrineCategory.objects.all().order_by('order'):
-        export_data['categories'].append({
-            'name': cat.name,
-            'slug': cat.slug,
-            'parent_slug': cat.parent.slug if cat.parent else None,
-            'order': cat.order,
-            'target_column': cat.target_column
-        })
-
-    # 3. Fits
+        export_data['categories'].append({'name': cat.name, 'slug': cat.slug, 'parent_slug': cat.parent.slug if cat.parent else None, 'order': cat.order, 'target_column': cat.target_column})
     fits = DoctrineFit.objects.select_related('category', 'ship_type').prefetch_related('tags', 'modules__item_type').all().order_by('order')
-    
     for fit in fits:
         modules_data = []
         for mod in fit.modules.all():
-            modules_data.append({
-                'type_id': mod.item_type.type_id,
-                'quantity': mod.quantity,
-                'slot': mod.slot
-            })
-
-        export_data['fits'].append({
-            'name': fit.name,
-            'category_slug': fit.category.slug,
-            'ship_type_id': fit.ship_type.type_id,
-            'eft_format': fit.eft_format,
-            'description': fit.description,
-            'is_doctrinal': fit.is_doctrinal,
-            'order': fit.order,
-            'tags': list(fit.tags.values_list('name', flat=True)),
-            'modules': modules_data
-        })
-
+            modules_data.append({'type_id': mod.item_type.type_id, 'quantity': mod.quantity, 'slot': mod.slot})
+        export_data['fits'].append({'name': fit.name, 'category_slug': fit.category.slug, 'ship_type_id': fit.ship_type.type_id, 'eft_format': fit.eft_format, 'description': fit.description, 'is_doctrinal': fit.is_doctrinal, 'order': fit.order, 'tags': list(fit.tags.values_list('name', flat=True)), 'modules': modules_data})
     json_str = json.dumps(export_data)
     encoded_str = base64.b64encode(json_str.encode('utf-8')).decode('utf-8')
-    
-    return JsonResponse({
-        'success': True, 
-        'export_string': encoded_str,
-        'summary': f"Exported {len(export_data['fits'])} fits, {len(export_data['categories'])} categories."
-    })
+    return JsonResponse({'success': True, 'export_string': encoded_str, 'summary': f"Exported {len(export_data['fits'])} fits, {len(export_data['categories'])} categories."})
 
 @login_required
 @user_passes_test(can_manage_doctrines)
 @require_POST
 def api_import_doctrines(request):
-    """
-    Imports doctrine configuration from string. 
-    WIPES EXISTING DATA to ensure clean state.
-    """
     try:
         data = json.loads(request.body)
         import_string = data.get('import_string', '')
-        
-        if not import_string:
-            return JsonResponse({'success': False, 'error': 'Empty import string'})
-
-        try:
-            decoded_bytes = base64.b64decode(import_string)
-            import_data = json.loads(decoded_bytes.decode('utf-8'))
-        except Exception:
-            return JsonResponse({'success': False, 'error': 'Invalid Base64/JSON format'})
-
+        if not import_string: return JsonResponse({'success': False, 'error': 'Empty import string'})
+        try: decoded_bytes = base64.b64decode(import_string); import_data = json.loads(decoded_bytes.decode('utf-8'))
+        except Exception: return JsonResponse({'success': False, 'error': 'Invalid Base64/JSON format'})
         with transaction.atomic():
-            # 1. WIPE EXISTING
-            FitModule.objects.all().delete()
-            DoctrineFit.objects.all().delete()
-            DoctrineCategory.objects.all().delete()
-            DoctrineTag.objects.all().delete()
-
-            # 2. IMPORT TAGS
-            tag_map = {} # name -> obj
+            FitModule.objects.all().delete(); DoctrineFit.objects.all().delete(); DoctrineCategory.objects.all().delete(); DoctrineTag.objects.all().delete()
+            tag_map = {}
             for t_data in import_data.get('tags', []):
-                tag = DoctrineTag.objects.create(
-                    name=t_data['name'],
-                    style_classes=t_data.get('style', 'bg-slate-700 text-slate-300 border-slate-600'),
-                    order=t_data.get('order', 0)
-                )
+                tag = DoctrineTag.objects.create(name=t_data['name'], style_classes=t_data.get('style', 'bg-slate-700 text-slate-300 border-slate-600'), order=t_data.get('order', 0))
                 tag_map[tag.name] = tag
-
-            # 3. IMPORT CATEGORIES (Two Pass)
-            cat_map = {} # slug -> obj
-            
-            # Pass A: Create Roots and Children (ignoring parent link)
+            cat_map = {}
             raw_cats = import_data.get('categories', [])
             for c_data in raw_cats:
-                cat = DoctrineCategory.objects.create(
-                    name=c_data['name'],
-                    slug=c_data['slug'],
-                    order=c_data.get('order', 0),
-                    target_column=c_data.get('target_column', 'inherit')
-                )
+                cat = DoctrineCategory.objects.create(name=c_data['name'], slug=c_data['slug'], order=c_data.get('order', 0), target_column=c_data.get('target_column', 'inherit'))
                 cat_map[cat.slug] = cat
-
-            # Pass B: Link Parents
             for c_data in raw_cats:
-                parent_slug = c_data.get('parent_slug')
-                if parent_slug and parent_slug in cat_map:
-                    child = cat_map[c_data['slug']]
-                    child.parent = cat_map[parent_slug]
-                    child.save()
-
-            # 4. IMPORT FITS
-            raw_fits = import_data.get('fits', [])
-            missing_items = set()
-            created_fits = 0
-
+                if c_data.get('parent_slug') and c_data['parent_slug'] in cat_map:
+                    cat_map[c_data['slug']].parent = cat_map[c_data['parent_slug']]; cat_map[c_data['slug']].save()
+            raw_fits = import_data.get('fits', []); created_fits = 0
             for f_data in raw_fits:
-                # Resolve dependencies
-                cat_slug = f_data.get('category_slug')
-                if cat_slug not in cat_map: continue # Skip if category missing
-                
-                ship_type_id = f_data.get('ship_type_id')
-                try:
-                    ship_obj = ItemType.objects.get(type_id=ship_type_id)
-                except ItemType.DoesNotExist:
-                    missing_items.add(ship_type_id)
-                    continue
-
-                fit = DoctrineFit.objects.create(
-                    name=f_data['name'],
-                    category=cat_map[cat_slug],
-                    ship_type=ship_obj,
-                    eft_format=f_data.get('eft_format', ''),
-                    description=f_data.get('description', ''),
-                    is_doctrinal=f_data.get('is_doctrinal', True),
-                    order=f_data.get('order', 0)
-                )
-                
-                # Link Tags
-                tags_to_add = []
-                for t_name in f_data.get('tags', []):
-                    if t_name in tag_map:
-                        tags_to_add.append(tag_map[t_name])
-                if tags_to_add:
-                    fit.tags.set(tags_to_add)
-
-                # Create Modules
+                if f_data.get('category_slug') not in cat_map: continue
+                try: ship_obj = ItemType.objects.get(type_id=f_data.get('ship_type_id'))
+                except ItemType.DoesNotExist: continue
+                fit = DoctrineFit.objects.create(name=f_data['name'], category=cat_map[f_data['category_slug']], ship_type=ship_obj, eft_format=f_data.get('eft_format', ''), description=f_data.get('description', ''), is_doctrinal=f_data.get('is_doctrinal', True), order=f_data.get('order', 0))
+                tags_to_add = [tag_map[t] for t in f_data.get('tags', []) if t in tag_map]; fit.tags.set(tags_to_add)
                 modules_to_create = []
                 for m_data in f_data.get('modules', []):
-                    mod_type_id = m_data['type_id']
-                    try:
-                        mod_item = ItemType.objects.get(type_id=mod_type_id)
-                        modules_to_create.append(FitModule(
-                            fit=fit,
-                            item_type=mod_item,
-                            quantity=m_data.get('quantity', 1),
-                            slot=m_data.get('slot', 'cargo')
-                        ))
-                    except ItemType.DoesNotExist:
-                        missing_items.add(mod_type_id)
-                
-                FitModule.objects.bulk_create(modules_to_create)
-                created_fits += 1
+                    try: mod_item = ItemType.objects.get(type_id=m_data['type_id']); modules_to_create.append(FitModule(fit=fit, item_type=mod_item, quantity=m_data.get('quantity', 1), slot=m_data.get('slot', 'cargo')))
+                    except ItemType.DoesNotExist: pass
+                FitModule.objects.bulk_create(modules_to_create); created_fits += 1
+        return JsonResponse({'success': True, 'message': f"Imported {created_fits} fits, {len(cat_map)} categories."})
+    except Exception as e: return JsonResponse({'success': False, 'error': str(e)})
 
-        msg = f"Imported {created_fits} fits, {len(cat_map)} categories."
-        if missing_items:
-            msg += f" WARNING: {len(missing_items)} SDE items were missing (Check SDE update)."
+# --- NEW TIER MANAGEMENT API ---
 
-        return JsonResponse({'success': True, 'message': msg})
+@login_required
+@user_passes_test(can_manage_doctrines)
+@require_POST
+def api_skill_tier_manage(request):
+    try:
+        data = json.loads(request.body)
+        action = data.get('action')
+    except: return JsonResponse({'success': False, 'error': 'Invalid JSON'})
 
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+    if action == 'create':
+        name = data.get('name')
+        if not name: return JsonResponse({'success': False, 'error': 'Name required'})
+        SkillTier.objects.create(
+            name=name,
+            badge_class=data.get('badge_class', ''),
+            hex_color=data.get('hex_color', '#EAB308'),
+            order=int(data.get('order', 0))
+        )
+        return JsonResponse({'success': True})
+    
+    elif action == 'delete':
+        SkillTier.objects.filter(id=data.get('tier_id')).delete()
+        return JsonResponse({'success': True})
+        
+    return JsonResponse({'success': False, 'error': 'Unknown action'})

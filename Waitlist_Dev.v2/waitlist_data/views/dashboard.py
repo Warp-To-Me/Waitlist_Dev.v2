@@ -2,6 +2,7 @@ from django.shortcuts import render, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, HttpResponse
 from collections import defaultdict
+from django.db.models import OuterRef, Subquery # Added imports
 import requests 
 
 from core.permissions import (
@@ -133,7 +134,14 @@ def fleet_history_view(request, token):
     if not is_fleet_command(request.user):
         return render(request, 'access_denied.html', {'base_template': get_template_base(request)})
 
-    logs = FleetActivity.objects.filter(fleet=fleet).select_related('character', 'actor', 'character__user').order_by('-timestamp')
+    # Subquery to fetch the Main Character Name for the Actor
+    actor_main = EveCharacter.objects.filter(user=OuterRef('actor'), is_main=True)
+
+    logs = FleetActivity.objects.filter(fleet=fleet).select_related('character', 'actor', 'character__user')\
+        .annotate(
+            actor_char_name=Subquery(actor_main.values('character_name')[:1])
+        )\
+        .order_by('-timestamp')
     
     total_xups = logs.filter(action='x_up').count()
     total_kills = logs.filter(action__in=['denied', 'kicked']).count()

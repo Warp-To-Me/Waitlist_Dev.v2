@@ -140,7 +140,9 @@
                         {% if log.actor and log.actor != log.character.user %}
                         <div class="text-right">
                             <span class="text-[10px] text-slate-500 uppercase tracking-wider block">By</span>
-                            <span class="text-xs font-bold text-slate-300">{{ log.actor.username }}</span>
+                            <span class="text-xs font-bold text-slate-300" title="User ID: {{ log.actor.username }}">
+                                {{ log.actor_char_name|default:log.actor.first_name|default:log.actor.username }}
+                            </span>
                         </div>
                         {% endif %}
                     </div>

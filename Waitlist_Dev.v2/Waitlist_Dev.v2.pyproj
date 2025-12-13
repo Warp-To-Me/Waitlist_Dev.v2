@@ -73,6 +73,7 @@
     <Compile Include="waitlist_data\management\commands\backfill_stats.py" />
     <Compile Include="waitlist_data\management\commands\__init__.py" />
     <Compile Include="waitlist_data\management\__init__.py" />
+    <Compile Include="waitlist_data\skill_service.py" />
     <Compile Include="waitlist_data\stats.py" />
     <Compile Include="waitlist_data\views\actions.py" />
     <Compile Include="waitlist_data\views\dashboard.py" />
@@ -115,6 +116,7 @@
     <Content Include="templates\base_content.html" />
     <Content Include="templates\doctrines\fit_card.html" />
     <Content Include="templates\doctrines\fit_row.html" />
+    <Content Include="templates\doctrines\public_skills.html" />
     <Content Include="templates\management\doctrines.html" />
     <Content Include="templates\doctrines\public_content.html" />
     <Content Include="templates\doctrines\public_index.html" />
@@ -128,6 +130,7 @@
     <Content Include="templates\management\roles.html" />
     <Content Include="templates\management\rules_helper.html" />
     <Content Include="templates\management\sde.html" />
+    <Content Include="templates\management\skill_requirements.html" />
     <Content Include="templates\management\srp_config.html" />
     <Content Include="templates\srp\dashboard.html" />
     <Content Include="templates\management\users.html" />

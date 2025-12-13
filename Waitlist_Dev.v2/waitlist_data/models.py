@@ -65,7 +65,6 @@ class DoctrineTag(models.Model):
         return self.name
 
 class DoctrineCategory(models.Model):
-    # UPDATED CHOICES: Added 'inherit' as the first option
     COLUMN_CHOICES = [
         ('inherit', 'Inherit (Child Priority)'),
         ('logi', 'Logistics'),
@@ -79,7 +78,6 @@ class DoctrineCategory(models.Model):
     parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='subcategories')
     order = models.IntegerField(default=0)
     
-    # Set default to 'inherit'
     target_column = models.CharField(
         max_length=20, 
         choices=COLUMN_CHOICES, 
@@ -133,6 +131,62 @@ class FitModule(models.Model):
     def __str__(self):
         return f"{self.quantity}x {self.item_type.type_name}"
 
+# --- SKILL REQUIREMENTS & TIERS ---
+
+class SkillGroup(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name
+
+class SkillGroupMember(models.Model):
+    group = models.ForeignKey(SkillGroup, on_delete=models.CASCADE, related_name='members')
+    skill = models.ForeignKey(ItemType, on_delete=models.CASCADE)
+    level = models.IntegerField(default=1)
+
+    class Meta:
+        unique_together = ('group', 'skill')
+        ordering = ['skill__type_name']
+
+class SkillTier(models.Model):
+    """
+    Defines a level of skill compliance (e.g., Bronze, Silver, Gold, Elite).
+    """
+    name = models.CharField(max_length=50, unique=True)
+    order = models.IntegerField(default=0, help_text="Higher number = Higher priority check.")
+    badge_class = models.CharField(max_length=100, default="bg-yellow-500/20 text-yellow-400 border-yellow-500/50", help_text="Tailwind CSS classes for the badge.")
+    hex_color = models.CharField(max_length=7, default="#EAB308", help_text="Hex color for glowing effects.")
+
+    class Meta:
+        ordering = ['-order'] # Highest first
+
+    def __str__(self):
+        return self.name
+
+class SkillRequirement(models.Model):
+    # Target can be a specific fit OR a generic hull
+    doctrine_fit = models.ForeignKey(DoctrineFit, on_delete=models.CASCADE, null=True, blank=True, related_name='skill_requirements')
+    hull = models.ForeignKey(ItemType, on_delete=models.CASCADE, null=True, blank=True, related_name='skill_requirements')
+    
+    # The requirement: Either a direct skill OR a group
+    skill = models.ForeignKey(ItemType, on_delete=models.CASCADE, related_name='required_for_fits', null=True, blank=True)
+    level = models.IntegerField(default=1, null=True, blank=True)
+    
+    group = models.ForeignKey(SkillGroup, on_delete=models.CASCADE, null=True, blank=True, related_name='required_by')
+    
+    # NEW: Tier association. Null = Minimum Requirement.
+    tier = models.ForeignKey(SkillTier, on_delete=models.SET_NULL, null=True, blank=True, related_name='requirements')
+
+    class Meta:
+        ordering = ['skill__type_name', 'group__name']
+
+    def __str__(self):
+        target = self.doctrine_fit.name if self.doctrine_fit else (self.hull.type_name if self.hull else "Unknown")
+        req = self.group.name if self.group else f"{self.skill.type_name} {self.level}"
+        tier_str = f" [{self.tier.name}]" if self.tier else " [Min]"
+        return f"{target} -> {req}{tier_str}"
+
 # --- WAITLIST ENTRIES ---
 
 class WaitlistEntry(models.Model):
@@ -152,6 +206,13 @@ class WaitlistEntry(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     approved_at = models.DateTimeField(null=True, blank=True)
     invited_at = models.DateTimeField(null=True, blank=True)
+
+    # Skills Status
+    can_fly = models.BooleanField(default=True)
+    missing_skills = models.JSONField(default=list, blank=True)
+    
+    # NEW: Matched Tier
+    tier = models.ForeignKey(SkillTier, on_delete=models.SET_NULL, null=True, blank=True)
 
     class Meta:
         ordering = ['created_at']

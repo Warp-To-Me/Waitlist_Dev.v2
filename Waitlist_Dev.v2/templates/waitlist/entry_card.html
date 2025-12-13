@@ -6,7 +6,32 @@
      data-created="{{ entry.created_at|date:'U' }}">
 
     <!-- Time Indicator (Modern Badge) -->
-    <div class="absolute top-2 right-2">
+    <div class="absolute top-2 right-2 flex items-center gap-2">
+        <!-- SKILL STATUS -->
+        {% if not entry.can_fly and is_fc %}
+        <!-- RED WARNING (Minimum Failed) -->
+        <div class="group/skill relative">
+            <span class="badge badge-red animate-pulse cursor-help">
+                ⚠ SKILL
+            </span>
+            <!-- Tooltip -->
+            <div class="absolute right-0 top-full mt-1 hidden group-hover/skill:block z-50 whitespace-nowrap bg-black border border-red-500/50 rounded p-2 text-[9px] text-red-200 shadow-xl">
+                <div class="font-bold border-b border-red-500/30 mb-1 pb-1">Missing Skills</div>
+                {% for skill in entry.missing_skills %}
+                <div>{{ skill }}</div>
+                {% endfor %}
+            </div>
+        </div>
+        {% elif entry.tier and is_fc %}
+        <!-- TIER BADGE (Elite/Gold/etc) -->
+        <div class="group/tier relative">
+            <span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide border {{ entry.tier.badge_class }}"
+                  style="box-shadow: 0 0 8px {{ entry.tier.hex_color }}30;">
+                {{ entry.tier.name }}
+            </span>
+        </div>
+        {% endif %}
+
         <span class="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border {% if entry.time_waiting > 15 %}bg-red-900/30 text-red-400 border-red-500/30{% else %}bg-amber-900/30 text-amber-400 border-amber-500/30{% endif %}">
             {{ entry.time_waiting }}m
         </span>
@@ -17,7 +42,6 @@
         <div class="relative">
             <img src="https://images.evetech.net/characters/{{ entry.character.character_id }}/portrait?size=64"
                  class="w-8 h-8 rounded-lg border border-white/10 shadow-sm bg-black/50" alt="">
-            <!-- Optional Status Dot could go here later -->
         </div>
         <div class="flex-grow min-w-0">
             <div class="font-bold text-sm text-slate-200 truncate group-hover:text-white transition leading-none">{{ entry.character.character_name }}</div>

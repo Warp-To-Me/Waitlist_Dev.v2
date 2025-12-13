@@ -1,0 +1,561 @@
+﻿{% extends 'management/base_management.html' %}
+
+{% block management_content %}
+<div class="flex flex-col gap-6 h-full pb-20">
+    <!-- Header -->
+    <div class="flex justify-between items-center border-b border-white/5 pb-6 shrink-0">
+        <div>
+            <h1 class="heading-1">Skill Management</h1>
+            <p class="text-slate-400 text-sm mt-1">Configure mandatory skills, tiers, and reusable groups.</p>
+        </div>
+        <!-- Tab Switcher -->
+        <div class="flex bg-black/40 p-1 rounded-lg border border-white/10">
+            <button onclick="switchTab('assignments')" id="tab-assignments" class="px-4 py-1.5 rounded-md text-xs font-bold bg-slate-700 text-white shadow-sm transition">
+                Assignments
+            </button>
+            <button onclick="switchTab('groups')" id="tab-groups" class="px-4 py-1.5 rounded-md text-xs font-bold text-slate-400 hover:text-white transition">
+                Groups
+            </button>
+            <button onclick="switchTab('tiers')" id="tab-tiers" class="px-4 py-1.5 rounded-md text-xs font-bold text-slate-400 hover:text-white transition">
+                Tiers
+            </button>
+        </div>
+    </div>
+
+    <!-- VIEW 1: ASSIGNMENTS -->
+    <div id="view-assignments" class="flex flex-col gap-6">
+        <!-- FORM -->
+        <div class="glass-panel p-6">
+            <h3 class="label-text mb-4">Assign Requirement</h3>
+            <div class="flex flex-col gap-4">
+
+                <div class="flex flex-col md:flex-row gap-4 items-end">
+                    <!-- Target Type -->
+                    <div class="md:w-1/4 w-full">
+                        <label class="label-text">Target Type</label>
+                        <select id="target-type" class="select-field" onchange="toggleTargetInput()">
+                            <option value="fit">Specific Doctrine Fit</option>
+                            <option value="hull">Hull (Any Fit)</option>
+                        </select>
+                    </div>
+
+                    <!-- Target Input -->
+                    <div class="flex-grow w-full">
+                        <label class="label-text">Target</label>
+                        <div id="input-fit">
+                            <select id="target-fit-id" class="select-field">
+                                {% for fit in fits %}
+                                <option value="{{ fit.id }}">{{ fit.ship_type.type_name }} - {{ fit.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div id="input-hull" class="hidden relative">
+                            <input type="text" id="hull-search" class="input-field" placeholder="e.g. Guardian..." onkeyup="searchHull()">
+                            <div id="hull-results" class="absolute top-full left-0 w-full bg-slate-800 border border-slate-700 z-50 hidden rounded-b-lg"></div>
+                            <input type="hidden" id="target-hull-id">
+                        </div>
+                    </div>
+
+                    <!-- Tier Selector (NEW) -->
+                    <div class="md:w-1/4 w-full">
+                        <label class="label-text">Tier</label>
+                        <select id="target-tier-id" class="select-field">
+                            <option value="">Minimum (Mandatory)</option>
+                            {% for tier in tiers %}
+                            <option value="{{ tier.id }}">{{ tier.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="flex flex-col md:flex-row gap-4 items-end border-t border-white/5 pt-4">
+                    <!-- Requirement Type -->
+                    <div class="md:w-1/4 w-full">
+                        <label class="label-text">Requirement Type</label>
+                        <select id="req-type" class="select-field" onchange="toggleReqInput()">
+                            <option value="skill">Single Skill</option>
+                            <option value="group">Skill Group</option>
+                        </select>
+                    </div>
+
+                    <!-- Req Input: Skill -->
+                    <div class="flex-grow w-full flex gap-4" id="input-req-skill">
+                        <div class="flex-grow">
+                            <label class="label-text">Skill Name</label>
+                            <input type="text" id="skill-name" class="input-field" placeholder="e.g. Logistics">
+                        </div>
+                        <div class="w-24">
+                            <label class="label-text">Level</label>
+                            <select id="skill-level" class="select-field">
+                                <option value="1">I</option>
+                                <option value="2">II</option>
+                                <option value="3">III</option>
+                                <option value="4">IV</option>
+                                <option value="5" selected>V</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Req Input: Group -->
+                    <div class="flex-grow w-full hidden" id="input-req-group">
+                        <label class="label-text">Select Group</label>
+                        <select id="group-id" class="select-field">
+                            {% for g in groups %}
+                            <option value="{{ g.id }}">{{ g.name }} ({{ g.members.count }} skills)</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <button onclick="addRule()" class="btn-primary whitespace-nowrap">Add Rule</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- LIST -->
+        <div class="glass-panel overflow-hidden">
+            <table class="w-full text-sm text-left text-slate-400">
+                <thead class="text-xs uppercase bg-white/5 text-slate-300 font-bold border-b border-white/5">
+                    <tr>
+                        <th class="px-6 py-4">Target</th>
+                        <th class="px-6 py-4">Tier</th>
+                        <th class="px-6 py-4">Type</th>
+                        <th class="px-6 py-4">Required Skill / Group</th>
+                        <th class="px-6 py-4 text-center">Level</th>
+                        <th class="px-6 py-4 text-right">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-white/5">
+                    {% for req in requirements %}
+                    <tr class="hover:bg-white/5 transition group">
+                        <td class="px-6 py-4 font-bold text-white">
+                            {% if req.doctrine_fit %}
+                            {{ req.doctrine_fit.ship_type.type_name }} - <span class="text-brand-400">{{ req.doctrine_fit.name }}</span>
+                            {% else %}
+                            {{ req.hull.type_name }}
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if req.tier %}
+                            <span class="badge" style="background-color: {{ req.tier.hex_color }}20; color: {{ req.tier.hex_color }}; border-color: {{ req.tier.hex_color }}50;">{{ req.tier.name }}</span>
+                            {% else %}
+                            <span class="badge badge-red">MINIMUM</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if req.doctrine_fit %}<span class="badge badge-brand">FIT</span>{% else %}<span class="badge badge-slate">HULL</span>{% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-slate-300">
+                            {% if req.group %}
+                            <span class="text-blue-400 font-bold flex items-center gap-2">
+                                <span>📚</span> {{ req.group.name }}
+                            </span>
+                            {% else %}
+                            {{ req.skill.type_name }}
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-center font-mono font-bold text-white">
+                            {% if req.group %}-{% else %}{{ req.level }}{% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <button onclick="deleteRule({{ req.id }})" class="text-slate-500 hover:text-red-400 transition">✕</button>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="6" class="p-8 text-center italic">No explicit rules defined.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- VIEW 2: GROUPS -->
+    <div id="view-groups" class="hidden flex flex-col gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+
+            <!-- LEFT: Group List -->
+            <div class="glass-panel p-4 flex flex-col gap-4 max-h-[600px] overflow-hidden">
+                <div class="flex justify-between items-center pb-2 border-b border-white/5">
+                    <h3 class="label-text mb-0">Skill Groups</h3>
+                    <button onclick="createGroup()" class="btn-secondary text-[10px] py-1 px-2">+ New</button>
+                </div>
+                <div class="overflow-y-auto custom-scrollbar space-y-2 pr-1" id="group-list">
+                    {% for g in groups %}
+                    <div class="p-3 bg-white/5 rounded border border-white/5 hover:border-brand-500 cursor-pointer group transition" onclick="selectGroup({{ g.id }}, '{{ g.name|escapejs }}')">
+                        <div class="flex justify-between items-center">
+                            <span class="font-bold text-slate-200 group-hover:text-white">{{ g.name }}</span>
+                            <span class="badge badge-slate text-[10px]">{{ g.members.count }}</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- RIGHT: Editor -->
+            <div class="md:col-span-2 glass-panel p-6 flex flex-col h-full hidden" id="group-editor">
+                <div class="flex justify-between items-start mb-6 border-b border-white/5 pb-4">
+                    <div>
+                        <h2 class="text-2xl font-bold text-white" id="editor-title">Select a Group</h2>
+                        <input type="hidden" id="editor-group-id">
+                    </div>
+                    <button onclick="deleteGroup()" class="btn-danger text-xs py-1.5 px-3">Delete Group</button>
+                </div>
+
+                <!-- Add Skill Form -->
+                <div class="flex gap-2 items-end mb-6">
+                    <div class="flex-grow">
+                        <label class="label-text">Add Skill to Group</label>
+                        <input type="text" id="group-skill-name" class="input-field" placeholder="e.g. Armor Layering">
+                    </div>
+                    <div class="w-24">
+                        <label class="label-text">Level</label>
+                        <select id="group-skill-level" class="select-field">
+                            <option value="1">I</option>
+                            <option value="2">II</option>
+                            <option value="3">III</option>
+                            <option value="4">IV</option>
+                            <option value="5" selected>V</option>
+                        </select>
+                    </div>
+                    <button onclick="addGroupMember()" class="btn-primary">Add</button>
+                </div>
+
+                <!-- Member List -->
+                <div id="group-members" class="space-y-1 overflow-y-auto custom-scrollbar flex-grow bg-black/20 p-2 rounded border border-white/5 h-64">
+                    <!-- Injected via JS -->
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- VIEW 3: TIERS (NEW) -->
+    <div id="view-tiers" class="hidden flex flex-col gap-6">
+        <div class="glass-panel p-6">
+            <h3 class="label-text mb-4">Create Tier</h3>
+            <div class="flex items-end gap-4">
+                <div class="flex-grow">
+                    <label class="label-text">Tier Name</label>
+                    <input type="text" id="tier-name" class="input-field" placeholder="e.g. Elite">
+                </div>
+                <div class="w-24">
+                    <label class="label-text">Order</label>
+                    <input type="number" id="tier-order" class="input-field" value="0" placeholder="0">
+                </div>
+                <div class="flex-grow">
+                    <label class="label-text">Badge Classes (Tailwind)</label>
+                    <input type="text" id="tier-class" class="input-field" value="bg-yellow-500/20 text-yellow-400 border-yellow-500/50">
+                </div>
+                <div class="w-32">
+                    <label class="label-text">Hex (Glow)</label>
+                    <input type="color" id="tier-hex" class="input-field h-10 p-1" value="#EAB308">
+                </div>
+                <button onclick="createTier()" class="btn-primary">Create</button>
+            </div>
+        </div>
+
+        <div class="glass-panel p-6">
+            <h3 class="label-text mb-4">Active Tiers</h3>
+            <div class="space-y-2">
+                {% for tier in tiers %}
+                <div class="flex justify-between items-center p-3 bg-white/5 rounded border border-white/10">
+                    <div class="flex items-center gap-4">
+                        <span class="font-mono text-slate-500 font-bold">#{{ tier.order }}</span>
+                        <span class="px-3 py-1 rounded text-xs font-bold uppercase border {{ tier.badge_class }}" style="box-shadow: 0 0 10px {{ tier.hex_color }}40;">{{ tier.name }}</span>
+                    </div>
+                    <button onclick="deleteTier({{ tier.id }})" class="text-red-400 hover:text-red-300">Delete</button>
+                </div>
+                {% empty %}
+                <div class="text-slate-500 italic">No tiers defined.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    var CSRF_TOKEN = '{{ csrf_token }}';
+    var groupsData = {
+        {% for g in groups %}
+        "{{ g.id }}": [
+            {% for m in g.members.all %}
+            { "id": {{ m.id }}, "name": "{{ m.skill.type_name|escapejs }}", "level": {{ m.level }} },
+            {% endfor %}
+        ],
+        {% endfor %}
+    };
+
+    function switchTab(tab) {
+        ['assignments', 'groups', 'tiers'].forEach(t => {
+            document.getElementById('view-' + t).classList.add('hidden');
+            const btn = document.getElementById('tab-' + t);
+            btn.classList.remove('bg-slate-700', 'text-white');
+            btn.classList.add('text-slate-400');
+        });
+
+        document.getElementById('view-' + tab).classList.remove('hidden');
+        const activeBtn = document.getElementById('tab-' + tab);
+        activeBtn.classList.remove('text-slate-400');
+        activeBtn.classList.add('bg-slate-700', 'text-white');
+
+        // Update URL hash without scrolling
+        if(history.pushState) {
+            history.pushState(null, null, '#' + tab);
+        } else {
+            location.hash = '#' + tab;
+        }
+    }
+
+    // Init tab from hash
+    document.addEventListener("DOMContentLoaded", () => {
+        const hash = window.location.hash.substring(1);
+        if(hash && ['assignments', 'groups', 'tiers'].includes(hash)) {
+            switchTab(hash);
+        }
+
+        // Check for group ID in local storage to restore selection if on groups tab
+        if(hash === 'groups') {
+            const lastGroupId = localStorage.getItem('last_edited_group_id');
+            const lastGroupName = localStorage.getItem('last_edited_group_name');
+            if(lastGroupId && lastGroupName && document.getElementById('group-list')) {
+                // simple check if it still exists in the DOM list would be better but this is okay
+                selectGroup(lastGroupId, lastGroupName);
+            }
+        }
+    });
+
+    // --- ASSIGNMENT LOGIC ---
+    function toggleTargetInput() {
+        const type = document.getElementById('target-type').value;
+        if(type === 'fit') {
+            document.getElementById('input-fit').classList.remove('hidden');
+            document.getElementById('input-hull').classList.add('hidden');
+        } else {
+            document.getElementById('input-fit').classList.add('hidden');
+            document.getElementById('input-hull').classList.remove('hidden');
+        }
+    }
+
+    function toggleReqInput() {
+        const type = document.getElementById('req-type').value;
+        if(type === 'skill') {
+            document.getElementById('input-req-skill').classList.remove('hidden');
+            document.getElementById('input-req-skill').classList.add('flex');
+            document.getElementById('input-req-group').classList.add('hidden');
+        } else {
+            document.getElementById('input-req-skill').classList.add('hidden');
+            document.getElementById('input-req-skill').classList.remove('flex');
+            document.getElementById('input-req-group').classList.remove('hidden');
+        }
+    }
+
+    let searchTimer;
+    function searchHull() {
+        clearTimeout(searchTimer);
+        const q = document.getElementById('hull-search').value;
+        if(q.length < 3) return;
+
+        searchTimer = setTimeout(() => {
+            fetch(`{% url 'api_search_hull' %}?q=${encodeURIComponent(q)}`)
+            .then(r => r.json())
+            .then(data => {
+                const res = document.getElementById('hull-results');
+                res.innerHTML = '';
+                data.results.forEach(h => {
+                    const d = document.createElement('div');
+                    d.className = 'p-2 hover:bg-slate-700 cursor-pointer text-xs text-white';
+                    d.textContent = h.name;
+                    d.onclick = () => {
+                        document.getElementById('hull-search').value = h.name;
+                        document.getElementById('target-hull-id').value = h.id;
+                        res.classList.add('hidden');
+                    };
+                    res.appendChild(d);
+                });
+                res.classList.remove('hidden');
+            });
+        }, 300);
+    }
+
+    function addRule() {
+        const targetType = document.getElementById('target-type').value;
+        const reqType = document.getElementById('req-type').value;
+        const tierId = document.getElementById('target-tier-id').value;
+
+        let targetId;
+        if(targetType === 'fit') targetId = document.getElementById('target-fit-id').value;
+        else targetId = document.getElementById('target-hull-id').value;
+
+        const payload = {
+            target_type: targetType,
+            target_id: targetId,
+            req_type: reqType,
+            tier_id: tierId
+        };
+
+        if(reqType === 'skill') {
+            payload.skill_name = document.getElementById('skill-name').value;
+            payload.level = document.getElementById('skill-level').value;
+            if(!payload.skill_name) return alert("Enter skill name");
+        } else {
+            payload.group_id = document.getElementById('group-id').value;
+        }
+
+        if(!targetId) return alert("Select target");
+
+        fetch("{% url 'api_skill_req_add' %}", {
+            method: 'POST',
+            headers: {'X-CSRFToken': CSRF_TOKEN, 'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        }).then(r => r.json()).then(d => {
+            if(d.success) {
+                window.location.hash = 'assignments';
+                location.reload();
+            }
+            else alert(d.error);
+        });
+    }
+
+    function deleteRule(id) {
+        if(!confirm("Delete rule?")) return;
+        fetch("{% url 'api_skill_req_delete' %}", {
+            method: 'POST',
+            headers: {'X-CSRFToken': CSRF_TOKEN, 'Content-Type': 'application/json'},
+            body: JSON.stringify({ req_id: id })
+        }).then(r => r.json()).then(d => {
+            if(d.success) {
+                window.location.hash = 'assignments';
+                location.reload();
+            }
+        });
+    }
+
+    // --- GROUP LOGIC ---
+    function createGroup() {
+        const name = prompt("Enter Group Name (e.g. 'Logistics Core'):");
+        if(!name) return;
+
+        fetch("{% url 'api_skill_group_manage' %}", {
+            method: 'POST',
+            headers: {'X-CSRFToken': CSRF_TOKEN, 'Content-Type': 'application/json'},
+            body: JSON.stringify({ action: 'create', name: name })
+        }).then(r => r.json()).then(d => {
+            if(d.success) {
+                window.location.hash = 'groups';
+                location.reload();
+            }
+            else alert(d.error);
+        });
+    }
+
+    function deleteGroup() {
+        const id = document.getElementById('editor-group-id').value;
+        if(!confirm("Delete this group?")) return;
+
+        fetch("{% url 'api_skill_group_manage' %}", {
+            method: 'POST',
+            headers: {'X-CSRFToken': CSRF_TOKEN, 'Content-Type': 'application/json'},
+            body: JSON.stringify({ action: 'delete', group_id: id })
+        }).then(r => r.json()).then(d => {
+            if(d.success) {
+                window.location.hash = 'groups';
+                location.reload();
+            }
+        });
+    }
+
+    function selectGroup(id, name) {
+        document.getElementById('group-editor').classList.remove('hidden');
+        document.getElementById('editor-title').textContent = name;
+        document.getElementById('editor-group-id').value = id;
+
+        // Persist selection for reloads
+        localStorage.setItem('last_edited_group_id', id);
+        localStorage.setItem('last_edited_group_name', name);
+
+        renderMembers(id);
+    }
+
+    function renderMembers(groupId) {
+        const container = document.getElementById('group-members');
+        const members = groupsData[groupId] || [];
+
+        container.innerHTML = members.map(m => `
+            <div class="flex justify-between items-center p-2 bg-white/5 rounded border border-transparent hover:border-white/10 group">
+                <span class="text-slate-300 text-xs font-bold">${m.name}</span>
+                <div class="flex items-center gap-4">
+                    <span class="font-mono text-white text-xs">Lvl ${m.level}</span>
+                    <button onclick="removeMember(${m.id})" class="text-slate-500 hover:text-red-400 px-2 transition">×</button>
+                </div>
+            </div>
+        `).join('') || '<div class="text-slate-500 text-xs text-center py-4">No skills in this group yet.</div>';
+    }
+
+    function addGroupMember() {
+        const groupId = document.getElementById('editor-group-id').value;
+        const skill = document.getElementById('group-skill-name').value;
+        const level = document.getElementById('group-skill-level').value;
+        if(!skill) return;
+
+        fetch("{% url 'api_skill_group_member_add' %}", {
+            method: 'POST',
+            headers: {'X-CSRFToken': CSRF_TOKEN, 'Content-Type': 'application/json'},
+            body: JSON.stringify({ group_id: groupId, skill_name: skill, level: level })
+        }).then(r => r.json()).then(d => {
+            if(d.success) {
+                window.location.hash = 'groups';
+                location.reload();
+            }
+            else alert(d.error);
+        });
+    }
+
+    function removeMember(memberId) {
+        fetch("{% url 'api_skill_group_member_remove' %}", {
+            method: 'POST',
+            headers: {'X-CSRFToken': CSRF_TOKEN, 'Content-Type': 'application/json'},
+            body: JSON.stringify({ member_id: memberId })
+        }).then(r => r.json()).then(d => {
+            if(d.success) {
+                window.location.hash = 'groups';
+                location.reload();
+            }
+        });
+    }
+
+    // --- TIER LOGIC ---
+    function createTier() {
+        const payload = {
+            action: 'create',
+            name: document.getElementById('tier-name').value,
+            order: document.getElementById('tier-order').value,
+            badge_class: document.getElementById('tier-class').value,
+            hex_color: document.getElementById('tier-hex').value
+        };
+        fetch("{% url 'api_skill_tier_manage' %}", {
+            method: 'POST',
+            headers: {'X-CSRFToken': CSRF_TOKEN, 'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        }).then(r => r.json()).then(d => {
+            if(d.success) {
+                window.location.hash = 'tiers';
+                location.reload();
+            }
+            else alert(d.error);
+        });
+    }
+
+    function deleteTier(id) {
+        if(!confirm("Delete Tier?")) return;
+        fetch("{% url 'api_skill_tier_manage' %}", {
+            method: 'POST',
+            headers: {'X-CSRFToken': CSRF_TOKEN, 'Content-Type': 'application/json'},
+            body: JSON.stringify({ action: 'delete', tier_id: id })
+        }).then(r => r.json()).then(d => {
+            if(d.success) {
+                window.location.hash = 'tiers';
+                location.reload();
+            }
+        });
+    }
+</script>
+{% endblock %}

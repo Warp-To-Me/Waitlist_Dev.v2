@@ -150,6 +150,13 @@ SYSTEM_CAPABILITIES = [
         "name": "Promote/Demote Users",
         "desc": "Assign roles to users (up to own rank).",
         "roles": ROLES_ADMIN
+    },
+    {
+        "slug": "manage_skill_requirements",
+        "category": "System",
+        "name": "Manage Skill Requirements",
+        "desc": "Configure mandatory skills for hulls or specific fits.",
+        "roles": ROLES_ADMIN
     }
 ]
 

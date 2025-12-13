@@ -1,0 +1,49 @@
+﻿{% extends 'base.html' %}
+
+{% block title %}Doctrine Skill Requirements{% endblock %}
+
+{% block content %}
+<div class="absolute inset-0 overflow-y-auto custom-scrollbar">
+    <div class="container mx-auto p-4 md:p-8 pb-32">
+        <div class="flex items-center gap-4 border-b border-white/5 pb-6 mb-8">
+            <a href="{% url 'doctrine_list' %}" class="btn-secondary py-2 px-4 text-xs gap-2">
+                &larr; Back to Fits
+            </a>
+            <h1 class="heading-1">Required Skills</h1>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {% for key, group in requirements.items %}
+            <div class="glass-panel p-4 border border-white/10 relative overflow-hidden group">
+                <div class="flex items-center gap-4 mb-4 relative z-10">
+                    <img src="https://images.evetech.net/types/{{ group.icon_id }}/icon?size=64" class="w-12 h-12 rounded border border-white/10 bg-black/50">
+                    <h3 class="font-bold text-white text-lg leading-tight">{{ group.name }}</h3>
+                </div>
+
+                <div class="space-y-2 relative z-10">
+                    {% for req in group.skills %}
+                    <div class="flex justify-between items-center bg-white/5 p-2 rounded text-sm">
+                        <span class="text-slate-300">{{ req.skill.type_name }}</span>
+                        <div class="flex gap-0.5">
+                            {% for i in "12345" %}
+                            <div class="w-1.5 h-3 rounded-sm border border-slate-600 {% if forloop.counter <= req.level %}bg-brand-500 border-brand-400{% else %}bg-dark-900{% endif %}"></div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Background decoration -->
+                <div class="absolute -bottom-4 -right-4 text-[8rem] text-white/5 select-none pointer-events-none z-0 rotate-12">
+                    🎓
+                </div>
+            </div>
+            {% empty %}
+            <div class="col-span-full text-center py-12 text-slate-500 italic">
+                No specific skill requirements configured.
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
