@@ -38,13 +38,15 @@
     <Compile Include="core\models.py" />
     <Compile Include="core\permissions.py" />
     <Compile Include="core\routing.py" />
-    <Compile Include="core\views_srp.py" />
+    <Compile Include="core\views\general.py" />
+    <Compile Include="core\views\management.py" />
+    <Compile Include="core\views\profile.py" />
+    <Compile Include="core\views\rules.py" />
+    <Compile Include="core\views\srp.py" />
+    <Compile Include="core\views\__init__.py" />
     <Compile Include="core\templatetags\core_filters.py" />
     <Compile Include="core\templatetags\__init__.py" />
     <Compile Include="core\utils.py" />
-    <Compile Include="core\views_management.py" />
-    <Compile Include="core\views_profile.py" />
-    <Compile Include="core\views_rules.py" />
     <Compile Include="core\__init__.py" />
     <Compile Include="esi_auth\apps.py" />
     <Compile Include="esi_calls\apps.py" />
@@ -90,7 +92,6 @@
     <Compile Include="waitlist_project\asgi.py" />
     <Compile Include="models.py" />
     <Compile Include="core\urls.py" />
-    <Compile Include="core\views.py" />
     <Compile Include="esi_auth\urls.py" />
     <Compile Include="esi_auth\__init__.py" />
     <Compile Include="esi_calls\__init__.py" />
@@ -12599,6 +12600,7 @@
     <Folder Include="core\management\commands\__pycache__\" />
     <Folder Include="core\management\__pycache__\" />
     <Folder Include="core\templatetags\" />
+    <Folder Include="core\views\" />
     <Folder Include="esi_auth\" />
     <Folder Include="esi_calls\" />
     <Folder Include="esi_calls\management\" />
