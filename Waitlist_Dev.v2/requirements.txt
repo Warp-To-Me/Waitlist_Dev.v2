@@ -1,6 +1,8 @@
 # Core framework
 Django==5.0
 python-dotenv
+djangorestframework
+django-cors-headers
 
 # ESI integration and OAuth
 django-esi
@@ -26,6 +28,8 @@ channels_redis
 celery
 redis
 gevent  # Required for running Celery on Windows
+django-celery-results
+django-celery-beat
 
 # Security
 django-fernet-fields-v2

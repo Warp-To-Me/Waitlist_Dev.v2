@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import doctrines, fleet_setup, fleet_settings, dashboard, actions
+from .views import doctrines, fleet_setup, fleet_settings, dashboard, actions, api
 
 urlpatterns = [
     # DOCTRINES
@@ -56,4 +56,7 @@ urlpatterns = [
     
     # History API
     path('fleet/history/api/<int:log_id>/', actions.api_history_fit_details, name='api_history_fit_details'),
+
+    # --- NEW API ENDPOINTS ---
+    path('doctrines/', api.PublicDoctrineListView.as_view(), name='api_doctrines_list'),
 ]

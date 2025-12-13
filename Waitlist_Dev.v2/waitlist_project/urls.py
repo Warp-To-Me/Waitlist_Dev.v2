@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.urls import path, include
 from core import views as core_views
 from core import views_management, views_profile, views_rules, views_srp
+from core.api import health_check
 
 urlpatterns = [
     # Django Admin
@@ -23,11 +24,14 @@ urlpatterns = [
     path('management/users/', views_management.management_users, name='management_users'),
     path('management/users/<int:user_id>/inspect/', views_management.management_user_inspect, name='management_user_inspect'),
     path('management/users/<int:user_id>/inspect/<int:char_id>/', views_management.management_user_inspect, name='management_user_inspect_char'),
-
     path('management/fleets/', views_management.management_fleets, name='management_fleets'),
     path('management/sde/', views_management.management_sde, name='management_sde'),
     path('management/system/', views_management.management_celery, name='management_celery'),
     path('management/permissions/', views_management.management_permissions, name='management_permissions'),
+
+    # --- CORE API ---
+    path('api/', include('waitlist_data.urls')), 
+    path('api/health/', health_check, name='api_health'),
 
     # Ban Management
     path('management/bans/', views_management.management_bans, name='management_bans'),
@@ -62,12 +66,9 @@ urlpatterns = [
     path('profile/', views_profile.profile_view, name='profile'),
     path('profile/switch/<int:char_id>/', views_profile.switch_character, name='switch_character'),
     path('profile/make_main/<int:char_id>/', views_profile.make_main, name='make_main'),
-    
     path('api/refresh_profile/<int:char_id>/', views_profile.api_refresh_profile, name='api_refresh_profile'),
     path('api/profile/status/<int:char_id>/', views_profile.api_pilot_status, name='api_pilot_status'), # NEW
-    
     path('api/profile/toggle_visibility/', views_profile.api_toggle_xup_visibility, name='api_toggle_xup_visibility'),
-    
     path('access-denied/', core_views.access_denied, name='access_denied'),
 
     # Includes
