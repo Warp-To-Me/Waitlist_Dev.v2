@@ -58,5 +58,8 @@ urlpatterns = [
     path('fleet/history/api/<int:log_id>/', actions.api_history_fit_details, name='api_history_fit_details'),
 
     # --- NEW API ENDPOINTS ---
+    path('', dashboard.index, name='dashboard'),
     path('doctrines/', api.PublicDoctrineListView.as_view(), name='api_doctrines_list'),
+    path('api/doctrines/', api.doctrines_public_api, name='api_doctrines_public'),
+    path('', dashboard.index, name='dashboard'),
 ]

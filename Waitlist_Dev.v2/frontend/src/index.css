@@ -1,0 +1,215 @@
+/* Core Theme Variables (Default / WTM Gold) */
+:root {
+    --wtm-gold: #D4AF37;
+    --wtm-gold-hover: #F4CF57;
+    --wtm-bg-dark: #121212; /* Main body background */
+    --wtm-bg-surface: #1e1e1e; /* Cards, Navbar */
+    --wtm-bg-subtle: #2d2d2d; /* Hover states, inputs */
+    --wtm-border: #404040;
+    --wtm-text-main: #e0e0e0;
+    --wtm-text-muted: #a0a0a0;
+    /* Fonts */
+    --font-heading: 'Orbitron', sans-serif;
+    --font-body: 'Exo 2', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+}
+
+/* --- Theme Overrides --- */
+
+/* Caldari (State Blue) */
+[data-theme="caldari"] {
+    --wtm-gold: #4aa3df;
+    --wtm-gold-hover: #6db8eb;
+}
+
+/* Gallente (Federation Green) */
+[data-theme="gallente"] {
+    --wtm-gold: #2ecc71;
+    --wtm-gold-hover: #58d68d;
+}
+
+/* Minmatar (Republic Rust) */
+[data-theme="minmatar"] {
+    --wtm-gold: #d35400;
+    --wtm-gold-hover: #e59866;
+}
+
+/* Amarr (Empire Gold - Brighter than WTM default) */
+[data-theme="amarr"] {
+    --wtm-gold: #f1c40f;
+    --wtm-gold-hover: #f4d03f;
+}
+
+/* --- Global Reset & Typography --- */
+body {
+    background-color: var(--wtm-bg-dark);
+    color: var(--wtm-text-main);
+    font-family: var(--font-body);
+    font-weight: 300;
+    overflow-x: hidden;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+    color: var(--wtm-gold);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 1rem;
+    transition: color 0.3s ease;
+}
+
+a {
+    color: var(--wtm-gold);
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+    a:hover {
+        color: var(--wtm-gold-hover);
+        text-decoration: underline;
+    }
+
+/* --- Bootstrap Overrides: Navbar --- */
+.navbar {
+    background-color: var(--wtm-bg-surface) !important;
+    border-bottom: 1px solid var(--wtm-gold);
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    padding: 1rem 0;
+    transition: border-color 0.3s ease;
+}
+
+.navbar-brand {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    color: var(--wtm-gold) !important;
+    font-size: 1.5rem;
+    letter-spacing: 0.1em;
+    transition: color 0.3s ease;
+}
+
+.nav-link {
+    font-family: var(--font-body);
+    font-weight: 500;
+    text-transform: uppercase;
+    color: var(--wtm-text-muted) !important;
+    margin-left: 0.5rem;
+}
+
+    .nav-link:hover, .nav-link.active {
+        color: var(--wtm-gold) !important;
+        text-shadow: 0 0 8px rgba(var(--wtm-gold), 0.3); /* Note: rgba with hex requires CSS pre-proc or color-mix, keeping simple for now */
+    }
+
+/* --- Bootstrap Overrides: Cards --- */
+.card {
+    background-color: var(--wtm-bg-surface);
+    border: 1px solid var(--wtm-border);
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    margin-bottom: 1rem;
+}
+
+.card-header {
+    /* Using a linear gradient with a tiny bit of opacity for the accent color */
+    background: linear-gradient(90deg, rgba(30,30,30,1) 0%, rgba(45,45,45,1) 100%);
+    border-bottom: 1px solid var(--wtm-border);
+    font-family: var(--font-heading);
+    color: var(--wtm-text-main);
+    font-size: 1.1rem;
+    padding: 1rem;
+    position: relative;
+    overflow: hidden;
+}
+
+    /* Add a colored accent line to the left of card headers */
+    .card-header::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 4px;
+        background-color: var(--wtm-gold);
+        transition: background-color 0.3s ease;
+    }
+
+.card-body {
+    padding: 1.25rem;
+}
+
+/* --- Bootstrap Overrides: Buttons --- */
+.btn-primary {
+    background-color: var(--wtm-gold);
+    border-color: var(--wtm-gold);
+    color: #000;
+    font-family: var(--font-heading);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-radius: 2px;
+    transition: all 0.2s ease;
+}
+
+    .btn-primary:hover, .btn-primary:focus, .btn-primary:active {
+        background-color: var(--wtm-gold-hover) !important;
+        border-color: var(--wtm-gold-hover) !important;
+        color: #000 !important;
+        box-shadow: 0 0 10px rgba(0,0,0, 0.2); /* Generic shadow since we can't easily alpha-blend hex in vanilla CSS var */
+    }
+
+.btn-outline-primary {
+    color: var(--wtm-gold);
+    border-color: var(--wtm-gold);
+    font-family: var(--font-heading);
+}
+
+    .btn-outline-primary:hover {
+        background-color: var(--wtm-gold);
+        color: #000;
+        border-color: var(--wtm-gold);
+    }
+
+/* --- Bootstrap Overrides: Dropdowns --- */
+.dropdown-menu {
+    background-color: var(--wtm-bg-surface);
+    border: 1px solid var(--wtm-border);
+    border-top: 2px solid var(--wtm-gold);
+    border-radius: 0 0 4px 4px;
+    margin-top: 0;
+}
+
+.dropdown-item {
+    color: var(--wtm-text-main);
+    padding: 0.5rem 1.5rem;
+}
+
+    .dropdown-item:hover {
+        background-color: var(--wtm-bg-subtle);
+        color: var(--wtm-gold);
+    }
+
+.dropdown-divider {
+    border-top-color: var(--wtm-border);
+}
+
+/* --- Bootstrap Overrides: Forms & Inputs --- */
+.form-control {
+    background-color: var(--wtm-bg-dark);
+    border: 1px solid var(--wtm-border);
+    color: var(--wtm-text-main);
+}
+
+    .form-control:focus {
+        background-color: var(--wtm-bg-dark);
+        border-color: var(--wtm-gold);
+        color: var(--wtm-text-main);
+        box-shadow: 0 0 0 0.25rem rgba(255, 255, 255, 0.1); /* Neutral glow */
+    }
+
+/* --- Footer --- */
+.footer {
+    background-color: var(--wtm-bg-surface);
+    border-top: 1px solid var(--wtm-border);
+    color: var(--wtm-text-muted);
+}

@@ -12544,10 +12544,15 @@
     <Content Include="frontend\postcss.config.js" />
     <Content Include="frontend\src\App.jsx" />
     <Content Include="frontend\src\components\Navbar.jsx" />
+    <Content Include="frontend\src\components\Footer.jsx" />
+    <Content Include="frontend\src\context\AuthContext.jsx" />
+    <Content Include="frontend\src\context\ThemeContext.jsx" />
     <Content Include="frontend\src\index.css" />
     <Content Include="frontend\src\main.jsx" />
+    <Content Include="frontend\src\pages\Dashboard.jsx" />
     <Content Include="frontend\src\pages\Doctrines.jsx" />
     <Content Include="frontend\src\pages\Home.jsx" />
+    <Content Include="frontend\src\pages\Landing.jsx" />
     <Content Include="frontend\tailwind.config.js" />
     <Content Include="frontend\vite.config.js" />
     <Content Include="templates\access_denied.html" />
@@ -13804,6 +13809,7 @@
     <Folder Include="frontend\node_modules\yocto-queue\" />
     <Folder Include="frontend\src\" />
     <Folder Include="frontend\src\components\" />
+    <Folder Include="frontend\src\context\" />
     <Folder Include="frontend\src\pages\" />
     <Folder Include="static\" />
     <Folder Include="pilot_data\management\" />
