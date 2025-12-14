@@ -58,12 +58,11 @@ def landing_page(request):
         fc_name = fc_name_map.get(f.commander_id, f.commander.username)
         fleets_list.append({
             'id': f.id,
-            'type': f.type,
-            'status': f.status,
+            # Removed non-existent fields 'type' and 'status'
             'join_token': f.join_token,
             'created_at': f.created_at,
             'fc_name': fc_name,
-            'description': f.description,
+            #'description': f.motd, # Mapped description to motd
             'is_active': f.is_active
         })
 
@@ -91,7 +90,7 @@ def serialize_category(cat):
     data = {
         'id': cat.id,
         'name': cat.name,
-        'description': cat.description,
+        # Removed 'description': cat.description (Field does not exist on DoctrineCategory)
         'fits': [],
         'subcategories': []
     }

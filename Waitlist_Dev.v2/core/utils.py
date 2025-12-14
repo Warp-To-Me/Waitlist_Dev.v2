@@ -441,7 +441,7 @@ def get_character_data(active_char):
             esi_data['implants'].append({
                 'id': imp.type_id,
                 'name': item.type_name if item else f"Unknown ({imp.type_id})",
-                'icon_url': f"https://images.evetech.net/types/{{imp.type_id}}/icon?size=32"
+                'icon_url': f"https://images.evetech.net/types/{imp.type_id}/icon?size=32"
             })
     queue = active_char.skill_queue.all().order_by('queue_position')
     q_ids = [q.skill_id for q in queue]
@@ -454,7 +454,19 @@ def get_character_data(active_char):
                 'finished_level': q.finished_level,
                 'finish_date': q.finish_date
             })
-    esi_data['history'] = active_char.corp_history.all().order_by('-start_date')
+    
+    # --- FIX: Serialize CharacterHistory objects manually ---
+    # OLD: esi_data['history'] = active_char.corp_history.all().order_by('-start_date')
+    history_entries = active_char.corp_history.all().order_by('-start_date')
+    esi_data['history'] = [
+        {
+            'corporation_id': h.corporation_id,
+            'corporation_name': h.corporation_name,
+            'start_date': h.start_date
+        } for h in history_entries
+    ]
+    # --------------------------------------------------------
+
     try:
         raw_history = active_char.skill_history.all().order_by('-logged_at')[:30]
         if raw_history.exists():
@@ -463,7 +475,7 @@ def get_character_data(active_char):
             for h in raw_history:
                 item = h_items.get(h.skill_id)
                 esi_data['skill_history'].append({
-                    'name': item.type_name if item else f"Unknown Skill {{h.skill_id}}",
+                    'name': item.type_name if item else f"Unknown Skill {h.skill_id}",
                     'old_level': h.old_level, 'new_level': h.new_level,
                     'sp_diff': h.new_sp - h.old_sp, 'logged_at': h.logged_at
                 })
