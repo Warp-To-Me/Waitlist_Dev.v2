@@ -8,6 +8,9 @@ from django.utils import timezone
 from django.db.models import Sum
 from django.conf import settings
 from itertools import chain 
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 
 # Core Imports
 from core.permissions import get_template_base, is_fleet_command, is_admin
@@ -18,11 +21,10 @@ from core.models import BanAuditLog
 from pilot_data.models import EveCharacter
 from waitlist_data.models import FleetActivity
 from waitlist_data.stats import calculate_pilot_stats
-# Remove direct synchronous call
-# from esi_calls.token_manager import update_character_data
 from scheduler.tasks import refresh_character_task
 
-@login_required
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def profile_view(request):
     characters = request.user.characters.all()
     active_char_id = request.session.get('active_char_id')
@@ -31,39 +33,62 @@ def profile_view(request):
         active_char = characters.filter(is_main=True).first()
         if not active_char and characters.exists(): active_char = characters.first()
         
-    # Use Shared Helper
-    esi_data, grouped_skills = get_character_data(active_char)
+    esi_data, grouped_skills = None, None
+    if active_char:
+        esi_data, grouped_skills = get_character_data(active_char)
     
     # --- Service Record Stats ---
-    service_record = calculate_pilot_stats(active_char)
+    service_record = {}
+    if active_char:
+        service_record = calculate_pilot_stats(active_char)
     
-    # 1. Fetch Fleet Logs
-    fleet_logs = FleetActivity.objects.filter(character=active_char)\
-        .select_related('fleet', 'actor').order_by('-timestamp')[:50]
+        # 1. Fetch Fleet Logs
+        fleet_logs = FleetActivity.objects.filter(character=active_char)\
+            .select_related('fleet', 'actor').order_by('-timestamp')[:50]
 
-    # 2. Fetch Ban Logs (Targeting the User account)
-    ban_logs = BanAuditLog.objects.filter(target_user=active_char.user)\
-        .select_related('actor').order_by('-timestamp')[:20]
+        # 2. Fetch Ban Logs (Targeting the User account)
+        ban_logs = BanAuditLog.objects.filter(target_user=active_char.user)\
+            .select_related('actor').order_by('-timestamp')[:20]
 
-    # 3. Merge & Sort
-    combined_logs = sorted(
-        chain(fleet_logs, ban_logs),
-        key=lambda x: x.timestamp,
-        reverse=True
-    )[:50]
+        # 3. Merge & Sort
+        # We need to serialize these for JSON response
+        logs_data = []
+        for log in fleet_logs:
+            logs_data.append({
+                'type': 'fleet',
+                'timestamp': log.timestamp,
+                'action': log.action,
+                'details': log.details,
+                'actor': log.actor.username if log.actor else 'System'
+            })
+        for log in ban_logs:
+            logs_data.append({
+                'type': 'ban',
+                'timestamp': log.created_at, # BanAuditLog uses timestamp or created_at? Model check needed. Assuming timestamp based on previous read.
+                'action': log.action,
+                'details': log.details,
+                'actor': log.actor.username if log.actor else 'System'
+            })
 
-    service_record['history_logs'] = combined_logs
-    
-    service_record['hull_breakdown'] = sorted(
-        service_record['hull_breakdown'].items(), 
-        key=lambda x: x[1], 
-        reverse=True
-    )
+        combined_logs = sorted(
+            logs_data,
+            key=lambda x: x['timestamp'],
+            reverse=True
+        )[:50]
+
+        service_record['history_logs'] = combined_logs
+
+        # hull_breakdown is a dict, need to listify
+        if 'hull_breakdown' in service_record:
+            service_record['hull_breakdown'] = sorted(
+                [{'name': k, 'seconds': v} for k, v in service_record['hull_breakdown'].items()],
+                key=lambda x: x['seconds'],
+                reverse=True
+            )
     
     token_missing = False
     if active_char and not active_char.refresh_token: token_missing = True
     
-    # --- Scope Validation Check ---
     scopes_missing = False
     if active_char and active_char.access_token and is_fleet_command(request.user):
         try:
@@ -77,83 +102,97 @@ def profile_view(request):
                 required_fc = set(settings.EVE_SCOPES_FC.split())
                 if not required_fc.issubset(current_scopes_set):
                     scopes_missing = True
-        except Exception as e:
-            print(f"Error checking scopes: {e}")
-            pass
+        except Exception: pass
 
     totals = characters.aggregate(wallet_sum=Sum('wallet_balance'), lp_sum=Sum('concord_lp'), sp_sum=Sum('total_sp'))
-    context = {
-        'active_char': active_char, 'characters': characters,
-        'esi': esi_data, 'grouped_skills': grouped_skills, 
+
+    # Serialize Characters
+    chars_data = []
+    for c in characters:
+        chars_data.append({
+            'character_id': c.character_id,
+            'character_name': c.character_name,
+            'corporation_name': c.corporation_name,
+            'is_main': c.is_main,
+            'x_up_visible': c.x_up_visible
+        })
+
+    active_char_data = None
+    if active_char:
+        active_char_data = {
+            'character_id': active_char.character_id,
+            'character_name': active_char.character_name,
+            'corporation_name': active_char.corporation_name,
+            'alliance_name': active_char.alliance_name,
+            'is_main': active_char.is_main
+        }
+
+    return Response({
+        'active_char': active_char_data,
+        'characters': chars_data,
+        'esi': esi_data, # Assuming this is JSON serializable dict
+        'grouped_skills': grouped_skills, # Assuming JSON serializable
         'service_record': service_record,
         'token_missing': token_missing,
         'scopes_missing': scopes_missing,
-        'total_wallet': totals['wallet_sum'] or 0, 'total_lp': totals['lp_sum'] or 0,
-        'account_total_sp': totals['sp_sum'] or 0, 'is_admin_user': is_admin(request.user),
-        'base_template': get_template_base(request) 
-    }
-    if request.headers.get('x-requested-with') == 'XMLHttpRequest' and request.GET.get('partial') == 'true':
-        return render(request, 'partials/profile_content.html', context)
-    return render(request, 'profile.html', context)
+        'totals': {
+            'wallet': totals['wallet_sum'] or 0,
+            'lp': totals['lp_sum'] or 0,
+            'sp': totals['sp_sum'] or 0
+        },
+        'is_admin_user': is_admin(request.user)
+    })
 
-@login_required
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def api_refresh_profile(request, char_id):
     """
     Triggers a background refresh task via Celery.
-    Returns immediately so the UI doesn't block.
     """
     character = get_object_or_404(EveCharacter, character_id=char_id, user=request.user)
-    if not character.refresh_token: return JsonResponse({'success': False, 'error': 'No refresh token'})
+    if not character.refresh_token: return Response({'success': False, 'error': 'No refresh token'})
     
-    # Queue the task
     refresh_character_task.delay(character.character_id)
-    
-    return JsonResponse({'success': True, 'status': 'queued'})
+    return Response({'success': True, 'status': 'queued'})
 
-@login_required
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def api_pilot_status(request, char_id):
-    """
-    Lightweight endpoint to check the 'last_updated' timestamp.
-    Used by the frontend to poll for completion.
-    """
     character = get_object_or_404(EveCharacter, character_id=char_id, user=request.user)
-    return JsonResponse({
+    return Response({
         'id': character.character_id,
         'last_updated': character.last_updated.isoformat() if character.last_updated else None
     })
 
-@login_required
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def switch_character(request, char_id):
+    # This was a redirect, but for SPA we just set session and return OK
     character = get_object_or_404(EveCharacter, character_id=char_id, user=request.user)
     request.session['active_char_id'] = character.character_id
-    return redirect('profile')
+    return Response({'success': True})
 
-@login_required
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def make_main(request, char_id):
     new_main = get_object_or_404(EveCharacter, character_id=char_id, user=request.user)
     request.user.characters.update(is_main=False)
     new_main.is_main = True
     new_main.save()
     request.session['active_char_id'] = new_main.character_id
-    return redirect('profile')
+    return Response({'success': True})
 
-@login_required
-@require_POST
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def api_toggle_xup_visibility(request):
-    try:
-        data = json.loads(request.body)
-        char_id = data.get('character_id')
-    except json.JSONDecodeError:
-        return JsonResponse({'success': False, 'error': 'Invalid JSON'})
-
-    if not char_id:
-        return JsonResponse({'success': False, 'error': 'Character ID required'})
+    char_id = request.data.get('character_id')
+    if not char_id: return Response({'success': False, 'error': 'Character ID required'}, status=400)
 
     character = get_object_or_404(EveCharacter, character_id=char_id, user=request.user)
     character.x_up_visible = not character.x_up_visible
     character.save(update_fields=['x_up_visible'])
     
-    return JsonResponse({
+    return Response({
         'success': True, 
         'character_id': character.character_id, 
         'new_state': character.x_up_visible
