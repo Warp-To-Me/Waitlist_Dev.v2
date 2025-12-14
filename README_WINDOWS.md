@@ -78,3 +78,21 @@ The Django backend expects the React app to be built into `static/dist`.
 *   **WebSocket Errors:**
     *   Ensure Redis is running (`redis-cli ping` should return `PONG`).
     *   Check console logs for connection refusals to `ws://localhost:8000`.
+
+## Running on Custom Domain (e.g., https://wl.nandn.cc)
+
+To run the application on a custom domain with SSL:
+
+1.  **Environment Variables (`.env`)**:
+    *   Update `CSRF_TRUSTED_ORIGINS` to include your domain (e.g., `https://wl.nandn.cc`).
+    *   Update `EVE_CALLBACK_URL` to match your domain (e.g., `https://wl.nandn.cc/auth/sso/callback/`).
+
+2.  **Frontend Development (Vite)**:
+    *   The `vite.config.js` has been configured to support HMR over SSL.
+    *   Run `npm run dev` and ensure your reverse proxy (Nginx/IIS) routes `/` to the Vite port (5173) if you are in development mode, OR...
+
+3.  **Production Mode (Recommended)**:
+    *   Run `npm run build` in `frontend/`.
+    *   Run the Django server.
+    *   Configure your reverse proxy (Nginx) to forward requests to Django (Port 8000).
+    *   Django will serve the compiled React app.
