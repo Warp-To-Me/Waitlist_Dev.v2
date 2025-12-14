@@ -1,18 +1,23 @@
-import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { Shield, Crosshair, Zap, Anchor, Clock } from 'lucide-react';
+import React, { useEffect, useState, useRef } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { Shield, Crosshair, Zap, Anchor, Clock, Settings, Scroll, Plus } from 'lucide-react';
+import clsx from 'clsx';
 
 const FleetDashboard = () => {
     const { token } = useParams();
     const [fleetData, setFleetData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [xupModalOpen, setXupModalOpen] = useState(false);
+    const navigate = useNavigate();
 
+    // Polling setup
     useEffect(() => {
         const fetchFleet = () => {
             fetch(`/api/fleet/${token}/dashboard/`)
                 .then(res => {
-                    if (!res.ok) throw new Error("Failed to load fleet");
+                    if (res.status === 404) throw new Error("Fleet not found or you do not have access.");
+                    if (!res.ok) throw new Error("Failed to load fleet data.");
                     return res.json();
                 })
                 .then(data => {
@@ -20,129 +25,227 @@ const FleetDashboard = () => {
                     setLoading(false);
                 })
                 .catch(err => {
+                    console.error(err);
                     setError(err.message);
                     setLoading(false);
                 });
         };
 
         fetchFleet();
-        // Poll every 5 seconds for now (simulating real-time)
-        const interval = setInterval(fetchFleet, 5000);
+        const interval = setInterval(fetchFleet, 3000); // 3s polling
         return () => clearInterval(interval);
     }, [token]);
 
-    if (loading) return <div className="p-10 text-center animate-pulse">Establishing Uplink...</div>;
-    if (error) return <div className="p-10 text-center text-red-500">Signal Lost: {error}</div>;
+    const handleXup = (hullId) => {
+        const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+        fetch(`/api/fleet/${token}/xup/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+            body: JSON.stringify({ hull_id: hullId }) // Assuming simplified XUP for now
+        }).then(res => res.json()).then(d => {
+            if (d.success) setXupModalOpen(false); else alert(d.error);
+        });
+    };
 
-    const { fleet, columns, permissions } = fleetData;
+    if (loading) return (
+        <div className="absolute inset-0 flex items-center justify-center bg-dark-950">
+            <div className="text-center animate-pulse">
+                <div className="text-4xl mb-4">📡</div>
+                <div className="text-slate-400 font-mono text-sm">Establishing Uplink...</div>
+            </div>
+        </div>
+    );
+
+    if (error) return (
+        <div className="absolute inset-0 flex items-center justify-center bg-dark-950">
+            <div className="text-center">
+                <div className="text-4xl mb-4 text-red-500">⚠</div>
+                <h2 className="text-xl font-bold text-white">Connection Lost</h2>
+                <p className="text-slate-500 mt-2">{error}</p>
+                <Link to="/" className="btn-secondary mt-6 inline-flex">Return to Landing</Link>
+            </div>
+        </div>
+    );
+
+    const { fleet, columns, permissions, user_status } = fleetData;
 
     return (
-        <div className="flex flex-col h-full overflow-hidden">
-            {/* Header */}
-            <div className="bg-dark-900 border-b border-white/5 p-4 flex justify-between items-center shadow-md z-10">
-                <div>
-                    <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-                        {fleet.type} 
-                        <span className={`badge ${fleet.is_active ? 'badge-green' : 'badge-red'}`}>
-                            {fleet.is_active ? 'ACTIVE' : 'CLOSED'}
-                        </span>
-                    </h1>
-                    <div className="text-sm text-slate-400 mt-1 flex items-center gap-4">
-                        <span>FC: <strong className="text-white">{fleet.commander_name}</strong></span>
-                        <span className="font-mono text-xs opacity-50">UID: {fleet.token}</span>
+        <div className="absolute inset-0 flex flex-col overflow-hidden bg-dark-950 opacity-0 animate-fade-in" style={{opacity: 1}}> {/* Forced opacity 1 for React rendering */}
+
+            {/* Header Bar */}
+            <div className="glass-header p-4 relative flex justify-center items-center z-20 shrink-0 min-h-[4rem]">
+
+                {/* Left Actions (FC) */}
+                {permissions.is_fc && (
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 hidden md:flex items-center gap-2">
+                        <Link to={`/management/fleets/${token}/history`} className="btn-secondary py-1.5 px-3 text-xs gap-2 shadow-lg">
+                            <Scroll size={14} /> History Log
+                        </Link>
+                        <Link to={`/management/fleets/${token}/settings`} className="btn-secondary py-1.5 px-3 text-xs gap-2 shadow-lg border-brand-500/30 text-brand-400 hover:bg-brand-500/10">
+                            <Settings size={14} /> Manage Fleet
+                        </Link>
+                    </div>
+                )}
+
+                {/* Center Title */}
+                <div className="flex items-center gap-6">
+                    <div className="bg-brand-500/10 p-2.5 rounded-lg border border-brand-500/20 hidden sm:block shadow-[0_0_15px_rgba(245,158,11,0.2)]">
+                        <span className="text-2xl">🛸</span>
+                    </div>
+                    <div className="text-center">
+                        <h1 className="heading-1 leading-none text-2xl md:text-3xl">{fleet.name}</h1>
+                        <p className="text-xs text-slate-400 mt-2 flex justify-center items-center gap-3 font-mono">
+                            <span className="label-text mb-0 text-[10px]">FC</span>
+                            <span className="text-white font-bold">{fleet.commander_name}</span>
+
+                            {fleet.esi_fleet_id && (
+                                <>
+                                    <span className="text-slate-600">|</span>
+                                    <span className="label-text mb-0 text-[10px]">ID</span>
+                                    <span
+                                        className="text-brand-400 font-bold cursor-copy hover:text-white transition"
+                                        title="Copy Fleet ID"
+                                        onClick={() => navigator.clipboard.writeText(fleet.esi_fleet_id)}
+                                    >
+                                        {fleet.esi_fleet_id}
+                                    </span>
+                                </>
+                            )}
+
+                            {/* Status Indicator */}
+                            <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse transition-all duration-500" title="Live"></span>
+                        </p>
                     </div>
                 </div>
-                
-                <div className="flex items-center gap-3">
-                    {/* Action Buttons */}
-                    <button className="btn-primary" onClick={() => alert("X-Up Modal Placeholder")}>
-                        <Zap size={18} /> X-Up
+
+                {/* Right Actions */}
+                <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                    <button
+                        onClick={() => setXupModalOpen(true)}
+                        className="btn-primary py-2 px-6 shadow-brand-500/20 flex items-center gap-2"
+                    >
+                        <Plus size={18} /> <span className="hidden md:inline">X-UP</span>
                     </button>
+                </div>
+            </div>
+
+            {/* Main Board */}
+            <div className="flex-grow overflow-x-auto overflow-y-hidden p-4 custom-scrollbar relative">
+                <div className="flex gap-2 h-full min-w-max mx-auto w-fit">
+                    <Column title="X-UP" color="amber" entries={columns.pending} icon={Clock} isPending={true} />
+                    <Column title="LOGI" color="green" entries={columns.logi} icon={Shield} />
+                    <Column title="DPS" color="green" entries={columns.dps} icon={Crosshair} />
+                    <Column title="SNIPER" color="green" entries={columns.sniper} icon={Zap} />
+                    <Column title="OTHER" color="green" entries={columns.other} icon={Anchor} />
+
+                    {/* Fleet Overview (Stub for now, requires complex ESI logic) */}
                     {permissions.is_fc && (
-                        <button className="btn-secondary">
-                            <SettingsIcon /> Settings
-                        </button>
+                        <div className="w-80 flex flex-col glass-panel overflow-hidden h-full ml-2 border-white/10 shadow-xl bg-slate-900/90">
+                            <div className="bg-blue-600/10 border-b border-blue-500/20 p-3 flex justify-between items-center">
+                                <h3 className="label-text text-blue-400 mb-0">Fleet Overview</h3>
+                                <div className="flex items-center gap-2">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+                                    <span className="text-[10px] text-slate-500 font-mono">Syncing...</span>
+                                </div>
+                            </div>
+                            <div className="flex-grow overflow-y-auto p-2 custom-scrollbar flex items-center justify-center text-slate-500 opacity-50 flex-col gap-2">
+                                <div className="w-6 h-6 border-2 border-slate-500 border-t-transparent rounded-full animate-spin"></div>
+                                <p className="text-xs">Waiting for stream...</p>
+                            </div>
+                        </div>
                     )}
                 </div>
             </div>
 
-            {/* Columns Container */}
-            <div className="flex-1 overflow-x-auto overflow-y-hidden p-4">
-                <div className="flex h-full gap-4 min-w-[1200px]">
-                     <WaitlistColumn title="Pending" entries={columns.pending} icon={Clock} color="slate" />
-                     <WaitlistColumn title="Logistics" entries={columns.logi} icon={Shield} color="green" />
-                     <WaitlistColumn title="DPS" entries={columns.dps} icon={Crosshair} color="red" />
-                     <WaitlistColumn title="Specialist" entries={columns.sniper} icon={Zap} color="brand" />
-                     <WaitlistColumn title="Other" entries={columns.other} icon={Anchor} color="slate" />
+            {/* X-UP Modal (Simple Placeholder) */}
+            {xupModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-dark-950/80 backdrop-blur-sm" onClick={() => setXupModalOpen(false)}>
+                    <div className="bg-slate-900 border border-white/10 rounded-xl shadow-2xl p-6 max-w-md w-full" onClick={e => e.stopPropagation()}>
+                        <h2 className="text-xl font-bold text-white mb-4">Join Waitlist</h2>
+                        <p className="text-slate-400 text-sm mb-6">Select your ship to X-up for this fleet.</p>
+                        <div className="space-y-2">
+                            {/* In a real implementation, this would fetch available ships from the backend */}
+                            <button onClick={() => handleXup(1)} className="w-full btn-secondary justify-start">Use Active Ship</button>
+                        </div>
+                        <div className="mt-6 flex justify-end">
+                            <button onClick={() => setXupModalOpen(false)} className="btn-ghost">Cancel</button>
+                        </div>
+                    </div>
                 </div>
-            </div>
+            )}
         </div>
     );
 };
 
-const WaitlistColumn = ({ title, entries, icon: Icon, color }) => {
-    const colorStyles = {
-        slate: 'border-slate-500/20 bg-slate-900/20',
-        green: 'border-green-500/20 bg-green-900/10',
-        red: 'border-red-500/20 bg-red-900/10',
-        brand: 'border-brand-500/20 bg-brand-900/10',
-    }[color];
+const Column = ({ title, color, entries, icon: Icon, isPending }) => {
+    // Map color props to Tailwind classes matching templates
+    const headerColor = {
+        amber: 'bg-amber-600/10 border-amber-500/20 text-amber-400',
+        green: 'bg-green-600/10 border-green-500/20 text-green-400',
+        red: 'bg-red-600/10 border-red-500/20 text-red-400',
+    }[color] || 'bg-slate-600/10 border-slate-500/20 text-slate-400';
 
     return (
-        <div className={`flex-1 flex flex-col rounded-xl border ${colorStyles} overflow-hidden backdrop-blur-sm`}>
+        <div className="w-80 flex flex-col glass-panel overflow-hidden h-full shadow-xl bg-slate-900/80 backdrop-blur-sm transition-all duration-300">
             {/* Header */}
-            <div className="p-3 border-b border-white/5 flex justify-between items-center bg-white/5">
-                <div className="flex items-center gap-2 font-bold text-slate-200 uppercase tracking-wide text-sm">
-                    <Icon size={16} /> {title}
+            <div className={`p-3 border-b flex justify-between items-center ${headerColor}`}>
+                <div className="flex items-center gap-2">
+                    <Icon size={14} />
+                    <h3 className="text-xs font-bold uppercase tracking-widest">{title}</h3>
                 </div>
-                <div className="badge badge-slate">{entries.length}</div>
+                <span className="badge badge-slate bg-black/20 border-black/10">{entries.length}</span>
             </div>
 
             {/* List */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-2">
-                 {entries.map(entry => (
-                     <PilotCard key={entry.id} entry={entry} />
-                 ))}
+            <div className="flex-grow overflow-y-auto p-2 custom-scrollbar space-y-1.5 relative">
+                {entries.map(entry => (
+                    <EntryCard key={entry.id} entry={entry} isPending={isPending} />
+                ))}
+                {entries.length === 0 && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center opacity-20 pointer-events-none">
+                        <Icon size={48} className="text-slate-500 mb-2" />
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Empty</span>
+                    </div>
+                )}
             </div>
         </div>
     );
 };
 
-const PilotCard = ({ entry }) => {
+const EntryCard = ({ entry, isPending }) => {
     return (
-        <div className="bg-dark-900/80 p-3 rounded border border-white/5 hover:border-brand-500/50 transition group relative">
-             <div className="flex justify-between items-start mb-1">
-                 <div className="font-bold text-white text-sm truncate">{entry.character.name}</div>
-                 <div className="flex gap-1">
-                     {entry.other_categories.map(cat => (
-                         <div key={cat} className={`w-2 h-2 rounded-full bg-${getCategoryColor(cat)}-500`} title={cat} />
-                     ))}
-                 </div>
-             </div>
-             
-             <div className="text-xs text-slate-400 mb-2 truncate">
-                 {entry.hull.name}
-             </div>
+        <div className="glass-panel p-1 relative group hover:border-brand-500/50 hover:bg-slate-800/60 transition-all duration-300 mb-0.5 cursor-pointer border border-white/5 shadow-lg shadow-black/20">
+            <div className="flex gap-2">
+                {/* Portrait */}
+                <div className="relative shrink-0">
+                    <img src={`https://images.evetech.net/characters/${entry.character.id}/portrait?size=64`} className="w-10 h-10 rounded border border-white/10 bg-black" alt="" />
+                    {/* Time Badge */}
+                    <div className="absolute -bottom-1 -right-1 bg-slate-900 text-[9px] text-slate-400 px-1 rounded border border-slate-700 font-mono shadow-sm">
+                        {new Date(entry.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
+                    </div>
+                </div>
 
-             <div className="flex justify-between items-center text-[10px] text-slate-500 font-mono">
-                <span>{entry.stats.hull_hours}h in Hull</span>
-                <span>{new Date(entry.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
-             </div>
+                {/* Content */}
+                <div className="flex-grow min-w-0 flex flex-col justify-center">
+                    <div className="flex justify-between items-start">
+                        <span className="text-xs font-bold text-slate-200 truncate leading-tight group-hover:text-white transition">
+                            {entry.character.name}
+                        </span>
+                        {/* Tag Indicators */}
+                        <div className="flex gap-0.5">
+                            {entry.tags?.map(tag => (
+                                <div key={tag} className="w-1.5 h-1.5 rounded-full bg-blue-500" title={tag}></div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="text-[10px] text-slate-400 truncate flex items-center gap-1 mt-0.5">
+                        <span className="text-slate-500">🚀</span> {entry.hull.name}
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };
-
-const getCategoryColor = (cat) => {
-    switch(cat) {
-        case 'logi': return 'green';
-        case 'dps': return 'red';
-        case 'sniper': return 'yellow'; // brand
-        default: return 'slate';
-    }
-}
-
-const SettingsIcon = () => (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-);
 
 export default FleetDashboard;
