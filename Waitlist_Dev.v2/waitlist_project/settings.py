@@ -40,6 +40,9 @@ INSTALLED_APPS = [
     'channels', # REQUIRED: Core ASGI/WebSocket support
     #'django_apscheduler',
     
+    # Third party
+    'rest_framework',
+
     # Local Apps
     'core',
     'esi_auth',
@@ -113,7 +116,7 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

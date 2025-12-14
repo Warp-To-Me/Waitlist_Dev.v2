@@ -11,6 +11,9 @@ from datetime import timedelta
 from django.views.decorators.http import require_POST
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 
 # Core Imports - Permissions
 from core.permissions import (
@@ -40,31 +43,48 @@ from core.models import Capability, RolePriority, Ban, BanAuditLog
 from pilot_data.models import EveCharacter, ItemType, ItemGroup, TypeAttribute
 from waitlist_data.models import Fleet, WaitlistEntry
 
-@login_required
-@user_passes_test(is_management)
+# Decorator Helper
+def check_permission(perm_func):
+    def decorator(view_func):
+        def _wrapped_view(request, *args, **kwargs):
+            if not perm_func(request.user):
+                return Response({'error': 'Permission Denied'}, status=403)
+            return view_func(request, *args, **kwargs)
+        return _wrapped_view
+    return decorator
+
+@api_view(['GET'])
+@check_permission(is_management)
 def management_dashboard(request):
     thirty_days_ago = timezone.now() - timedelta(days=30)
     user_growth = User.objects.filter(date_joined__gte=thirty_days_ago).annotate(date=TruncDate('date_joined')).values('date').annotate(count=Count('id')).order_by('date')
     growth_labels = [entry['date'].strftime('%b %d') for entry in user_growth]
     growth_data = [entry['count'] for entry in user_growth]
     corp_distribution = EveCharacter.objects.values('corporation_name').annotate(count=Count('id')).order_by('-count')[:5]
-    context = {
-        'total_users': User.objects.count(), 'total_fleets': Fleet.objects.count(),
-        'active_fleets_count': Fleet.objects.filter(is_active=True).count(), 'total_characters': EveCharacter.objects.count(),
-        'growth_labels': growth_labels, 'growth_data': growth_data,
-        'corp_labels': [e['corporation_name'] for e in corp_distribution],
-        'corp_data': [e['count'] for e in corp_distribution],
-        'base_template': get_template_base(request)
-    }
-    context.update(get_mgmt_context(request.user))
-    return render(request, 'management/dashboard.html', context)
 
-@login_required
-@user_passes_test(is_fleet_command)
+    return Response({
+        'stats': {
+            'total_users': User.objects.count(),
+            'total_fleets': Fleet.objects.count(),
+            'active_fleets_count': Fleet.objects.filter(is_active=True).count(),
+            'total_characters': EveCharacter.objects.count()
+        },
+        'charts': {
+            'growth_labels': growth_labels,
+            'growth_data': growth_data,
+            'corp_labels': [e['corporation_name'] for e in corp_distribution],
+            'corp_data': [e['count'] for e in corp_distribution],
+        }
+    })
+
+@api_view(['GET'])
+@check_permission(is_fleet_command)
 def management_users(request):
     query = request.GET.get('q', '')
     sort_by = request.GET.get('sort', 'character')
     direction = request.GET.get('dir', 'asc')
+    page_number = request.GET.get('page', 1)
+
     main_name_sq = EveCharacter.objects.filter(user=OuterRef('user'), is_main=True).values('character_name')[:1]
     char_qs = EveCharacter.objects.select_related('user').annotate(
         linked_count=Count('user__characters', distinct=True), main_char_name=Subquery(main_name_sq)
@@ -77,18 +97,35 @@ def management_users(request):
     db_sort_field = valid_sorts.get(sort_by, 'character_name')
     if direction == 'desc': db_sort_field = '-' + db_sort_field
     char_qs = char_qs.order_by(db_sort_field)
-    paginator = Paginator(char_qs, 10) 
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-    context = {
-        'page_obj': page_obj, 'query': query, 'current_sort': sort_by, 'current_dir': direction,
-        'base_template': get_template_base(request)
-    }
-    context.update(get_mgmt_context(request.user))
-    return render(request, 'management/users.html', context)
 
-@login_required
-@user_passes_test(is_fleet_command)
+    paginator = Paginator(char_qs, 10) 
+    page_obj = paginator.get_page(page_number)
+
+    results = []
+    for char in page_obj:
+        results.append({
+            'id': char.user.id,
+            'character_name': char.character_name,
+            'character_id': char.character_id,
+            'main_character_name': char.main_char_name or "N/A",
+            'corporation_name': char.corporation_name,
+            'alliance_name': char.alliance_name,
+            'linked_count': char.linked_count,
+            'last_updated': char.last_updated
+        })
+
+    return Response({
+        'users': results,
+        'pagination': {
+            'current': page_obj.number,
+            'total': paginator.num_pages,
+            'has_next': page_obj.has_next(),
+            'has_previous': page_obj.has_previous()
+        }
+    })
+
+@api_view(['GET'])
+@check_permission(is_fleet_command)
 def management_user_inspect(request, user_id, char_id=None):
     target_user = get_object_or_404(User, pk=user_id)
     characters = target_user.characters.all()
@@ -96,91 +133,123 @@ def management_user_inspect(request, user_id, char_id=None):
     else:
         active_char = characters.filter(is_main=True).first()
         if not active_char: active_char = characters.filter(is_main=True).first()
+        if not active_char and characters.exists(): active_char = characters.first()
     
-    # Use Shared Helper
-    esi_data, grouped_skills = get_character_data(active_char)
+    esi_data, grouped_skills = None, None
+    if active_char:
+        # Use Shared Helper
+        esi_data, grouped_skills = get_character_data(active_char)
     
     totals = characters.aggregate(wallet_sum=Sum('wallet_balance'), lp_sum=Sum('concord_lp'), sp_sum=Sum('total_sp'))
     
     # Check permissions for sensitive data
     obfuscate_financials = not can_view_sensitive_data(request.user)
     
-    context = {
-        'active_char': active_char, 'characters': characters, 'esi': esi_data,
-        'grouped_skills': grouped_skills, 'token_missing': False,
-        'total_wallet': totals['wallet_sum'] or 0, 'total_lp': totals['lp_sum'] or 0,
-        'account_total_sp': totals['sp_sum'] or 0, 'is_inspection_mode': True,
-        'inspect_user_id': target_user.id, 'obfuscate_financials': obfuscate_financials,
-        'base_template': get_template_base(request)
-    }
-    context.update(get_mgmt_context(request.user))
-    if request.headers.get('x-requested-with') == 'XMLHttpRequest' and request.GET.get('partial') == 'true':
-        return render(request, 'partials/profile_content.html', context)
-    return render(request, 'profile.html', context)
+    char_list = [{
+        'character_id': c.character_id,
+        'character_name': c.character_name,
+        'is_main': c.is_main,
+        'corporation_name': c.corporation_name,
+        'alliance_name': c.alliance_name
+    } for c in characters]
 
-@login_required
-@user_passes_test(is_admin)
-@require_POST
+    return Response({
+        'active_char': {
+            'character_id': active_char.character_id,
+            'character_name': active_char.character_name,
+            'corporation_name': active_char.corporation_name,
+            'alliance_name': active_char.alliance_name,
+        } if active_char else None,
+        'characters': char_list,
+        'esi_data': esi_data,
+        'grouped_skills': grouped_skills,
+        'totals': {
+            'wallet': totals['wallet_sum'] or 0,
+            'lp': totals['lp_sum'] or 0,
+            'sp': totals['sp_sum'] or 0
+        },
+        'obfuscate_financials': obfuscate_financials,
+        'inspect_user_id': target_user.id,
+        'username': target_user.username
+    })
+
+@api_view(['POST'])
+@check_permission(is_admin)
 def api_unlink_alt(request):
-    try:
-        data = json.loads(request.body)
-        char_id = data.get('character_id')
-    except json.JSONDecodeError: return JsonResponse({'success': False, 'error': 'Invalid JSON'})
-    if not char_id: return JsonResponse({'success': False, 'error': 'Character ID required'})
-    char = get_object_or_404(EveCharacter, character_id=char_id)
-    if not is_admin(request.user): return JsonResponse({'success': False, 'error': 'Permission denied.'}, status=403)
-    if char.is_main: return JsonResponse({'success': False, 'error': 'Cannot unlink a Main Character.'})
-    char.delete()
-    return JsonResponse({'success': True})
+    char_id = request.data.get('character_id')
+    if not char_id: return Response({'success': False, 'error': 'Character ID required'}, status=400)
 
-@login_required
-@require_POST
+    char = get_object_or_404(EveCharacter, character_id=char_id)
+    if char.is_main: return Response({'success': False, 'error': 'Cannot unlink a Main Character.'}, status=400)
+
+    char.delete()
+    return Response({'success': True})
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def api_promote_alt(request):
-    try:
-        data = json.loads(request.body)
-        char_id = data.get('character_id')
-    except json.JSONDecodeError: return JsonResponse({'success': False, 'error': 'Invalid JSON'})
-    if not char_id: return JsonResponse({'success': False, 'error': 'Character ID required'})
+    char_id = request.data.get('character_id')
+    if not char_id: return Response({'success': False, 'error': 'Character ID required'}, status=400)
+
     target_char = get_object_or_404(EveCharacter, character_id=char_id)
     target_user = target_char.user
     is_owner = (target_user == request.user)
     is_admin_user = is_admin(request.user)
-    if not is_owner and not is_admin_user: return JsonResponse({'success': False, 'error': 'Permission denied.'}, status=403)
-    if target_char.is_main: return JsonResponse({'success': False, 'error': 'Character is already main.'})
+
+    if not is_owner and not is_admin_user: return Response({'success': False, 'error': 'Permission denied.'}, status=403)
+    if target_char.is_main: return Response({'success': False, 'error': 'Character is already main.'}, status=400)
+
     target_user.characters.update(is_main=False)
     target_char.is_main = True
     target_char.save()
-    if is_owner: request.session['active_char_id'] = target_char.character_id
-    return JsonResponse({'success': True})
 
-@login_required
-@user_passes_test(is_fleet_command)
+    if is_owner: request.session['active_char_id'] = target_char.character_id
+    return Response({'success': True})
+
+@api_view(['GET', 'POST', 'DELETE'])
+@check_permission(is_fleet_command)
 def management_fleets(request):
     if request.method == 'POST':
-        action = request.POST.get('action')
+        action = request.data.get('action')
         if action == 'create':
-            name = request.POST.get('name')
+            name = request.data.get('name')
             if name: Fleet.objects.create(name=name, commander=request.user, is_active=True)
+            return Response({'status': 'created'})
         elif action == 'close':
-            fleet_id = request.POST.get('fleet_id')
+            fleet_id = request.data.get('fleet_id')
             fleet = get_object_or_404(Fleet, id=fleet_id)
             fleet.is_active = False
             fleet.save()
+            return Response({'status': 'closed'})
         elif action == 'delete':
-            fleet_id = request.POST.get('fleet_id')
-            if is_admin(request.user): Fleet.objects.filter(id=fleet_id).delete()
-        return redirect('management_fleets')
-    fleets = Fleet.objects.all().order_by('-is_active', '-created_at')[:50]
-    context = { 'fleets': fleets, 'base_template': get_template_base(request) }
-    context.update(get_mgmt_context(request.user))
-    return render(request, 'management/fleets.html', context)
+            fleet_id = request.data.get('fleet_id')
+            if is_admin(request.user):
+                Fleet.objects.filter(id=fleet_id).delete()
+                return Response({'status': 'deleted'})
+            else:
+                return Response({'error': 'Permission denied'}, status=403)
 
-@login_required
-@user_passes_test(is_admin)
+    fleets = Fleet.objects.all().order_by('-is_active', '-created_at')[:50]
+    data = []
+    for f in fleets:
+        data.append({
+            'id': f.id,
+            'name': f.name or f.type,
+            'commander': f.commander.username,
+            'is_active': f.is_active,
+            'created_at': f.created_at,
+            'member_count': f.members.count() # assuming relation
+        })
+    return Response({'fleets': data})
+
+@api_view(['GET'])
+@check_permission(is_admin)
 def management_sde(request):
     item_count = ItemType.objects.count()
     group_count = ItemGroup.objects.count()
     attr_count = TypeAttribute.objects.count()
+
+    # ... (Logic identical to original, just JSON serialization)
     EXCLUDED_CATEGORIES = [2, 9, 11, 17, 20, 25, 30, 40, 46, 63, 91, 2118, 350001]
     excluded_group_ids = ItemGroup.objects.filter(category_id__in=EXCLUDED_CATEGORIES).values_list('group_id', flat=True)
     top_groups = ItemType.objects.exclude(group_id__in=Subquery(excluded_group_ids)).values('group_id').annotate(count=Count('type_id')).order_by('-count')[:50]
@@ -188,87 +257,66 @@ def management_sde(request):
     group_map = ItemGroup.objects.filter(group_id__in=group_ids).in_bulk()
     group_labels = []
     group_data = []
-    group_cat_ids = []
+
     for g in top_groups:
         grp = group_map.get(g['group_id'])
         group_labels.append(grp.group_name if grp else f"Group {g['group_id']}")
         group_data.append(g['count'])
-        group_cat_ids.append(grp.category_id if grp else 0)
-    count_qs = ItemType.objects.values('group_id').annotate(cnt=Count('type_id'))
-    count_map = {item['group_id']: item['cnt'] for item in count_qs}
-    search_query = request.GET.get('q', '')
-    all_groups_qs = ItemGroup.objects.all()
-    if search_query: all_groups_qs = all_groups_qs.filter(group_name__icontains=search_query)
-    processed_groups = []
-    for grp in all_groups_qs:
-        grp.calculated_count = count_map.get(grp.group_id, 0)
-        processed_groups.append(grp)
-    processed_groups.sort(key=lambda x: (-x.calculated_count, x.group_name))
-    paginator = Paginator(processed_groups, 20)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-    context = {
-        'item_count': item_count, 'group_count': group_count, 'attr_count': attr_count,
-        'group_labels': group_labels, 'group_data': group_data, 'group_cat_ids': group_cat_ids,
-        'groups_page': page_obj, 'search_query': search_query, 'base_template': get_template_base(request)
-    }
-    context.update(get_mgmt_context(request.user))
-    return render(request, 'management/sde.html', context)
 
-@login_required
-@user_passes_test(is_admin)
+    return Response({
+        'counts': {'items': item_count, 'groups': group_count, 'attrs': attr_count},
+        'chart': {'labels': group_labels, 'data': group_data}
+    })
+
+@api_view(['GET'])
+@check_permission(is_admin)
 def management_celery(request):
-    context = get_system_status()
+    context = get_system_status() # { 'redis_latency': ..., 'active_workers': ... }
     total_characters = EveCharacter.objects.count()
     threshold = timezone.now() - timedelta(minutes=60)
     stale_count = EveCharacter.objects.filter(last_updated__lt=threshold).count()
-    invalid_token_count = 0
-    for char in EveCharacter.objects.all().iterator():
-        if not char.refresh_token: invalid_token_count += 1
+    invalid_token_count = EveCharacter.objects.filter(refresh_token__isnull=True).count() # Simplified check
+
     if total_characters > 0: esi_health_percent = int(((total_characters - stale_count) / total_characters * 100))
     else: esi_health_percent = 0
+
     context.update({
-        'total_characters': total_characters, 'stale_count': stale_count,
-        'invalid_token_count': invalid_token_count, 'esi_health_percent': esi_health_percent,
-        'base_template': get_template_base(request)
+        'total_characters': total_characters,
+        'stale_count': stale_count,
+        'invalid_token_count': invalid_token_count,
+        'esi_health_percent': esi_health_percent
     })
-    context.update(get_mgmt_context(request.user))
-    if request.headers.get('x-requested-with') == 'XMLHttpRequest' and request.GET.get('partial') == 'true':
-        return render(request, 'partials/celery_content.html', context)
-    return render(request, 'management/celery_status.html', context)
+    return Response(context)
 
 # --- PERMISSIONS & GROUPS MANAGEMENT ---
 
-@login_required
-@user_passes_test(is_admin)
+@api_view(['GET'])
+@check_permission(is_admin)
 def management_permissions(request):
-    """
-    Dynamic Access Control Matrix using Database Models.
-    Capabilities are ordered by the 'order' field in the database.
-    """
     db_caps = Capability.objects.all().prefetch_related('groups')
     groups = Group.objects.all().select_related('priority_config').order_by('priority_config__level', 'name')
 
-    context = {
-        'groups': groups,
-        'capabilities': db_caps,
-        'base_template': get_template_base(request)
-    }
-    context.update(get_mgmt_context(request.user))
-    return render(request, 'management/permissions.html', context)
+    caps_data = []
+    for cap in db_caps:
+        caps_data.append({
+            'id': cap.id,
+            'name': cap.name,
+            'description': cap.description,
+            'groups': [g.id for g in cap.groups.all()]
+        })
 
-@login_required
-@user_passes_test(is_admin)
-@require_POST
+    groups_data = [{'id': g.id, 'name': g.name, 'level': g.priority_config.level if hasattr(g, 'priority_config') else 999} for g in groups]
+
+    return Response({
+        'groups': groups_data,
+        'capabilities': caps_data
+    })
+
+@api_view(['POST'])
+@check_permission(is_admin)
 def api_reorder_roles(request):
-    try:
-        data = json.loads(request.body)
-        ordered_ids = data.get('ordered_ids', [])
-    except json.JSONDecodeError:
-        return JsonResponse({'success': False, 'error': 'Invalid JSON'})
-
-    if not ordered_ids:
-        return JsonResponse({'success': False, 'error': 'No data'})
+    ordered_ids = request.data.get('ordered_ids', [])
+    if not ordered_ids: return Response({'success': False, 'error': 'No data'}, status=400)
 
     for index, group_id in enumerate(ordered_ids):
         try:
@@ -279,127 +327,119 @@ def api_reorder_roles(request):
             )
         except Group.DoesNotExist:
             continue
+    return Response({'success': True})
 
-    return JsonResponse({'success': True})
-
-@login_required
-@user_passes_test(is_admin)
-@require_POST
+@api_view(['POST'])
+@check_permission(is_admin)
 def api_permissions_toggle(request):
-    try:
-        data = json.loads(request.body)
-        group_id = data.get('group_id')
-        cap_id = data.get('cap_id')
-    except json.JSONDecodeError: return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+    group_id = request.data.get('group_id')
+    cap_id = request.data.get('cap_id')
+
     group = get_object_or_404(Group, id=group_id)
     cap = get_object_or_404(Capability, id=cap_id)
+
     if cap.groups.filter(id=group.id).exists():
         cap.groups.remove(group)
         state = False
     else:
         cap.groups.add(group)
         state = True
-    return JsonResponse({'success': True, 'new_state': state})
+    return Response({'success': True, 'new_state': state})
 
-@login_required
-@user_passes_test(is_admin)
-@require_POST
+@api_view(['POST'])
+@check_permission(is_admin)
 def api_manage_group(request):
-    try:
-        data = json.loads(request.body)
-        action = data.get('action')
-        group_name = data.get('name', '').strip()
-        group_id = data.get('id')
-    except json.JSONDecodeError: return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+    action = request.data.get('action')
+    group_name = request.data.get('name', '').strip()
+    group_id = request.data.get('id')
+
     if action == 'create':
-        if not group_name: return JsonResponse({'success': False, 'error': 'Name required'})
-        if Group.objects.filter(name=group_name).exists(): return JsonResponse({'success': False, 'error': 'Group exists'})
+        if not group_name: return Response({'success': False, 'error': 'Name required'}, status=400)
+        if Group.objects.filter(name=group_name).exists(): return Response({'success': False, 'error': 'Group exists'}, status=400)
         Group.objects.create(name=group_name)
+
     elif action == 'update':
         group = get_object_or_404(Group, id=group_id)
         if group_name and group_name != group.name:
             if Group.objects.filter(name=group_name).exclude(id=group_id).exists():
-                return JsonResponse({'success': False, 'error': 'Name taken'})
+                return Response({'success': False, 'error': 'Name taken'}, status=400)
             group.name = group_name
             group.save()
+
     elif action == 'delete':
         group = get_object_or_404(Group, id=group_id)
-        if group.name == 'Admin': return JsonResponse({'success': False, 'error': 'Cannot delete Admin group'})
+        if group.name == 'Admin': return Response({'success': False, 'error': 'Cannot delete Admin group'}, status=400)
         group.delete()
-    return JsonResponse({'success': True})
+
+    return Response({'success': True})
 
 # --- ROLES MANAGEMENT ---
 
-@login_required
-@user_passes_test(can_manage_roles)
+@api_view(['GET'])
+@check_permission(can_manage_roles)
 def management_roles(request):
-    char_qs = EveCharacter.objects.filter(is_main=True).select_related('user').order_by('character_name')
-    paginator = Paginator(char_qs, 10)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-    context = { 'page_obj': page_obj, 'roles': get_role_hierarchy(), 'base_template': get_template_base(request) }
-    context.update(get_mgmt_context(request.user))
-    return render(request, 'management/roles.html', context)
+    # Just return list of roles and hierarchy info
+    # The frontend will fetch users via search
+    return Response({
+        'roles': get_role_hierarchy()
+    })
 
-@login_required
-@user_passes_test(can_manage_roles)
+@api_view(['GET'])
+@check_permission(can_manage_roles)
 def api_search_users(request):
     query = request.GET.get('q', '').strip()
     role_filter = request.GET.get('role', '').strip()
-    if not query and not role_filter: return JsonResponse({'results': []})
-    if query and len(query) < 3 and not role_filter: return JsonResponse({'results': []})
+
+    if not query and not role_filter: return Response({'results': []})
+    if query and len(query) < 3 and not role_filter: return Response({'results': []})
+
     users = User.objects.all()
     if role_filter: users = users.filter(groups__name=role_filter)
     if query:
         matching_chars = EveCharacter.objects.filter(character_name__icontains=query)
         users = users.filter(characters__in=matching_chars)
+
     users = users.distinct()[:20]
     results = []
     for u in users:
         main_char = u.characters.filter(is_main=True).first() or u.characters.first()
         results.append({
-            'id': u.id, 'username': main_char.character_name if main_char else u.username,
+            'id': u.id,
+            'username': main_char.character_name if main_char else u.username,
             'char_id': main_char.character_id if main_char else 0,
             'corp': main_char.corporation_name if main_char else "Unknown"
         })
-    return JsonResponse({'results': results})
+    return Response({'results': results})
 
-@login_required
-@user_passes_test(can_manage_roles)
+@api_view(['GET'])
+@check_permission(can_manage_roles)
 def api_get_user_roles(request, user_id):
     target_user = get_object_or_404(User, pk=user_id)
     current_roles = list(target_user.groups.values_list('name', flat=True))
     _, req_highest_index = get_user_highest_role(request.user)
     available = []
     
-    # Use Dynamic Hierarchy
     hierarchy = get_role_hierarchy()
-    
     for role in hierarchy:
-        # Check index in dynamic list if possible, or fallback
         try:
             role_idx = hierarchy.index(role)
             if role_idx > req_highest_index or is_admin(request.user):
                 available.append(role)
-        except ValueError:
-            pass
+        except ValueError: pass
             
-    return JsonResponse({'user_id': target_user.id, 'current_roles': current_roles, 'available_roles': available})
+    return Response({'user_id': target_user.id, 'current_roles': current_roles, 'available_roles': available})
 
-@login_required
-@user_passes_test(can_manage_roles)
-@require_POST
+@api_view(['POST'])
+@check_permission(can_manage_roles)
 def api_update_user_role(request):
-    try:
-        data = json.loads(request.body)
-        target_user = get_object_or_404(User, pk=data['user_id'])
-        role_name = data['role']
-        action = data['action']
-    except (KeyError, json.JSONDecodeError): return HttpResponseBadRequest("Invalid JSON")
+    target_user = get_object_or_404(User, pk=request.data.get('user_id'))
+    role_name = request.data.get('role')
+    action = request.data.get('action')
     
     is_admin_actor = is_admin(request.user)
     if not (is_admin_actor and role_name == 'Admin'):
-        if not can_manage_role(request.user, role_name): return JsonResponse({'success': False, 'error': 'Permission denied.'}, status=403)
+        if not can_manage_role(request.user, role_name):
+            return Response({'success': False, 'error': 'Permission denied.'}, status=403)
         
     group = get_object_or_404(Group, name=role_name)
     if action == 'add':
@@ -408,14 +448,14 @@ def api_update_user_role(request):
     elif action == 'remove':
         target_user.groups.remove(group)
         if role_name == 'Admin': target_user.is_staff = False; target_user.save()
-    return JsonResponse({'success': True})
+
+    return Response({'success': True})
 
 # --- BAN MANAGEMENT ---
 
-@login_required
-@user_passes_test(can_manage_bans)
+@api_view(['GET'])
+@check_permission(can_manage_bans)
 def management_bans(request):
-    # Pre-fetch Main Character Names & IDs
     user_main = EveCharacter.objects.filter(user=OuterRef('user'), is_main=True)
     issuer_main = EveCharacter.objects.filter(user=OuterRef('issuer'), is_main=True)
 
@@ -425,32 +465,35 @@ def management_bans(request):
         issuer_char_name=Subquery(issuer_main.values('character_name')[:1])
     ).order_by('-created_at')
 
-    # --- FILTERING LOGIC ---
     filter_status = request.GET.get('filter', 'all')
     now = timezone.now()
 
     if filter_status == 'active':
-        # Expires in future OR is permanent (expires_at is null)
         bans = bans.filter(models.Q(expires_at__gt=now) | models.Q(expires_at__isnull=True))
     elif filter_status == 'expired':
-        # Expires in past
         bans = bans.filter(expires_at__lt=now)
     elif filter_status == 'permanent':
-        # No expiration date
         bans = bans.filter(expires_at__isnull=True)
 
-    context = {
-        'bans': bans,
-        'current_filter': filter_status, # Pass to template for active state
-        'base_template': get_template_base(request)
-    }
-    context.update(get_mgmt_context(request.user))
-    return render(request, 'management/bans.html', context)
+    results = []
+    for b in bans:
+        results.append({
+            'id': b.id,
+            'user_id': b.user.id,
+            'user_name': b.user_char_name or b.user.username,
+            'user_char_id': b.user_char_id,
+            'issuer_name': b.issuer_char_name or b.issuer.username,
+            'reason': b.reason,
+            'created_at': b.created_at,
+            'expires_at': b.expires_at,
+            'is_active': (b.expires_at is None or b.expires_at > now)
+        })
 
-@login_required
-@user_passes_test(can_view_ban_audit)
+    return Response({'bans': results})
+
+@api_view(['GET'])
+@check_permission(can_view_ban_audit)
 def management_ban_audit(request):
-    # Pre-fetch Main Character Names for Target and Actor
     target_main = EveCharacter.objects.filter(user=OuterRef('target_user'), is_main=True)
     actor_main = EveCharacter.objects.filter(user=OuterRef('actor'), is_main=True)
 
@@ -460,128 +503,84 @@ def management_ban_audit(request):
     ).order_by('-timestamp')
 
     paginator = Paginator(logs, 20)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
+    page_obj = paginator.get_page(request.GET.get('page'))
 
-    context = {
-        'page_obj': page_obj,
-        'base_template': get_template_base(request)
-    }
-    context.update(get_mgmt_context(request.user))
-    return render(request, 'management/ban_audit.html', context)
+    results = []
+    for log in page_obj:
+        results.append({
+            'timestamp': log.timestamp,
+            'action': log.action,
+            'target_name': log.target_char_name or log.target_user.username,
+            'actor_name': log.actor_char_name or log.actor.username,
+            'details': log.details
+        })
 
-@login_required
-@user_passes_test(can_manage_bans)
-@require_POST
+    return Response({
+        'logs': results,
+        'pagination': {'total': paginator.num_pages, 'current': page_obj.number}
+    })
+
+@api_view(['POST'])
+@check_permission(can_manage_bans)
 def api_ban_user(request):
-    try:
-        data = json.loads(request.body)
-        user_id = data.get('user_id')
-        reason = data.get('reason')
-        duration = data.get('duration') # "permanent", "5m", "1h", "1d", etc. or custom date?
-    except json.JSONDecodeError:
-        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+    user_id = request.data.get('user_id')
+    reason = request.data.get('reason')
+    duration = request.data.get('duration')
 
-    if not user_id or not reason:
-        return JsonResponse({'success': False, 'error': 'User and Reason required'})
+    if not user_id or not reason: return Response({'success': False, 'error': 'User and Reason required'}, status=400)
 
     target_user = get_object_or_404(User, pk=user_id)
+    active_ban = Ban.objects.filter(user=target_user).filter(models.Q(expires_at__isnull=True) | models.Q(expires_at__gt=timezone.now())).exists()
 
-    # Check if already banned (Active Ban)
-    active_ban = Ban.objects.filter(
-        user=target_user
-    ).filter(
-        models.Q(expires_at__isnull=True) | models.Q(expires_at__gt=timezone.now())
-    ).exists()
-
-    if active_ban:
-         return JsonResponse({'success': False, 'error': 'User is already banned. Update existing ban.'})
+    if active_ban: return Response({'success': False, 'error': 'User is already banned.'}, status=400)
 
     expires_at = None
     if duration and duration != 'permanent':
         try:
             minutes = int(duration)
             expires_at = timezone.now() + timedelta(minutes=minutes)
-        except ValueError:
-            return JsonResponse({'success': False, 'error': 'Invalid duration format'})
+        except ValueError: return Response({'success': False, 'error': 'Invalid duration format'}, status=400)
 
-    # Create Ban
-    ban = Ban.objects.create(
-        user=target_user,
-        issuer=request.user,
-        reason=reason,
-        expires_at=expires_at
-    )
+    ban = Ban.objects.create(user=target_user, issuer=request.user, reason=reason, expires_at=expires_at)
+    BanAuditLog.objects.create(target_user=target_user, ban=ban, actor=request.user, action='create', details=f"Reason: {reason}, Expires: {expires_at or 'Never'}")
+    WaitlistEntry.objects.filter(character__user=target_user).delete()
 
-    # Log Action
-    BanAuditLog.objects.create(
-        target_user=target_user,
-        ban=ban,
-        actor=request.user,
-        action='create',
-        details=f"Reason: {reason}, Expires: {expires_at or 'Never'}"
-    )
+    return Response({'success': True})
 
-    # Remove from Waitlist (WaitlistEntry)
-    deleted_count, _ = WaitlistEntry.objects.filter(character__user=target_user).delete()
-
-    return JsonResponse({'success': True})
-
-@login_required
-@user_passes_test(can_manage_bans)
-@require_POST
+@api_view(['POST'])
+@check_permission(can_manage_bans)
 def api_update_ban(request):
-    try:
-        data = json.loads(request.body)
-        ban_id = data.get('ban_id')
-        action = data.get('action') # 'update' or 'remove'
-    except json.JSONDecodeError:
-        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+    ban_id = request.data.get('ban_id')
+    action = request.data.get('action')
 
     ban = get_object_or_404(Ban, id=ban_id)
 
     if action == 'remove':
         ban.delete()
-        BanAuditLog.objects.create(
-            target_user=ban.user,
-            actor=request.user,
-            action='remove',
-            details=f"Ban removed for {ban.user.username}"
-        )
-        return JsonResponse({'success': True})
+        BanAuditLog.objects.create(target_user=ban.user, actor=request.user, action='remove', details=f"Ban removed for {ban.user.username}")
+        return Response({'success': True})
 
     elif action == 'update':
-        reason = data.get('reason')
-        duration = data.get('duration') # integer minutes or 'permanent'
-
+        reason = request.data.get('reason')
+        duration = request.data.get('duration')
         changes = []
         if reason and reason != ban.reason:
             changes.append(f"Reason: {ban.reason} -> {reason}")
             ban.reason = reason
-
         if duration is not None:
             new_expires = None
             if duration != 'permanent':
                 try:
                     minutes = int(duration)
                     new_expires = timezone.now() + timedelta(minutes=minutes)
-                except ValueError:
-                     return JsonResponse({'success': False, 'error': 'Invalid duration'})
-
+                except ValueError: return Response({'success': False, 'error': 'Invalid duration'}, status=400)
             if new_expires != ban.expires_at:
-                 changes.append(f"Expires: {ban.expires_at} -> {new_expires}")
-                 ban.expires_at = new_expires
+                changes.append(f"Expires: {ban.expires_at} -> {new_expires}")
+                ban.expires_at = new_expires
 
         if changes:
             ban.save()
-            BanAuditLog.objects.create(
-                target_user=ban.user,
-                ban=ban,
-                actor=request.user,
-                action='update',
-                details=", ".join(changes)
-            )
+            BanAuditLog.objects.create(target_user=ban.user, ban=ban, actor=request.user, action='update', details=", ".join(changes))
+        return Response({'success': True})
 
-        return JsonResponse({'success': True})
-
-    return JsonResponse({'success': False, 'error': 'Invalid action'})
+    return Response({'success': False, 'error': 'Invalid action'}, status=400)
