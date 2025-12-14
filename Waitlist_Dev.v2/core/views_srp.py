@@ -9,6 +9,9 @@ from django.core.cache import cache # Import Cache
 from django.utils import timezone
 from datetime import timedelta
 from dateutil.parser import parse
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 
 from core.permissions import get_template_base, get_mgmt_context
 from pilot_data.models import SRPConfiguration, EveCharacter, CorpWalletJournal, EsiHeaderCache
@@ -22,8 +25,18 @@ def can_view_srp(user):
     if user.is_superuser: return True
     return user.groups.filter(capabilities__slug='view_srp_dashboard').exists()
 
-@login_required
-@user_passes_test(can_manage_srp)
+# Helper decorator
+def check_permission(perm_func):
+    def decorator(view_func):
+        def _wrapped_view(request, *args, **kwargs):
+            if not perm_func(request.user):
+                return Response({'error': 'Permission Denied'}, status=403)
+            return view_func(request, *args, **kwargs)
+        return _wrapped_view
+    return decorator
+
+@api_view(['GET'])
+@check_permission(can_manage_srp)
 def srp_config(request):
     """
     Page to select which character provides SRP wallet data.
@@ -31,22 +44,24 @@ def srp_config(request):
     current_config = SRPConfiguration.objects.first()
     user_chars = request.user.characters.all()
     
-    context = {
-        'config': current_config,
-        'user_chars': user_chars,
-        'base_template': get_template_base(request)
-    }
-    context.update(get_mgmt_context(request.user))
-    return render(request, 'management/srp_config.html', context)
+    config_data = None
+    if current_config and current_config.character:
+        config_data = {
+            'character_id': current_config.character.character_id,
+            'character_name': current_config.character.character_name
+        }
 
-@login_required
-@user_passes_test(can_manage_srp)
-@require_POST
+    chars_data = [{'character_id': c.character_id, 'character_name': c.character_name} for c in user_chars]
+
+    return Response({
+        'config': config_data,
+        'user_chars': chars_data
+    })
+
+@api_view(['POST'])
+@check_permission(can_manage_srp)
 def api_set_srp_source(request):
-    try:
-        data = json.loads(request.body)
-        char_id = data.get('character_id')
-    except json.JSONDecodeError: return JsonResponse({'success': False, 'error': 'Invalid JSON'})
+    char_id = request.data.get('character_id')
 
     character = get_object_or_404(EveCharacter, character_id=char_id, user=request.user)
     
@@ -56,26 +71,21 @@ def api_set_srp_source(request):
         config.character = character
         config.save()
         
-    return JsonResponse({'success': True})
+    return Response({'success': True})
 
-@login_required
-@user_passes_test(can_manage_srp)
-@require_POST
+@api_view(['POST'])
+@check_permission(can_manage_srp)
 def api_sync_srp(request):
     """
     Triggers the background task via Celery.
-    Returns immediately so the UI doesn't freeze.
     """
     config = SRPConfiguration.objects.first()
-    if not config: return JsonResponse({'success': False, 'error': 'No configuration found'})
+    if not config: return Response({'success': False, 'error': 'No configuration found'}, status=400)
     
-    # 1. Debounce Check: Prevent spamming the button
-    # If a sync is already queued/running for this config, block the request.
     lock_key = f"srp_sync_lock_{config.id}"
     if cache.get(lock_key):
-        return JsonResponse({'success': True, 'message': 'Sync already scheduled or in progress.'})
+        return Response({'success': True, 'message': 'Sync already scheduled or in progress.'})
 
-    # Determine execution time based on ESI Cache
     countdown = 0
     if config.character and config.character.corporation_id:
         prefix = f"corp_wallet_{config.character.corporation_id}"
@@ -87,46 +97,31 @@ def api_sync_srp(request):
         if cache_entry and cache_entry.expires:
             now = timezone.now()
             if cache_entry.expires > now:
-                # Calculate seconds until expiry
                 countdown = int((cache_entry.expires - now).total_seconds())
-                # Add a small buffer (e.g. 5 seconds) to ensure ESI has updated
                 countdown += 5
 
-    # 2. Schedule Task & Set Lock
     if countdown > 0:
         refresh_srp_wallet_task.apply_async(countdown=countdown)
-        
-        # Lock for the duration of the wait + 30s for execution time
         cache.set(lock_key, "queued", timeout=countdown + 30)
-        
         msg = f"Sync scheduled in {countdown}s (respecting ESI cache)."
     else:
-        # Immediate execution
         refresh_srp_wallet_task.delay()
-        
-        # Lock for 60 seconds to prevent rapid-fire clicking
         cache.set(lock_key, "processing", timeout=60)
-        
         msg = "Sync started immediately."
     
-    return JsonResponse({'success': True, 'message': msg})
+    return Response({'success': True, 'message': msg})
 
-@login_required
-@user_passes_test(can_manage_srp)
-@require_POST
+@api_view(['POST'])
+@check_permission(can_manage_srp)
 def api_update_transaction_category(request):
     """
     Updates the manual category for a specific wallet journal entry.
     """
-    try:
-        data = json.loads(request.body)
-        entry_id = data.get('entry_id')
-        category = data.get('category')
-    except json.JSONDecodeError:
-        return JsonResponse({'success': False, 'error': 'Invalid JSON'})
+    entry_id = request.data.get('entry_id')
+    category = request.data.get('category')
 
     if not entry_id:
-        return JsonResponse({'success': False, 'error': 'Entry ID required'})
+        return Response({'success': False, 'error': 'Entry ID required'}, status=400)
 
     # Get transaction (Using entry_id which is the unique ESI ID)
     transaction = get_object_or_404(CorpWalletJournal, entry_id=entry_id)
@@ -135,38 +130,27 @@ def api_update_transaction_category(request):
     transaction.custom_category = category
     transaction.save()
     
-    return JsonResponse({'success': True})
+    return Response({'success': True})
 
 # --- DASHBOARD ---
 
-@login_required
-@user_passes_test(can_view_srp)
+@api_view(['GET'])
+@check_permission(can_view_srp)
 def srp_dashboard(request):
-    config = SRPConfiguration.objects.first()
-    
-    context = {
-        'config': config,
-        # 'next_sync' is now fetched via API to ensure client-side freshness
-        'base_template': get_template_base(request)
-    }
-    context.update(get_mgmt_context(request.user))
-    return render(request, 'srp/dashboard.html', context)
+    # Just a placeholder now, frontend logic fetches data separately
+    # But we can return base config info if needed
+    return Response({'status': 'active'})
 
-@login_required
-@user_passes_test(can_view_srp)
+@api_view(['GET'])
+@check_permission(can_view_srp)
 def api_srp_status(request):
-    """
-    Lightweight endpoint for polling Sync Status (Last Sync / Next Sync).
-    """
     config = SRPConfiguration.objects.first()
     if not config:
-        return JsonResponse({'active': False})
+        return Response({'active': False})
 
     next_sync = None
     if config.character and config.character.corporation_id:
-        # Matches format in wallet_service.py: corp_wallet_{id}_{div}_{page}
         prefix = f"corp_wallet_{config.character.corporation_id}"
-        
         cache_entry = EsiHeaderCache.objects.filter(
             character=config.character,
             endpoint_name__startswith=prefix
@@ -175,25 +159,24 @@ def api_srp_status(request):
         if cache_entry and cache_entry.expires:
             next_sync = cache_entry.expires
 
-    # Fallback to 1 hour if no cache headers found
     if not next_sync and config.last_sync:
         next_sync = config.last_sync + timedelta(hours=1)
 
-    return JsonResponse({
+    return Response({
         'active': True,
         'last_sync': config.last_sync.isoformat() if config.last_sync else None,
         'next_sync': next_sync.isoformat() if next_sync else None,
         'server_time': timezone.now().isoformat()
     })
 
-@login_required
-@user_passes_test(can_view_srp)
+@api_view(['GET'])
+@check_permission(can_view_srp)
 def api_srp_data(request):
     """
     Powerhouse API for the Dashboard Charts and Table.
     """
     config = SRPConfiguration.objects.first()
-    if not config: return JsonResponse({'error': 'Not Configured'}, status=404)
+    if not config: return Response({'error': 'Not Configured'}, status=404)
 
     # 1. Base Filters
     start_date_str = request.GET.get('start_date')
@@ -229,11 +212,9 @@ def api_srp_data(request):
 
     # Apply Column Search Filters
     if f_div:
-        # Strict exact match for division number
         try:
             qs = qs.filter(division=int(f_div))
-        except ValueError:
-            pass # Ignore invalid non-integer searches
+        except ValueError: pass
 
     if f_amount:
         if f_amount.startswith('>'):
@@ -243,54 +224,35 @@ def api_srp_data(request):
             try: qs = qs.filter(amount__lt=float(f_amount[1:]))
             except: pass
         else:
-            qs = qs.filter(amount__icontains=f_amount) # String match fallback
+            qs = qs.filter(amount__icontains=f_amount)
 
-    # Changed: Split party filter into From and To
-    if f_from:
-        qs = qs.filter(first_party_name__icontains=f_from)
-        
-    if f_to:
-        qs = qs.filter(second_party_name__icontains=f_to)
-    
-    if f_type:
-        qs = qs.filter(ref_type__icontains=f_type)
-        
+    if f_from: qs = qs.filter(first_party_name__icontains=f_from)
+    if f_to: qs = qs.filter(second_party_name__icontains=f_to)
+    if f_type: qs = qs.filter(ref_type__icontains=f_type)
     if f_category:
         if f_category == 'uncategorised':
-            # Filter for NULL or Empty string
             qs = qs.filter(Q(custom_category__isnull=True) | Q(custom_category=''))
         else:
             qs = qs.filter(custom_category__iexact=f_category)
-        
-    if f_reason:
-        # Standard contains search (Removed [empty] token logic)
-        qs = qs.filter(reason__icontains=f_reason)
+    if f_reason: qs = qs.filter(reason__icontains=f_reason)
 
-    # 3. Aggregates (Income/Outcome) - CALCULATED ON FULL SET (POST-FILTER)
-    # Exclude internal transfers from these specific totals per user request
+    # 3. Aggregates
     agg_qs = qs.exclude(custom_category='internal_transfer')
     total_income = agg_qs.filter(amount__gt=0).aggregate(s=Sum('amount'))['s'] or 0
     total_outcome = agg_qs.filter(amount__lt=0).aggregate(s=Sum('amount'))['s'] or 0
     net_change = total_income + total_outcome
 
-    # 4. Division Balances (Snapshot of latest known state)
-    # We fetch the absolute latest entry for each selected division, ignoring date filters
+    # 4. Division Balances
     div_balances = {}
     if divisions:
         for div_id in divisions:
-            # FIX: Order by entry_id DESC primarily. Date can be unreliable for same-tick transactions.
-            # ESI entry_id is strictly sequential.
             latest_entry = CorpWalletJournal.objects.filter(
                 config=config, 
                 division=div_id
             ).order_by('-entry_id').values('balance').first()
-            
-            if latest_entry:
-                div_balances[div_id] = latest_entry['balance']
-            else:
-                div_balances[div_id] = 0
+            div_balances[div_id] = latest_entry['balance'] if latest_entry else 0
 
-    # 5. Process Data for Charts - CALCULATED ON FULL SET (POST-FILTER)
+    # 5. Process Data for Charts
     chart_data = qs.values('amount', 'date', 'ref_type', 'first_party_name', 'second_party_name', 'custom_category').order_by('date')
     
     monthly_stats = {}
@@ -303,12 +265,10 @@ def api_srp_data(request):
         d = row['date']
         month_key = f"{d.year}-{d.month:02d}"
         
-        # Monthly
         if month_key not in monthly_stats: monthly_stats[month_key] = {'in': 0, 'out': 0}
         if amt > 0: monthly_stats[month_key]['in'] += amt
         else: monthly_stats[month_key]['out'] += abs(amt)
 
-        # Ref Types (Prefer custom category if set)
         category_label = row['custom_category']
         if not category_label:
             category_label = row['ref_type'].replace('_', ' ').title()
@@ -320,7 +280,6 @@ def api_srp_data(request):
         else:
             ref_type_breakdown['out'][category_label] = ref_type_breakdown['out'].get(category_label, 0) + abs(amt)
 
-        # Payers
         if row['ref_type'] == 'player_donation' and amt > 0:
             payer = row['first_party_name']
             if payer not in top_payers: top_payers[payer] = {'count': 0, 'total': 0}
@@ -331,7 +290,7 @@ def api_srp_data(request):
             if payer not in timeline_payers: timeline_payers[payer] = {}
             timeline_payers[payer][day_key] = timeline_payers[payer].get(day_key, 0) + amt
 
-    # 5. Transaction Table (Paginated)
+    # 5. Transaction Table
     full_qs = qs.order_by('-date')
     paginator = Paginator(full_qs, limit)
     page_obj = paginator.get_page(page_number)
@@ -350,13 +309,13 @@ def api_srp_data(request):
         'limit': limit
     }
 
-    return JsonResponse({
+    return Response({
         'summary': {
             'income': total_income,
             'outcome': total_outcome,
             'net': net_change
         },
-        'division_balances': div_balances, # NEW FIELD
+        'division_balances': div_balances,
         'monthly': monthly_stats,
         'categories': ref_type_breakdown,
         'top_payers': top_payers,
