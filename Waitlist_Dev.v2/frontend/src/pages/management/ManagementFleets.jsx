@@ -22,7 +22,7 @@ const ManagementFleets = () => {
         const body = { action, fleet_id: fleetId, name };
         fetch('/api/management/fleets/', {
             method: 'POST',
-            headers: {
+            headers: { 
                 'Content-Type': 'application/json',
                 'X-CSRFToken': getCookie('csrftoken') // Function needed
             },
@@ -51,7 +51,7 @@ const ManagementFleets = () => {
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <h1 className="heading-1">Fleet Management</h1>
-                <button
+                <button 
                     onClick={() => {
                         const name = prompt("Enter Fleet Name/Type:");
                         if(name) handleAction('create', null, name);
@@ -90,19 +90,19 @@ const ManagementFleets = () => {
                                 </td>
                                 <td className="p-4 text-right flex items-center justify-end gap-2">
                                     {f.is_active && (
-                                        <button
+                                        <button 
                                             onClick={() => handleAction('close', f.id)}
-                                            className="btn-secondary p-1.5 text-xs"
+                                            className="btn-secondary p-1.5 text-xs" 
                                             title="Close Fleet"
                                         >
                                             <Square size={14} /> Close
                                         </button>
                                     )}
-                                    <button
+                                    <button 
                                         onClick={() => {
                                             if(confirm("Delete fleet history?")) handleAction('delete', f.id);
                                         }}
-                                        className="btn-danger p-1.5 text-xs"
+                                        className="btn-danger p-1.5 text-xs" 
                                         title="Delete History"
                                     >
                                         <Trash2 size={14} />

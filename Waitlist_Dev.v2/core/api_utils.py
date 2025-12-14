@@ -12,10 +12,10 @@ def api_me(request):
     """
     if not request.user.is_authenticated:
         return Response(None)
-
+    
     # Get standard context
     ctx = navbar_context(request)
-
+    
     # Serialize the character
     char_data = None
     if ctx.get('navbar_char'):
@@ -25,7 +25,7 @@ def api_me(request):
             'character_name': c.character_name,
             'is_main': c.is_main
         }
-
+        
     return Response({
         'username': request.user.username,
         'is_staff': request.user.is_staff,

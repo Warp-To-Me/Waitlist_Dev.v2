@@ -42,7 +42,7 @@ const FleetDashboard = () => {
             <div className="bg-dark-900 border-b border-white/5 p-4 flex justify-between items-center shadow-md z-10">
                 <div>
                     <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-                        {fleet.type}
+                        {fleet.type} 
                         <span className={`badge ${fleet.is_active ? 'badge-green' : 'badge-red'}`}>
                             {fleet.is_active ? 'ACTIVE' : 'CLOSED'}
                         </span>
@@ -52,7 +52,7 @@ const FleetDashboard = () => {
                         <span className="font-mono text-xs opacity-50">UID: {fleet.token}</span>
                     </div>
                 </div>
-
+                
                 <div className="flex items-center gap-3">
                     {/* Action Buttons */}
                     <button className="btn-primary" onClick={() => alert("X-Up Modal Placeholder")}>
@@ -119,7 +119,7 @@ const PilotCard = ({ entry }) => {
                      ))}
                  </div>
              </div>
-
+             
              <div className="text-xs text-slate-400 mb-2 truncate">
                  {entry.hull.name}
              </div>

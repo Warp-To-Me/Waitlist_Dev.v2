@@ -9,9 +9,9 @@ const Doctrines = () => {
     useEffect(() => {
         fetch('/api/landing/').then(res => {
             // Wait, we need the doctine list API. The URL in `urls.py` was likely not changed or is routed via `waitlist_data.urls`.
-            // Let's check `core/views.py`: `doctrine_list` is mapped to `path('doctrine_list', ...)` inside `waitlist_project/urls.py`?
-            // Wait, I didn't see `doctrine_list` in `api_urlpatterns` in `urls.py` explicitly.
-            // Ah, I edited `core/views.py` but `waitlist_data.urls` is included.
+            // Let's check `core/views.py`: `doctrine_list` is mapped to `path('doctrine_list', ...)` inside `waitlist_project/urls.py`? 
+            // Wait, I didn't see `doctrine_list` in `api_urlpatterns` in `urls.py` explicitly. 
+            // Ah, I edited `core/views.py` but `waitlist_data.urls` is included. 
             // The `doctrine_list` view I edited is in `core/views.py`.
             // Let's check where it's mapped.
             // In `urls.py`, `core_views.landing_page` is mapped.
@@ -19,8 +19,8 @@ const Doctrines = () => {
             // `Waitlist_Dev.v2/waitlist_data/urls.py` likely maps it?
             // Actually `core/views.py` had `doctrine_list`.
             // Let's assume I need to fetch from `/api/doctrines/` and I need to ensure that route exists.
-        });
-
+        }); 
+        
         // CORRECTION: I need to verify the route for doctrine_list.
         // I will implement the fetch assuming `/api/doctrines/` and fix the backend routing in the next step if missing.
         fetch('/api/doctrines/')
@@ -65,7 +65,7 @@ const Doctrines = () => {
                                     </span>
                                 </div>
                             </div>
-                            <button
+                            <button 
                                 onClick={() => navigator.clipboard.writeText(selectedFit.eft_block)}
                                 className="btn-primary"
                             >
@@ -82,10 +82,10 @@ const Doctrines = () => {
                         <div className="grid grid-cols-2 gap-4">
                             {selectedFit.modules.map((mod, idx) => (
                                 <div key={idx} className="flex items-center gap-3 bg-white/5 p-2 rounded border border-white/5">
-                                    <img
-                                        src={`https://images.evetech.net/types/${mod.icon_id}/icon?size=32`}
-                                        className="w-8 h-8 rounded"
-                                        alt=""
+                                    <img 
+                                        src={`https://images.evetech.net/types/${mod.icon_id}/icon?size=32`} 
+                                        className="w-8 h-8 rounded" 
+                                        alt="" 
                                     />
                                     <div className="flex-1 min-w-0">
                                         <div className="text-sm text-slate-200 truncate">{mod.name}</div>
@@ -112,10 +112,10 @@ const CategoryNode = ({ category, onSelectFit }) => {
             <h3 className="text-brand-400 font-bold uppercase tracking-wider text-sm mb-3 border-b border-white/5 pb-1">
                 {category.name}
             </h3>
-
+            
             <div className="space-y-1 mb-4 pl-2">
                 {category.fits.map(fit => (
-                    <button
+                    <button 
                         key={fit.id}
                         onClick={() => onSelectFit(fit.id)}
                         className="w-full text-left px-3 py-2 rounded hover:bg-white/5 text-slate-300 hover:text-white transition flex items-center justify-between group"

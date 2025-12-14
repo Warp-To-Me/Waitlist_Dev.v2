@@ -61,16 +61,16 @@ def management_dashboard(request):
     growth_labels = [entry['date'].strftime('%b %d') for entry in user_growth]
     growth_data = [entry['count'] for entry in user_growth]
     corp_distribution = EveCharacter.objects.values('corporation_name').annotate(count=Count('id')).order_by('-count')[:5]
-
+    
     return Response({
         'stats': {
-            'total_users': User.objects.count(),
+            'total_users': User.objects.count(), 
             'total_fleets': Fleet.objects.count(),
-            'active_fleets_count': Fleet.objects.filter(is_active=True).count(),
+            'active_fleets_count': Fleet.objects.filter(is_active=True).count(), 
             'total_characters': EveCharacter.objects.count()
         },
         'charts': {
-            'growth_labels': growth_labels,
+            'growth_labels': growth_labels, 
             'growth_data': growth_data,
             'corp_labels': [e['corporation_name'] for e in corp_distribution],
             'corp_data': [e['count'] for e in corp_distribution],
@@ -84,7 +84,7 @@ def management_users(request):
     sort_by = request.GET.get('sort', 'character')
     direction = request.GET.get('dir', 'asc')
     page_number = request.GET.get('page', 1)
-
+    
     main_name_sq = EveCharacter.objects.filter(user=OuterRef('user'), is_main=True).values('character_name')[:1]
     char_qs = EveCharacter.objects.select_related('user').annotate(
         linked_count=Count('user__characters', distinct=True), main_char_name=Subquery(main_name_sq)
@@ -97,10 +97,10 @@ def management_users(request):
     db_sort_field = valid_sorts.get(sort_by, 'character_name')
     if direction == 'desc': db_sort_field = '-' + db_sort_field
     char_qs = char_qs.order_by(db_sort_field)
-
+    
     paginator = Paginator(char_qs, 10) 
     page_obj = paginator.get_page(page_number)
-
+    
     results = []
     for char in page_obj:
         results.append({
@@ -152,7 +152,7 @@ def management_user_inspect(request, user_id, char_id=None):
         'corporation_name': c.corporation_name,
         'alliance_name': c.alliance_name
     } for c in characters]
-
+    
     return Response({
         'active_char': {
             'character_id': active_char.character_id,
@@ -178,10 +178,10 @@ def management_user_inspect(request, user_id, char_id=None):
 def api_unlink_alt(request):
     char_id = request.data.get('character_id')
     if not char_id: return Response({'success': False, 'error': 'Character ID required'}, status=400)
-
+    
     char = get_object_or_404(EveCharacter, character_id=char_id)
     if char.is_main: return Response({'success': False, 'error': 'Cannot unlink a Main Character.'}, status=400)
-
+    
     char.delete()
     return Response({'success': True})
 
@@ -190,19 +190,19 @@ def api_unlink_alt(request):
 def api_promote_alt(request):
     char_id = request.data.get('character_id')
     if not char_id: return Response({'success': False, 'error': 'Character ID required'}, status=400)
-
+    
     target_char = get_object_or_404(EveCharacter, character_id=char_id)
     target_user = target_char.user
     is_owner = (target_user == request.user)
     is_admin_user = is_admin(request.user)
-
+    
     if not is_owner and not is_admin_user: return Response({'success': False, 'error': 'Permission denied.'}, status=403)
     if target_char.is_main: return Response({'success': False, 'error': 'Character is already main.'}, status=400)
-
+    
     target_user.characters.update(is_main=False)
     target_char.is_main = True
     target_char.save()
-
+    
     if is_owner: request.session['active_char_id'] = target_char.character_id
     return Response({'success': True})
 
@@ -223,12 +223,12 @@ def management_fleets(request):
             return Response({'status': 'closed'})
         elif action == 'delete':
             fleet_id = request.data.get('fleet_id')
-            if is_admin(request.user):
+            if is_admin(request.user): 
                 Fleet.objects.filter(id=fleet_id).delete()
                 return Response({'status': 'deleted'})
             else:
                 return Response({'error': 'Permission denied'}, status=403)
-
+                
     fleets = Fleet.objects.all().order_by('-is_active', '-created_at')[:50]
     data = []
     for f in fleets:
@@ -248,7 +248,7 @@ def management_sde(request):
     item_count = ItemType.objects.count()
     group_count = ItemGroup.objects.count()
     attr_count = TypeAttribute.objects.count()
-
+    
     # ... (Logic identical to original, just JSON serialization)
     EXCLUDED_CATEGORIES = [2, 9, 11, 17, 20, 25, 30, 40, 46, 63, 91, 2118, 350001]
     excluded_group_ids = ItemGroup.objects.filter(category_id__in=EXCLUDED_CATEGORIES).values_list('group_id', flat=True)
@@ -257,12 +257,12 @@ def management_sde(request):
     group_map = ItemGroup.objects.filter(group_id__in=group_ids).in_bulk()
     group_labels = []
     group_data = []
-
+    
     for g in top_groups:
         grp = group_map.get(g['group_id'])
         group_labels.append(grp.group_name if grp else f"Group {g['group_id']}")
         group_data.append(g['count'])
-
+        
     return Response({
         'counts': {'items': item_count, 'groups': group_count, 'attrs': attr_count},
         'chart': {'labels': group_labels, 'data': group_data}
@@ -276,14 +276,14 @@ def management_celery(request):
     threshold = timezone.now() - timedelta(minutes=60)
     stale_count = EveCharacter.objects.filter(last_updated__lt=threshold).count()
     invalid_token_count = EveCharacter.objects.filter(refresh_token__isnull=True).count() # Simplified check
-
+    
     if total_characters > 0: esi_health_percent = int(((total_characters - stale_count) / total_characters * 100))
     else: esi_health_percent = 0
-
+    
     context.update({
-        'total_characters': total_characters,
+        'total_characters': total_characters, 
         'stale_count': stale_count,
-        'invalid_token_count': invalid_token_count,
+        'invalid_token_count': invalid_token_count, 
         'esi_health_percent': esi_health_percent
     })
     return Response(context)
@@ -295,7 +295,7 @@ def management_celery(request):
 def management_permissions(request):
     db_caps = Capability.objects.all().prefetch_related('groups')
     groups = Group.objects.all().select_related('priority_config').order_by('priority_config__level', 'name')
-
+    
     caps_data = []
     for cap in db_caps:
         caps_data.append({
@@ -304,7 +304,7 @@ def management_permissions(request):
             'description': cap.description,
             'groups': [g.id for g in cap.groups.all()]
         })
-
+        
     groups_data = [{'id': g.id, 'name': g.name, 'level': g.priority_config.level if hasattr(g, 'priority_config') else 999} for g in groups]
 
     return Response({
@@ -334,10 +334,10 @@ def api_reorder_roles(request):
 def api_permissions_toggle(request):
     group_id = request.data.get('group_id')
     cap_id = request.data.get('cap_id')
-
+    
     group = get_object_or_404(Group, id=group_id)
     cap = get_object_or_404(Capability, id=cap_id)
-
+    
     if cap.groups.filter(id=group.id).exists():
         cap.groups.remove(group)
         state = False
@@ -352,12 +352,12 @@ def api_manage_group(request):
     action = request.data.get('action')
     group_name = request.data.get('name', '').strip()
     group_id = request.data.get('id')
-
+    
     if action == 'create':
         if not group_name: return Response({'success': False, 'error': 'Name required'}, status=400)
         if Group.objects.filter(name=group_name).exists(): return Response({'success': False, 'error': 'Group exists'}, status=400)
         Group.objects.create(name=group_name)
-
+        
     elif action == 'update':
         group = get_object_or_404(Group, id=group_id)
         if group_name and group_name != group.name:
@@ -365,12 +365,12 @@ def api_manage_group(request):
                 return Response({'success': False, 'error': 'Name taken'}, status=400)
             group.name = group_name
             group.save()
-
+            
     elif action == 'delete':
         group = get_object_or_404(Group, id=group_id)
         if group.name == 'Admin': return Response({'success': False, 'error': 'Cannot delete Admin group'}, status=400)
         group.delete()
-
+        
     return Response({'success': True})
 
 # --- ROLES MANAGEMENT ---
@@ -389,22 +389,22 @@ def management_roles(request):
 def api_search_users(request):
     query = request.GET.get('q', '').strip()
     role_filter = request.GET.get('role', '').strip()
-
+    
     if not query and not role_filter: return Response({'results': []})
     if query and len(query) < 3 and not role_filter: return Response({'results': []})
-
+    
     users = User.objects.all()
     if role_filter: users = users.filter(groups__name=role_filter)
     if query:
         matching_chars = EveCharacter.objects.filter(character_name__icontains=query)
         users = users.filter(characters__in=matching_chars)
-
+    
     users = users.distinct()[:20]
     results = []
     for u in users:
         main_char = u.characters.filter(is_main=True).first() or u.characters.first()
         results.append({
-            'id': u.id,
+            'id': u.id, 
             'username': main_char.character_name if main_char else u.username,
             'char_id': main_char.character_id if main_char else 0,
             'corp': main_char.corporation_name if main_char else "Unknown"
@@ -438,7 +438,7 @@ def api_update_user_role(request):
     
     is_admin_actor = is_admin(request.user)
     if not (is_admin_actor and role_name == 'Admin'):
-        if not can_manage_role(request.user, role_name):
+        if not can_manage_role(request.user, role_name): 
             return Response({'success': False, 'error': 'Permission denied.'}, status=403)
         
     group = get_object_or_404(Group, name=role_name)
@@ -448,7 +448,7 @@ def api_update_user_role(request):
     elif action == 'remove':
         target_user.groups.remove(group)
         if role_name == 'Admin': target_user.is_staff = False; target_user.save()
-
+        
     return Response({'success': True})
 
 # --- BAN MANAGEMENT ---
@@ -474,7 +474,7 @@ def management_bans(request):
         bans = bans.filter(expires_at__lt=now)
     elif filter_status == 'permanent':
         bans = bans.filter(expires_at__isnull=True)
-
+        
     results = []
     for b in bans:
         results.append({
@@ -504,7 +504,7 @@ def management_ban_audit(request):
 
     paginator = Paginator(logs, 20)
     page_obj = paginator.get_page(request.GET.get('page'))
-
+    
     results = []
     for log in page_obj:
         results.append({
@@ -526,25 +526,25 @@ def api_ban_user(request):
     user_id = request.data.get('user_id')
     reason = request.data.get('reason')
     duration = request.data.get('duration')
-
+    
     if not user_id or not reason: return Response({'success': False, 'error': 'User and Reason required'}, status=400)
-
+    
     target_user = get_object_or_404(User, pk=user_id)
     active_ban = Ban.objects.filter(user=target_user).filter(models.Q(expires_at__isnull=True) | models.Q(expires_at__gt=timezone.now())).exists()
-
+    
     if active_ban: return Response({'success': False, 'error': 'User is already banned.'}, status=400)
-
+    
     expires_at = None
     if duration and duration != 'permanent':
         try:
             minutes = int(duration)
             expires_at = timezone.now() + timedelta(minutes=minutes)
         except ValueError: return Response({'success': False, 'error': 'Invalid duration format'}, status=400)
-
+        
     ban = Ban.objects.create(user=target_user, issuer=request.user, reason=reason, expires_at=expires_at)
     BanAuditLog.objects.create(target_user=target_user, ban=ban, actor=request.user, action='create', details=f"Reason: {reason}, Expires: {expires_at or 'Never'}")
     WaitlistEntry.objects.filter(character__user=target_user).delete()
-
+    
     return Response({'success': True})
 
 @api_view(['POST'])
@@ -552,14 +552,14 @@ def api_ban_user(request):
 def api_update_ban(request):
     ban_id = request.data.get('ban_id')
     action = request.data.get('action')
-
+    
     ban = get_object_or_404(Ban, id=ban_id)
-
+    
     if action == 'remove':
         ban.delete()
         BanAuditLog.objects.create(target_user=ban.user, actor=request.user, action='remove', details=f"Ban removed for {ban.user.username}")
         return Response({'success': True})
-
+        
     elif action == 'update':
         reason = request.data.get('reason')
         duration = request.data.get('duration')
@@ -577,10 +577,10 @@ def api_update_ban(request):
             if new_expires != ban.expires_at:
                 changes.append(f"Expires: {ban.expires_at} -> {new_expires}")
                 ban.expires_at = new_expires
-
+        
         if changes:
             ban.save()
             BanAuditLog.objects.create(target_user=ban.user, ban=ban, actor=request.user, action='update', details=", ".join(changes))
         return Response({'success': True})
-
+        
     return Response({'success': False, 'error': 'Invalid action'}, status=400)

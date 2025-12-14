@@ -36,7 +36,7 @@ const ManagementSDE = () => {
                 <div className="h-64 flex items-end justify-between gap-2">
                     {data.chart.data.map((val, idx) => (
                         <div key={idx} className="flex-1 flex flex-col justify-end group relative">
-                            <div
+                            <div 
                                 className="bg-brand-600/50 hover:bg-brand-500 transition rounded-t w-full"
                                 style={{ height: `${(val / Math.max(...data.chart.data)) * 100}%` }}
                             ></div>

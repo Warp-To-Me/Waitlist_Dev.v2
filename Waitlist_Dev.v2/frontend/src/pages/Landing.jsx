@@ -45,8 +45,8 @@ const Landing = () => {
                     </div>
                 ) : (
                     fleets.map(fleet => (
-                        <Link
-                            key={fleet.id}
+                        <Link 
+                            key={fleet.id} 
                             to={`/fleet/${fleet.join_token}`}
                             className="glass-panel p-6 hover:bg-white/5 transition group relative overflow-hidden"
                         >

@@ -23,7 +23,7 @@ function App() {
           <Route path="/doctrines" element={<Doctrines />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/fleet/:token" element={<FleetDashboard />} />
-
+          
           <Route path="/management" element={<Management />}>
             <Route index element={<ManagementDashboard />} />
             <Route path="users" element={<ManagementUsers />} />

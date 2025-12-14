@@ -84,7 +84,7 @@ const ManagementSRP = () => {
                                     {new Date(tx.date).toLocaleDateString()}
                                 </td>
                                 <td className="p-3 font-medium text-white">
-                                    {tx.first_party_name || "Unknown"}
+                                    {tx.first_party_name || "Unknown"} 
                                     <span className="text-slate-500 mx-2">→</span>
                                     {tx.second_party_name || "Unknown"}
                                 </td>

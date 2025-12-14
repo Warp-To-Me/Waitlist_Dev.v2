@@ -14,7 +14,7 @@ def frontend_app(request):
     except FileNotFoundError:
         return HttpResponse(
             """
-            React Build Not Found.
+            React Build Not Found. 
             Please run 'npm run build' in the frontend directory.
             """,
             status=501

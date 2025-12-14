@@ -50,9 +50,9 @@ const Profile = () => {
                 <div className="glass-panel p-6 lg:col-span-1 h-fit">
                     <div className="flex flex-col items-center text-center">
                         <div className="relative mb-4 group">
-                             <img
-                                src={`https://images.evetech.net/characters/${profile.active_char.character_id}/portrait?size=256`}
-                                className="w-32 h-32 rounded-full border-4 border-slate-700 shadow-2xl group-hover:border-brand-500 transition"
+                             <img 
+                                src={`https://images.evetech.net/characters/${profile.active_char.character_id}/portrait?size=256`} 
+                                className="w-32 h-32 rounded-full border-4 border-slate-700 shadow-2xl group-hover:border-brand-500 transition" 
                                 alt="Active Pilot"
                              />
                              {profile.active_char.is_main && <span className="absolute bottom-0 right-0 badge badge-brand">MAIN</span>}

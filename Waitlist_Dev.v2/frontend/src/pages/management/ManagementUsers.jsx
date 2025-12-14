@@ -21,9 +21,9 @@ const ManagementUsers = () => {
                 <h1 className="heading-1">User Management</h1>
                 <div className="relative">
                     <Search className="absolute left-3 top-2.5 text-slate-500" size={16} />
-                    <input
-                        type="text"
-                        placeholder="Search pilots..."
+                    <input 
+                        type="text" 
+                        placeholder="Search pilots..." 
                         className="input-field pl-10 w-64"
                         value={query}
                         onChange={e => setQuery(e.target.value)}

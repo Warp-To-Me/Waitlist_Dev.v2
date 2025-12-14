@@ -14,7 +14,7 @@ const Layout = ({ children }) => {
     if (match) {
       setTheme(match[2]);
     }
-
+    
     // Fetch Global User Data (simulating navbar_context)
     fetch('/api/me/')
       .then(res => {
@@ -149,9 +149,9 @@ const ESIMonitor = ({ user }) => {
         // The proxy config in vite handles /ws calls, but standard WebSocket ctor needs full URL.
         // If we are proxying, window.location.host is correct (5173), and Vite proxies.
         const socketUrl = `${protocol}${window.location.host}/ws/user/notify/`;
-
+        
         const socket = new WebSocket(socketUrl);
-
+        
         socket.onmessage = (e) => {
             const msg = JSON.parse(e.data);
             if (msg.type === 'ratelimit') {

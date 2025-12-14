@@ -30,8 +30,8 @@ const ManagementBans = () => {
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <h1 className="heading-1">Ban Management</h1>
-                <button
-                    onClick={() => alert("To ban a user, go to User Management > Inspect User")}
+                <button 
+                    onClick={() => alert("To ban a user, go to User Management > Inspect User")} 
                     className="btn-primary text-sm"
                 >
                     <Plus size={16} /> Ban User
@@ -41,7 +41,7 @@ const ManagementBans = () => {
             {/* Filter Tabs */}
             <div className="flex gap-2 border-b border-white/10 pb-4">
                 {['all', 'active', 'permanent', 'expired'].map(f => (
-                    <button
+                    <button 
                         key={f}
                         onClick={() => setFilter(f)}
                         className={`px-4 py-2 rounded-lg text-sm font-bold capitalize transition ${filter === f ? 'bg-brand-600 text-white' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
@@ -81,7 +81,7 @@ const ManagementBans = () => {
                                     )}
                                 </td>
                                 <td className="p-4 text-right">
-                                    <button
+                                    <button 
                                         onClick={() => handleBanAction('remove', b.id)}
                                         className="btn-ghost text-red-400 hover:text-red-300 p-2"
                                         title="Lift Ban"

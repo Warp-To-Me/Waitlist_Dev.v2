@@ -64,8 +64,8 @@ api_urlpatterns = [
     path('profile/make_main/<int:char_id>/', views_profile.make_main, name='make_main'),
     
     path('refresh_profile/<int:char_id>/', views_profile.api_refresh_profile, name='api_refresh_profile'),
-    path('profile/status/<int:char_id>/', views_profile.api_pilot_status, name='api_pilot_status'),
-
+    path('profile/status/<int:char_id>/', views_profile.api_pilot_status, name='api_pilot_status'), 
+    
     path('profile/toggle_visibility/', views_profile.api_toggle_xup_visibility, name='api_toggle_xup_visibility'),
     
     # Doctrines API
@@ -73,8 +73,8 @@ api_urlpatterns = [
     path('doctrines/fit/<int:fit_id>/', core_views.doctrine_detail_api, name='doctrine_detail_api'),
     path('doctrines/manage/', core_views.manage_doctrines, name='manage_doctrines_api'),
     
-    # Fleet API Overrides (Must come before waitlist_data.urls to take precedence if name conflicts,
-    # but waitlist_data.urls has the original paths. We should probably rely on waitlist_data.urls
+    # Fleet API Overrides (Must come before waitlist_data.urls to take precedence if name conflicts, 
+    # but waitlist_data.urls has the original paths. We should probably rely on waitlist_data.urls 
     # if we modified the views inside it directly.
     # I modified Waitlist_Dev.v2/waitlist_data/views/dashboard.py.
     # So I need to ensure the URL pointing to it is correct.)
@@ -89,7 +89,7 @@ urlpatterns = [
 
     # API Routes
     path('api/', include(api_urlpatterns)),
-
+    
     # Auth Routes (Keep these at root for EVE SSO callbacks unless we move them too)
     # The esi_auth app likely relies on specific callback URLs.
     path('', include('esi_auth.urls')),

@@ -23,6 +23,14 @@ export default defineConfig({
     },
   },
   server: {
+    host: true, // Listen on all addresses (0.0.0.0)
+    strictPort: true,
+    port: 5173,
+    // Fix HMR when running behind a reverse proxy (SSL)
+    hmr: {
+        host: 'wl.nandn.cc',
+        protocol: 'wss',
+    },
     // Proxy API requests to Django during development
     proxy: {
       '/api': 'http://127.0.0.1:8000',

@@ -27,13 +27,13 @@ from rest_framework.response import Response
 def fleet_dashboard(request, token):
     fleet = get_object_or_404(Fleet, join_token=token)
     
-    # Check ban status manually (decorator on view function won't work well with DRF api_view wrapper sometimes,
+    # Check ban status manually (decorator on view function won't work well with DRF api_view wrapper sometimes, 
     # but let's assume we can port the check logic or just rely on middleware if it existed.
     # The original had @check_ban_status. Let's replicate logic if needed or wrap it.
     # For now, strict adherence to logic:
     # If banned, return 403 or redirect info? original redirected to banned view.
     # We will assume frontend handles API errors.
-
+    
     fc_name = EveCharacter.objects.filter(user=fleet.commander, is_main=True).values_list('character_name', flat=True).first()
     if not fc_name:
         fc_name = EveCharacter.objects.filter(user=fleet.commander).values_list('character_name', flat=True).first()
@@ -87,7 +87,7 @@ def fleet_dashboard(request, token):
 
     # --- PASS 2: Assign Indicators & Populate Lists ---
     column_data = {'pending': [], 'logi': [], 'dps': [], 'sniper': [], 'other': []}
-
+    
     for entry in processed_entries:
         all_pilot_cats = char_columns.get(entry.character.character_id, set())
         other_categories = list(all_pilot_cats - {entry.real_category})
@@ -140,18 +140,18 @@ def fleet_dashboard(request, token):
     # Simplified serialization
     categories_data = []
     cats = DoctrineCategory.objects.filter(parent__isnull=True).prefetch_related('subcategories__fits')
-    # Recursive serialization helper needed if we want full tree,
-    # but for X-up usually we just need top level or flattened list?
+    # Recursive serialization helper needed if we want full tree, 
+    # but for X-up usually we just need top level or flattened list? 
     # Let's assume the frontend fetches doctrines from /api/doctrines/ if needed for full tree,
     # or we send a simplified list here.
     # The original template iterated `categories`.
-
+    
     # We will reuse the `serialize_category` from core views if imported, or redefine.
     # To keep it simple, we'll return a flat list of fits grouped by category for the dropdown?
     # Actually the X-up modal needs the tree.
     # Let's rely on the frontend fetching `api/doctrines/` separately or include it here.
     # Including it here reduces network calls.
-
+    
     def serialize_cat(cat):
         return {
             'id': cat.id,
@@ -223,7 +223,7 @@ def fleet_overview_api(request, token):
     if not fleet.commander: return Response({'error': 'No commander'}, status=404)
     fc_char = fleet.commander.characters.filter(is_main=True).first() or fleet.commander.characters.first()
     if not fc_char: return Response({'error': 'FC has no characters'}, status=400)
-
+    
     actual_fleet_id = fleet.esi_fleet_id
     if not actual_fleet_id:
         if check_token(fc_char):
@@ -236,17 +236,17 @@ def fleet_overview_api(request, token):
                     fleet.esi_fleet_id = actual_fleet_id
                     fleet.save()
             except Exception: pass
-
+            
     if not actual_fleet_id: return Response({'error': 'No ESI Fleet'}, status=404)
-
+    
     composite_data, _ = get_fleet_composition(actual_fleet_id, fc_char)
     if composite_data is None: return Response({'error': 'ESI Fail'}, status=500)
     elif composite_data == 'unchanged': return Response({'status': 'unchanged'}, status=200)
-
+    
     summary, hierarchy = process_fleet_data(composite_data)
     return Response({
-        'fleet_id': actual_fleet_id,
-        'member_count': len(composite_data.get('members', [])),
-        'summary': summary,
+        'fleet_id': actual_fleet_id, 
+        'member_count': len(composite_data.get('members', [])), 
+        'summary': summary, 
         'hierarchy': hierarchy
     })

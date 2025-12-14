@@ -40,13 +40,13 @@ def banned_view(request):
 @api_view(['GET'])
 def landing_page(request):
     active_fleets_qs = Fleet.objects.filter(is_active=True).select_related('commander').order_by('-created_at')
-
+    
     fleets_list = []
     # Fetch commander details efficiently
     commander_ids = [f.commander_id for f in active_fleets_qs]
     mains = EveCharacter.objects.filter(user_id__in=commander_ids, is_main=True).values('user_id', 'character_name')
     fc_name_map = {m['user_id']: m['character_name'] for m in mains}
-
+    
     # Fill gaps with any character if main not found (edge case)
     missing = set(commander_ids) - set(fc_name_map.keys())
     if missing:
@@ -115,7 +115,7 @@ def doctrine_list(request):
         'subcategories__subcategories__subcategories__fits__ship_type', 'subcategories__subcategories__subcategories__fits__tags',
         'subcategories__subcategories__subcategories__subcategories__fits__ship_type', 'subcategories__subcategories__subcategories__subcategories__fits__tags'
     )
-
+    
     result = [serialize_category(c) for c in categories]
     return Response(result)
 
@@ -141,18 +141,18 @@ def manage_doctrines(request):
 
     if request.method == 'POST':
         action = request.data.get('action')
-
+        
         if action == 'delete':
             fit_id = request.data.get('fit_id')
             DoctrineFit.objects.filter(id=fit_id).delete()
             return Response({'status': 'deleted'})
-
+            
         elif action == 'create' or action == 'update':
             raw_eft = request.data.get('eft_paste')
             cat_id = request.data.get('category_id')
             description = request.data.get('description', '')
             tag_ids = request.data.get('tags', []) # Expect list of IDs
-
+            
             parser = EFTParser(raw_eft)
             if parser.parse():
                 category = get_object_or_404(DoctrineCategory, id=cat_id)
@@ -164,20 +164,20 @@ def manage_doctrines(request):
                     fit.modules.all().delete()
                 else:
                     fit = DoctrineFit.objects.create(name=parser.fit_name, category=category, ship_type=parser.hull_obj, eft_format=parser.raw_text, description=description)
-
+                
                 if tag_ids: fit.tags.set(tag_ids)
                 else: fit.tags.clear()
-
+                
                 for item in parser.items:
                     FitModule.objects.create(fit=fit, item_type=item['obj'], quantity=item['quantity'])
-
+                
                 return Response({'status': 'saved', 'fit_id': fit.id})
             else:
                 return Response({'error': 'Failed to parse EFT'}, status=400)
 
     # GET: List everything needed for the management UI
     categories = DoctrineCategory.objects.all().values('id', 'name', 'parent_id')
-
+    
     # Flat list of fits with category info for the table
     fits = DoctrineFit.objects.select_related('category', 'ship_type').prefetch_related('tags').order_by('category__name', 'order')
     fits_data = []
@@ -192,7 +192,7 @@ def manage_doctrines(request):
         })
 
     tags = DoctrineTag.objects.all().values('id', 'name')
-
+    
     return Response({
         'categories': list(categories),
         'fits': fits_data,

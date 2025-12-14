@@ -50,7 +50,7 @@ def srp_config(request):
             'character_id': current_config.character.character_id,
             'character_name': current_config.character.character_name
         }
-
+    
     chars_data = [{'character_id': c.character_id, 'character_name': c.character_name} for c in user_chars]
 
     return Response({
