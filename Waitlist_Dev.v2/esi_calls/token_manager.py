@@ -143,7 +143,12 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                 data = resp['data']
                 character.is_online = data.get('online', False)
                 character.last_login_at = data.get('last_login')
-                character.save(update_fields=['is_online', 'last_login_at'])
+
+                if character.is_online:
+                    character.last_online_at = timezone.now()
+                    character.save(update_fields=['is_online', 'last_login_at', 'last_online_at'])
+                else:
+                    character.save(update_fields=['is_online', 'last_login_at'])
 
                 if not character.is_online:
                     for ep in SKIP_IF_OFFLINE:
