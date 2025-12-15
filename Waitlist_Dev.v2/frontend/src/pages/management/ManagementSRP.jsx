@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { RefreshCw, ArrowLeft, ArrowRight, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
-import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement, DoughnutController, BarController } from 'chart.js';
 import { Bar, Doughnut } from 'react-chartjs-2';
 import clsx from 'clsx';
 
 // Register ChartJS components
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement);
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement, DoughnutController, BarController);
 
 const ManagementSRP = () => {
     // --- STATE ---
@@ -619,11 +619,16 @@ const SRPCharts = ({ data }) => {
                     color: '#94a3b8',
                     font: { size: 10 },
                     generateLabels: (chart) => {
-                        const original = ChartJS.defaults.plugins.legend.labels.generateLabels(chart);
+                        // Use Doughnut-specific generator if available (for per-data-item labels), else fallback to default
+                        const generateLabels = ChartJS.overrides?.doughnut?.plugins?.legend?.labels?.generateLabels
+                                            || ChartJS.defaults.plugins.legend.labels.generateLabels;
+
+                        const original = generateLabels(chart);
+
                         original.forEach(item => {
-                            // Map back to raw category key using index
+                            // Map back to raw category key using index (Doughnut generator uses data index)
                             const rawCat = allCats[item.index];
-                            if (hiddenCategories.has(rawCat)) {
+                            if (rawCat && hiddenCategories.has(rawCat)) {
                                 item.hidden = true; // Forces strikethrough styling
                             }
                         });
