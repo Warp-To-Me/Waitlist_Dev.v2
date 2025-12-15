@@ -29,3 +29,4 @@ gevent  # Required for running Celery on Windows
 
 # Security
 django-fernet-fields-v2
+djangorestframework
