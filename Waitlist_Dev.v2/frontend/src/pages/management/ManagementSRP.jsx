@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { RefreshCw, DollarSign, TrendingUp, TrendingDown, Calendar, Search, ArrowLeft, ArrowRight, Filter, Clock } from 'lucide-react';
+import React, { useEffect, useState, useRef } from 'react';
+import { RefreshCw, ArrowLeft, ArrowRight, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
 import { Bar, Doughnut } from 'react-chartjs-2';
 import clsx from 'clsx';
@@ -10,13 +10,16 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend,
 const ManagementSRP = () => {
     // --- STATE ---
     const [status, setStatus] = useState(null);
-    const [summary, setSummary] = useState(null); // Contains transactions, charts, etc.
+    const [summary, setSummary] = useState(null);
     const [loading, setLoading] = useState(true);
     const [syncTimerStr, setSyncTimerStr] = useState("Checking...");
 
     // Filters
     const [dateRange, setDateRange] = useState({ start: '', end: '' });
     const [divisions, setDivisions] = useState(['1','2','3','4','5','6','7']);
+    const [divisionMap, setDivisionMap] = useState({}); // { 1: "Master Wallet", ... }
+
+    // Pagination State
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(25);
 
@@ -37,14 +40,13 @@ const ManagementSRP = () => {
 
     // --- INITIALIZATION ---
     useEffect(() => {
-        // Set default dates (This month)
         const now = new Date();
         const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
         const end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
         setDateRange({ start, end });
 
-        // Start Polling
         fetchStatus();
+        fetchDivisions();
 
         return () => {
             if (statusPollRef.current) clearTimeout(statusPollRef.current);
@@ -52,14 +54,25 @@ const ManagementSRP = () => {
         };
     }, []);
 
-    // Fetch Data whenever filters change
+    // Fetch Data on Filter Change
     useEffect(() => {
-        if (dateRange.start) { // Ensure dates are set
+        if (dateRange.start) {
             fetchData();
         }
     }, [dateRange, divisions, page, limit, filters]);
 
     // --- API CALLS ---
+    const fetchDivisions = () => {
+        fetch('/api/mgmt/srp/divisions/')
+            .then(res => res.json())
+            .then(data => {
+                // Ensure mapping has string keys if needed, but API returns {1: "Name"}
+                // We'll trust the API returns a dict.
+                if (data && !data.error) setDivisionMap(data);
+            })
+            .catch(err => console.error("Failed to fetch divisions", err));
+    };
+
     const fetchStatus = () => {
         fetch('/api/srp/status/')
             .then(res => res.json())
@@ -67,11 +80,10 @@ const ManagementSRP = () => {
                 setStatus(data);
                 if (data.next_sync) startSyncTimer(data.next_sync);
 
-                // Adaptive Polling
                 let delay = 30000;
                 if (data.next_sync) {
                     const diff = new Date(data.next_sync) - new Date();
-                    if (diff > 300000) delay = 300000; // 5m
+                    if (diff > 300000) delay = 300000;
                     else if (diff > 15000) delay = diff;
                     else delay = 15000;
                 }
@@ -118,20 +130,7 @@ const ManagementSRP = () => {
         .then(res => res.json())
         .then(data => {
             if (!data.success) alert("Failed to update category");
-            else fetchData(); // Refresh
-        });
-    };
-
-    const handleSync = () => {
-        const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch('/api/mgmt/srp/sync/', {
-            method: 'POST',
-            headers: { 'X-CSRFToken': csrf }
-        })
-        .then(res => res.json())
-        .then(data => {
-            alert(data.message);
-            fetchStatus(); // Check status immediately
+            else fetchData();
         });
     };
 
@@ -157,12 +156,10 @@ const ManagementSRP = () => {
     };
 
     const debouncedSetFilter = (key, value) => {
-        // Simple debounce could be added here, but for now React state updates are fast enough
         setFilters(prev => ({ ...prev, [key]: value }));
-        setPage(1); // Reset to page 1 on filter change
+        setPage(1);
     };
 
-    // --- RENDER ---
     if (!status && !summary && loading) return <div className="p-10 text-center text-slate-500"><RefreshCw className="animate-spin inline mr-2"/> Loading Dashboard...</div>;
 
     return (
@@ -220,7 +217,9 @@ const ManagementSRP = () => {
                                     }}
                                     className="rounded bg-slate-800 border-slate-600 text-brand-500 focus:ring-0 w-3 h-3"
                                 />
-                                <span className="text-slate-300">Div {div}</span>
+                                <span className="text-slate-300" title={divisionMap[div] || `Division ${div}`}>
+                                    {divisionMap[div] ? divisionMap[div].substring(0, 10) : `Div ${div}`}
+                                </span>
                             </label>
                         ))}
                     </div>
@@ -236,7 +235,9 @@ const ManagementSRP = () => {
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
                     {Object.entries(summary.division_balances).map(([div, bal]) => (
                         <div key={div} className="glass-panel p-3 flex flex-col justify-center items-center border border-white/5 bg-slate-900/50">
-                            <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-1">Division {div}</span>
+                            <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-1 truncate w-full text-center" title={divisionMap[div] || `Division ${div}`}>
+                                {divisionMap[div] || `Division ${div}`}
+                            </span>
                             <span className="text-xs font-mono font-bold text-white whitespace-nowrap">{parseFloat(bal).toLocaleString()} ISK</span>
                         </div>
                     ))}
@@ -257,37 +258,29 @@ const ManagementSRP = () => {
 
             {/* TRANSACTIONS TABLE */}
             <div className="glass-panel flex flex-col overflow-hidden min-h-[500px]">
-                <div className="p-4 border-b border-white/5 bg-slate-900/50 shrink-0 flex items-center justify-between">
-                    <div className="w-1/3">
-                        <h3 className="label-text mb-0">Recent Transactions</h3>
+                {/* Pagination Controls Top */}
+                <div className="p-3 border-b border-white/5 bg-slate-900/50 flex justify-between items-center">
+                    <h3 className="label-text mb-0 w-1/3">Transactions</h3>
+                    <div className="w-1/3 flex justify-center">
+                        <SmartPagination
+                            current={page}
+                            total={summary?.pagination?.total_pages || 1}
+                            onChange={setPage}
+                        />
                     </div>
-
-                    {/* Pagination Top */}
-                    {summary?.pagination && (
-                        <div className="w-1/3 flex justify-center items-center gap-2">
-                            <button disabled={!summary.pagination.has_previous} onClick={() => setPage(p => p - 1)} className="btn-secondary py-1 px-2 text-[10px] disabled:opacity-50">
-                                <ArrowLeft size={12} />
-                            </button>
-                            <span className="text-slate-500 text-[10px] font-mono">
-                                {summary.pagination.current_page} / {summary.pagination.total_pages}
-                            </span>
-                            <button disabled={!summary.pagination.has_next} onClick={() => setPage(p => p + 1)} className="btn-secondary py-1 px-2 text-[10px] disabled:opacity-50">
-                                <ArrowRight size={12} />
-                            </button>
-                        </div>
-                    )}
-
-                    <div className="w-1/3 flex justify-end items-center gap-2">
-                        <span className="text-[10px] text-slate-500 uppercase font-bold">Rows:</span>
+                    <div className="w-1/3 flex justify-end">
                         <select
                             value={limit}
-                            onChange={(e) => setLimit(Number(e.target.value))}
+                            onChange={(e) => {
+                                setLimit(Number(e.target.value));
+                                setPage(1);
+                            }}
                             className="bg-black/30 border border-slate-700 text-slate-300 text-xs rounded px-2 py-1 outline-none focus:border-brand-500"
                         >
-                            <option value="10">10</option>
-                            <option value="25">25</option>
-                            <option value="50">50</option>
-                            <option value="100">100</option>
+                            <option value="10">10 Rows</option>
+                            <option value="25">25 Rows</option>
+                            <option value="50">50 Rows</option>
+                            <option value="100">100 Rows</option>
                         </select>
                     </div>
                 </div>
@@ -343,7 +336,7 @@ const ManagementSRP = () => {
                         </thead>
                         <tbody className="divide-y divide-white/5 opacity-100 transition-opacity duration-200" style={{ opacity: loading ? 0.5 : 1 }}>
                             {summary?.transactions?.map(tx => (
-                                <TransactionRow key={tx.entry_id} tx={tx} onUpdateCategory={updateCategory} />
+                                <TransactionRow key={tx.entry_id} tx={tx} onUpdateCategory={updateCategory} divisionMap={divisionMap} />
                             ))}
                             {summary?.transactions?.length === 0 && (
                                 <tr><td colSpan="8" className="p-8 text-center text-slate-500 italic">No transactions found for this period.</td></tr>
@@ -351,12 +344,85 @@ const ManagementSRP = () => {
                         </tbody>
                     </table>
                 </div>
+
+                {/* Pagination Controls Bottom */}
+                <div className="p-3 border-t border-white/5 bg-slate-900/50 flex justify-center items-center relative">
+                    <SmartPagination
+                        current={page}
+                        total={summary?.pagination?.total_pages || 1}
+                        onChange={setPage}
+                    />
+                    <div className="absolute right-4 text-[10px] text-slate-500 font-mono hidden md:block">
+                        {summary?.pagination?.total_count} entries
+                    </div>
+                </div>
             </div>
         </div>
     );
 };
 
-// --- SUB COMPONENTS ---
+// --- SMART PAGINATION ---
+const SmartPagination = ({ current, total, onChange }) => {
+    // Generate page numbers: <- 2 3 4 5/50 6 7 8 ->
+    // We want a window of 7 items centered on current
+
+    if (total <= 1) return null;
+
+    let start = Math.max(1, current - 3);
+    let end = Math.min(total, current + 3);
+
+    // Adjust window if close to edges
+    if (start === 1) end = Math.min(total, 7);
+    if (end === total) start = Math.max(1, total - 6);
+
+    const pages = [];
+    for (let i = start; i <= end; i++) {
+        pages.push(i);
+    }
+
+    return (
+        <div className="flex items-center gap-1">
+            <button
+                onClick={() => onChange(Math.max(1, current - 1))}
+                disabled={current === 1}
+                className="btn-secondary py-1 px-2 text-[10px] disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white/10"
+            >
+                &larr;
+            </button>
+
+            {pages.map(p => (
+                <button
+                    key={p}
+                    onClick={() => onChange(p)}
+                    className={clsx(
+                        "py-1 px-2.5 text-[10px] rounded transition font-mono",
+                        p === current
+                            ? "bg-brand-500 text-white font-bold shadow-lg shadow-brand-500/20"
+                            : "bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white"
+                    )}
+                >
+                    {p}
+                </button>
+            ))}
+
+            {/* Show Total if not visible in range */}
+            {end < total && (
+                <>
+                    <span className="text-slate-600 text-[10px]">...</span>
+                    <button onClick={() => onChange(total)} className="py-1 px-2 text-[10px] text-slate-500 hover:text-white">{total}</button>
+                </>
+            )}
+
+            <button
+                onClick={() => onChange(Math.min(total, current + 1))}
+                disabled={current === total}
+                className="btn-secondary py-1 px-2 text-[10px] disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white/10"
+            >
+                &rarr;
+            </button>
+        </div>
+    );
+}
 
 const SummaryCard = ({ label, value, color }) => (
     <div className="glass-panel p-4 text-center">
@@ -367,7 +433,21 @@ const SummaryCard = ({ label, value, color }) => (
     </div>
 );
 
-const TransactionRow = ({ tx, onUpdateCategory }) => {
+// Helper to guess category based on ref_type for display only
+const getSuggestedCategory = (tx) => {
+    // Mimic backend determine_auto_category logic for visual cue
+    const r = tx.ref_type;
+    const desc = (tx.reason || "").toLowerCase();
+
+    if (['contract_brokers_fee', 'brokers_fee', 'transaction_tax', 'tax'].includes(r) || desc.includes("broker")) return 'tax';
+    if (tx.amount > 0 && (desc.includes('srp') || Math.abs(tx.amount % 20000000) < 0.1)) return 'srp_in';
+    if (tx.amount < 0 && (desc.includes('srp'))) return 'srp_out';
+    if (tx.amount < 0 && desc.includes('giveaway')) return 'giveaway';
+
+    return ''; // No suggestion
+};
+
+const TransactionRow = ({ tx, onUpdateCategory, divisionMap }) => {
     const categories = [
         { id: '', label: 'Select...', class: 'bg-slate-800 border-slate-700 text-slate-400' },
         { id: 'srp_in', label: 'SRP In', class: 'bg-green-600 border-green-500 text-white' },
@@ -380,19 +460,31 @@ const TransactionRow = ({ tx, onUpdateCategory }) => {
         { id: 'other', label: 'Other', class: 'bg-slate-600 border-slate-500 text-white' }
     ];
 
-    const currentCat = categories.find(c => c.id === (tx.custom_category || '')) || categories[8]; // Default to Other/Select
+    // Use suggested category if custom_category is missing
+    const effectiveCatId = tx.custom_category || getSuggestedCategory(tx);
+    const currentCat = categories.find(c => c.id === effectiveCatId) || categories.find(c => c.id === 'other');
+
+    // Fallback names
+    const fromName = tx.first_party_name || `Unknown (${tx.entry_id.toString().substring(0,5)}...)`; // Can't see ID directly in API except entry_id? Backend sends names.
+    const toName = tx.second_party_name || `Unknown`;
 
     return (
         <tr className="hover:bg-white/5 transition group">
             <td className="px-2 py-1 font-mono text-[10px] whitespace-nowrap text-slate-500 group-hover:text-slate-300">
                 {new Date(tx.date).toLocaleDateString()} <span className="opacity-50">{new Date(tx.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
             </td>
-            <td className="px-2 py-1 text-center"><span className="bg-white/5 px-1.5 py-0.5 rounded text-[10px] border border-white/5">{tx.division}</span></td>
+            <td className="px-2 py-1 text-center" title={divisionMap[tx.division]}>
+                <span className="bg-white/5 px-1.5 py-0.5 rounded text-[10px] border border-white/5">{tx.division}</span>
+            </td>
             <td className={clsx("px-2 py-1 text-right font-mono font-bold text-xs whitespace-nowrap", tx.amount > 0 ? 'text-green-400' : 'text-red-400')}>
                 {parseFloat(tx.amount).toLocaleString()}
             </td>
-            <td className="px-2 py-1 truncate max-w-[120px] text-slate-300" title={tx.first_party_name}>{tx.first_party_name}</td>
-            <td className="px-2 py-1 truncate max-w-[120px] text-slate-300" title={tx.second_party_name}>{tx.second_party_name}</td>
+            <td className="px-2 py-1 truncate max-w-[120px] text-slate-300" title={tx.first_party_name}>
+                {tx.first_party_name || <span className="opacity-50 italic">Unknown</span>}
+            </td>
+            <td className="px-2 py-1 truncate max-w-[120px] text-slate-300" title={tx.second_party_name}>
+                {tx.second_party_name || <span className="opacity-50 italic">Unknown</span>}
+            </td>
             <td className="px-2 py-1 whitespace-nowrap"><span className="badge badge-slate text-[9px] text-slate-500">{tx.ref_type.replace(/_/g, ' ')}</span></td>
             <td className="px-2 py-1">
                 <select
@@ -400,6 +492,12 @@ const TransactionRow = ({ tx, onUpdateCategory }) => {
                     onChange={(e) => onUpdateCategory(tx.entry_id, e.target.value)}
                     className={clsx("w-full rounded px-1 py-0.5 text-[10px] font-bold border outline-none appearance-none cursor-pointer transition-colors duration-300 focus:ring-1 focus:ring-white/50", currentCat.class)}
                 >
+                    {/* If we suggested a category but it's not saved, the value is '', so "Select..." shows, BUT the color matches the suggestion.
+                        Wait, if value is '', it shows 'Select...'.
+                        If user wants to CONFIRM suggestion, they select it.
+                        Visually: The dropdown COLOR implies the suggestion. The TEXT is Select... (if not saved).
+                        This is good UX to indicate "Not Saved".
+                    */}
                     {categories.map(cat => (
                         <option key={cat.id} value={cat.id} className="bg-slate-900 text-white">{cat.label}</option>
                     ))}
@@ -424,15 +522,24 @@ const SRPCharts = ({ data }) => {
     const catKeysIn = Object.keys(data.categories.in);
     const catKeysOut = Object.keys(data.categories.out);
     const allCats = Array.from(new Set([...catKeysIn, ...catKeysOut])).sort();
+
+    // Color Mapping matching the Categories List
+    const getColor = (c) => {
+        const lower = c.toLowerCase().replace(/_/g, ' ');
+        if(lower.includes('srp in')) return '#16a34a';
+        if(lower.includes('srp out')) return '#dc2626';
+        if(lower.includes('internal')) return '#9333ea';
+        if(lower.includes('giveaway')) return '#ea580c';
+        if(lower.includes('manual')) return '#2563eb';
+        if(lower.includes('tax')) return '#475569';
+        return '#94a3b8'; // Other/Unknown
+    };
+
     const catData = {
         labels: allCats.map(c => c.replace(/_/g, ' ')),
         datasets: [{
             data: allCats.map(c => (data.categories.in[c] || 0) + Math.abs(data.categories.out[c] || 0)),
-            backgroundColor: allCats.map(c => {
-                if (c.includes('in')) return '#16a34a';
-                if (c.includes('out')) return '#dc2626';
-                return '#475569';
-            }),
+            backgroundColor: allCats.map(c => getColor(c)),
             borderWidth: 0,
         }]
     };

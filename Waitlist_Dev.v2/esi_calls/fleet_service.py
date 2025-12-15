@@ -46,17 +46,23 @@ def get_fleet_composition(fleet_id, fc_character):
 def resolve_unknown_names(char_ids):
     """
     Bulk resolves character names from ESI for IDs not in our DB.
+    Returns a COMPLETE map of {id: name} for all input IDs (DB + ESI).
     """
     if not char_ids: return {}
     
-    # 1. Filter out what we already know
-    known_ids = set(EveCharacter.objects.filter(character_id__in=char_ids).values_list('character_id', flat=True))
+    resolved = {}
+
+    # 1. Fetch from DB
+    known_chars = EveCharacter.objects.filter(character_id__in=char_ids).values('character_id', 'character_name')
+    for c in known_chars:
+        resolved[c['character_id']] = c['character_name']
+
+    known_ids = set(resolved.keys())
     missing_ids = list(set(char_ids) - known_ids)
     
-    if not missing_ids: return {}
+    if not missing_ids: return resolved
 
     # 2. Resolve missing via ESI
-    resolved = {}
     url = f"{ESI_BASE}/universe/names/"
     
     chunk_size = 500
@@ -67,6 +73,10 @@ def resolve_unknown_names(char_ids):
             if resp.status_code == 200:
                 for entry in resp.json():
                     if entry['category'] == 'character':
+                        resolved[entry['id']] = entry['name']
+                    elif entry['category'] == 'corporation':
+                        resolved[entry['id']] = entry['name']
+                    elif entry['category'] == 'alliance':
                         resolved[entry['id']] = entry['name']
         except Exception as e:
             print(f"Name Resolution Error: {e}")

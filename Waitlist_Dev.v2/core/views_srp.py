@@ -16,6 +16,7 @@ from rest_framework.response import Response
 from core.permissions import get_template_base, get_mgmt_context
 from pilot_data.models import SRPConfiguration, EveCharacter, CorpWalletJournal, EsiHeaderCache
 from scheduler.tasks import refresh_srp_wallet_task
+from esi_calls.wallet_service import get_corp_divisions
 
 def can_manage_srp(user):
     if user.is_superuser: return True
@@ -131,6 +132,19 @@ def api_update_transaction_category(request):
     transaction.save()
     
     return Response({'success': True})
+
+@api_view(['GET'])
+@check_permission(can_manage_srp)
+def api_divisions(request):
+    """
+    Fetches corp divisions from ESI.
+    """
+    config = SRPConfiguration.objects.first()
+    if not config or not config.character:
+        return Response({'error': 'No SRP Character Configured'}, status=400)
+
+    divisions = get_corp_divisions(config.character)
+    return Response(divisions)
 
 # --- DASHBOARD ---
 

@@ -177,3 +177,27 @@ def sync_corp_wallet(srp_config):
         return False, "; ".join(errors)
     
     return True, f"Synced {total_new} entries."
+
+def get_corp_divisions(character):
+    """
+    Fetches Division Names from ESI.
+    """
+    if not check_token(character): return {}
+    corp_id = character.corporation_id
+    if not corp_id: return {}
+
+    url = f"{ESI_BASE}/corporations/{corp_id}/divisions/"
+    resp = call_esi(character, f'corp_divisions_{corp_id}', url) # Default cache
+
+    if resp['status'] != 200: return {}
+
+    data = resp['data']
+    # Map division ID (1-7) to Name
+    # ESI returns: { "wallet": [ { "division": 1, "name": "Master Wallet" } ... ] }
+
+    mapping = {}
+    if 'wallet' in data:
+        for div in data['wallet']:
+            mapping[div['division']] = div['name']
+
+    return mapping
