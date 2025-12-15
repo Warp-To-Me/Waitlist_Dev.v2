@@ -1,4 +1,4 @@
-﻿import requests
+import requests
 import urllib.parse
 import os
 import secrets
@@ -86,13 +86,16 @@ def sso_callback(request):
     code = request.GET.get('code')
     state = request.GET.get('state')
 
-    # Verify State
+    # Retrieve flags BEFORE cleanup
     saved_state = request.session.get('sso_state')
-    _clear_session_flags(request) # Clear state token but keep flow flags for a moment if needed?
-    # Actually, we need 'is_adding_alt' for the logic below, so we shouldn't clear everything yet.
-    # Let's verify state first manually.
+    is_adding = request.session.get('is_adding_alt')
+    is_srp = request.session.get('is_srp_auth')
+
+    # Now clear flags
+    _clear_session_flags(request)
     
     if not state or state != saved_state:
+        # Log error or handle state mismatch
         pass 
 
     if not code: return HttpResponse("SSO Error: No code received", status=400)
@@ -131,10 +134,6 @@ def sso_callback(request):
     # 3. Handle Linking vs Login
     target_char = None
     
-    # Retrieve flags before cleanup
-    is_adding = request.session.get('is_adding_alt')
-    is_srp = request.session.get('is_srp_auth')
-
     if request.user.is_authenticated and is_adding:
         # --- ADDING / UPDATING ALT ---
         user = request.user
@@ -166,8 +165,8 @@ def sso_callback(request):
         
         # Redirect Logic
         if is_srp:
-            return redirect('srp_config')
-        return redirect('profile')
+            return redirect('/management/srp/config')
+        return redirect('/profile')
     else:
         # --- LOGIN ---
         try:
@@ -209,8 +208,8 @@ def sso_callback(request):
 
         login(request, user)
         request.session['active_char_id'] = char_id
-        return redirect('landing_page')
+        return redirect('/')
 
 def logout_view(request):
     logout(request)
-    return redirect('landing_page')
+    return redirect('/')
