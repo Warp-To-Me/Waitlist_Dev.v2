@@ -202,6 +202,63 @@ def sync_corp_wallet(srp_config):
 
     srp_config.save()
     
+    # --- STEP 2: BACKFILL "UNKNOWN" NAMES ---
+    # Attempt to repair existing entries with missing names (e.g. if ESI failed previously)
+    try:
+        unknown_entries = CorpWalletJournal.objects.filter(
+            Q(first_party_name__in=['', 'Unknown']) | Q(second_party_name__in=['', 'Unknown']),
+            config=srp_config
+        ).values_list('entry_id', 'first_party_id', 'second_party_id')[:200] # Limit batch size
+
+        unknown_ids_to_resolve = set()
+        entries_to_update = []
+
+        # Check Corp Name logic first
+        if corp_id and not character.corporation_name:
+             # Force resolve corp if missing name in DB
+             unknown_ids_to_resolve.add(corp_id)
+
+        for entry in unknown_entries:
+            eid, fid, sid = entry
+            if fid: unknown_ids_to_resolve.add(fid)
+            if sid: unknown_ids_to_resolve.add(sid)
+            entries_to_update.append({'entry_id': eid, 'fid': fid, 'sid': sid})
+
+        if unknown_ids_to_resolve:
+            print(f"[SRP Sync] Attempting to backfill names for {len(unknown_ids_to_resolve)} IDs...")
+            resolved_map = resolve_unknown_names(list(unknown_ids_to_resolve))
+
+            # Explicit Overrides
+            if corp_id and character.corporation_name:
+                resolved_map[corp_id] = character.corporation_name
+            elif corp_id in resolved_map and not character.corporation_name:
+                 # Update char corp name if we resolved it
+                 character.corporation_name = resolved_map[corp_id]
+                 character.save(update_fields=['corporation_name'])
+
+            if character.character_id:
+                resolved_map[character.character_id] = character.character_name
+
+            updated_count = 0
+            for item in entries_to_update:
+                f_name = resolved_map.get(item['fid'])
+                s_name = resolved_map.get(item['sid'])
+
+                if f_name or s_name:
+                    update_fields = {}
+                    if f_name: update_fields['first_party_name'] = f_name
+                    if s_name: update_fields['second_party_name'] = s_name
+
+                    if update_fields:
+                        CorpWalletJournal.objects.filter(entry_id=item['entry_id']).update(**update_fields)
+                        updated_count += 1
+
+            if updated_count > 0:
+                print(f"[SRP Sync] Backfilled names for {updated_count} transactions.")
+
+    except Exception as e:
+        print(f"[SRP Sync] Backfill Error: {e}")
+
     if errors:
         return False, "; ".join(errors)
     
