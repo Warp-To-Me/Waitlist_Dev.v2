@@ -111,10 +111,32 @@ def force_refresh_token(character):
         new_token_sig = character.access_token[-10:]
         print(f"[Token Manager] Refresh Success for {character.character_name}. New Expiry: {character.token_expires}. Sig: {old_token_sig} -> {new_token_sig}")
 
+        # --- VERIFY TOKEN SCOPES ---
+        verify_token_metadata(character)
+
         return True
     except Exception as e:
         print(f"[Token Manager] Exception refreshing token: {e}")
         return False
+
+def verify_token_metadata(character):
+    """
+    Debug helper to verify the token works against ESI and inspect scopes.
+    """
+    try:
+        url = "https://esi.evetech.net/verify/"
+        headers = {'Authorization': f'Bearer {character.access_token}'}
+        resp = requests.get(url, headers=headers, timeout=5)
+
+        if resp.status_code == 200:
+            data = resp.json()
+            print(f"[Token Verification] Character: {data.get('CharacterName')} ({data.get('CharacterID')})")
+            print(f"[Token Verification] Scopes: {data.get('Scopes')}")
+            print(f"[Token Verification] Expires: {data.get('ExpiresOn')}")
+        else:
+            print(f"[Token Verification] FAILED: {resp.status_code} - {resp.text}")
+    except Exception as e:
+        print(f"[Token Verification] Exception: {e}")
 
 # UPDATED: Added force_refresh parameter
 def update_character_data(character, target_endpoints=None, force_refresh=False):
