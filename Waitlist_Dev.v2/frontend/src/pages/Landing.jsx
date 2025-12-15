@@ -1,31 +1,32 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { LogIn } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const Landing = () => {
+    const { user, loading: authLoading } = useAuth();
     const [fleets, setFleets] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [fetchingFleets, setFetchingFleets] = useState(true);
     const navigate = useNavigate();
 
     useEffect(() => {
         fetch('/api/landing/')
             .then(res => res.json())
             .then(data => {
-                if (data.should_redirect && data.redirect_token) {
+                if (data.should_redirect && data.redirect_token && user) {
                     navigate(`/fleet/${data.redirect_token}`);
                 }
-                setFleets(data.active_fleets || []); // Template uses active_fleets
-                setIsAuthenticated(data.is_authenticated); // Assuming API returns this
-                setLoading(false);
+                // Backend returns 'fleets', assuming list.
+                setFleets(data.fleets || data.active_fleets || []);
+                setFetchingFleets(false);
             })
             .catch(err => {
                 console.error(err);
-                setLoading(false);
+                setFetchingFleets(false);
             });
-    }, [navigate]);
+    }, [navigate, user]);
 
-    if (loading) return <div className="p-10 text-center animate-pulse text-slate-500">Loading...</div>;
+    if (authLoading || fetchingFleets) return <div className="p-10 text-center animate-pulse text-slate-500">Loading...</div>;
 
     return (
         <div className="absolute inset-0 overflow-y-auto custom-scrollbar">
@@ -34,7 +35,7 @@ const Landing = () => {
                     <div className="absolute -inset-10 bg-brand-500/20 blur-[100px] rounded-full pointer-events-none"></div>
                 </div>
 
-                {isAuthenticated ? (
+                {user ? (
                     <div className="w-full max-w-4xl space-y-6 relative z-10">
                         <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-6">
                             <h2 className="text-xl font-bold text-white flex items-center gap-2">
