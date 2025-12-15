@@ -51,7 +51,7 @@ const ManagementRoles = () => {
 
     const updateRole = (userId, role, action) => {
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch('/api/mgmt/user_roles/update/', { // Assumed URL based on template {% url 'api_update_user_role' %}
+        fetch('/api/mgmt/update_role/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify({ user_id: userId, role, action })

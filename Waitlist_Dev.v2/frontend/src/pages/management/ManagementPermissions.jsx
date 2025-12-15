@@ -41,7 +41,7 @@ const ManagementPermissions = () => {
         });
         setGroups(updatedGroups);
 
-        fetch('/api/management/permissions/toggle/', {
+        fetch('/api/mgmt/permissions/toggle/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify({ group_id: groupId, cap_id: capId })
@@ -66,7 +66,7 @@ const ManagementPermissions = () => {
 
     const saveOrder = () => {
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch('/api/management/roles/reorder/', {
+        fetch('/api/mgmt/roles/reorder/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify({ ordered_ids: groups.map(g => g.id) })
@@ -81,7 +81,7 @@ const ManagementPermissions = () => {
 
     const handleModalSubmit = () => {
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch('/api/management/groups/manage/', {
+        fetch('/api/mgmt/groups/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify(modalData)
@@ -98,7 +98,7 @@ const ManagementPermissions = () => {
     const deleteGroup = (id, name) => {
         if (!confirm(`Delete group "${name}"?`)) return;
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch('/api/management/groups/manage/', {
+        fetch('/api/mgmt/groups/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify({ action: 'delete', id })
