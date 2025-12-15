@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { RefreshCw, Search, X, LogIn, AlertTriangle, ShieldAlert, Plus, Check, Mail, Link as LinkIcon, LogOut, Wind, RotateCw, Anchor, ArrowRightLeft, ArrowUp, ArrowDown, Ban, Lock, Unlock, FileText, Hourglass, Copy } from 'lucide-react';
 import clsx from 'clsx';
+import { useAuth } from '../context/AuthContext';
 
 const Profile = () => {
     const [profile, setProfile] = useState(null);
@@ -12,6 +13,7 @@ const Profile = () => {
     const [serviceFilters, setServiceFilters] = useState(new Set());
     const [isRefreshing, setIsRefreshing] = useState(false);
     const navigate = useNavigate();
+    const { refreshUser } = useAuth(); // Global Auth Refresh
 
     // Icons map for service filters
     const filterIcons = {
@@ -49,10 +51,11 @@ const Profile = () => {
     }, []);
 
     const fetchProfile = () => {
+        setLoading(true);
         fetch('/api/profile/')
             .then(res => {
                 if (res.status === 401) {
-                    window.location.href = '/sso/login';
+                    window.location.href = '/auth/login/'; // Corrected path
                     return null;
                 }
                 return res.json();
@@ -66,8 +69,6 @@ const Profile = () => {
                         const lastUpdated = new Date(data.active_char.last_updated);
                         const now = new Date();
                         const diffMins = (now - lastUpdated) / 1000 / 60;
-                        // Avoid loops if just refreshed (check not implemented here but logic exists in legacy)
-                        // Simple check: if > 5 mins and not inspection mode
                         if (diffMins > 5 && !data.is_inspection_mode && !isRefreshing) {
                            triggerRefresh(data.active_char.character_id);
                         }
@@ -80,11 +81,18 @@ const Profile = () => {
             });
     };
 
-    const handleSwitchChar = (charId) => {
-        fetch(`/api/profile/switch/${charId}/`, { method: 'GET' })
-            .then(res => {
-                if (res.ok) window.location.reload();
-            });
+    const handleSwitchChar = async (charId) => {
+        try {
+            const res = await fetch(`/api/profile/switch/${charId}/`, { method: 'GET' });
+            if (res.ok) {
+                // Update Global Navbar User State first
+                await refreshUser();
+                // Then Update Profile Content
+                fetchProfile();
+            }
+        } catch (error) {
+            console.error("Failed to switch character", error);
+        }
     };
 
     const triggerRefresh = (charId) => {

@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import clsx from 'clsx';
 import { Menu, ChevronDown } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const Layout = ({ children }) => {
   const [theme, setTheme] = useState('default');
-  const [user, setUser] = useState(null);
-  const location = useLocation();
+  const { user } = useAuth(); // Consume global user state
 
   useEffect(() => {
     // Check cookie for theme
@@ -15,15 +15,6 @@ const Layout = ({ children }) => {
       setTheme(match[2]);
     }
     
-    // Fetch Global User Data (simulating navbar_context)
-    fetch('/api/me/')
-      .then(res => {
-          if (res.ok) return res.json();
-          return null;
-      })
-      .then(data => setUser(data))
-      .catch(err => console.error("Failed to load user info", err));
-
     // Cleanup existing theme classes
     document.body.classList.remove('theme-default', 'theme-caldari', 'theme-gallente', 'theme-amarr', 'theme-light');
     document.body.classList.add(`theme-${theme}`);
@@ -177,9 +168,6 @@ const RateLimitBar = ({ data }) => {
     let colorClass = 'bg-green-500';
     if (percent < 50) colorClass = 'bg-yellow-500';
     if (percent < 20) colorClass = 'bg-red-500';
-
-    // Simplified auto-hide logic: In a real React app, we'd use a timeout to remove the item from state.
-    // For now, we just render it.
 
     return (
         <div className="bg-slate-900/90 backdrop-blur border border-white/10 p-2 rounded-lg shadow-xl w-48 pointer-events-auto animate-fade-in">

@@ -1,10 +1,13 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
 import Layout from './components/Layout';
 import Landing from './pages/Landing';
 import Doctrines from './pages/Doctrines';
 import Profile from './pages/Profile';
 import FleetDashboard from './pages/FleetDashboard';
+import AccessDenied from './pages/AccessDenied';
+import Banned from './pages/Banned';
 
 // Management
 import Management from './pages/Management';
@@ -28,55 +31,61 @@ import ManagementPermissions from './pages/management/ManagementPermissions';
 
 function App() {
   return (
-    <Router>
-      <Layout>
-        <Routes>
-          {/* Public / User Pages */}
-          <Route path="/" element={<Landing />} />
-          <Route path="/landing/" element={<Landing />} />
-          <Route path="/doctrines" element={<Doctrines />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/fleet/:token" element={<FleetDashboard />} />
-          
-          {/* Management Console */}
-          <Route path="/management" element={<Management />}>
-            <Route index element={<ManagementDashboard />} />
+    <AuthProvider>
+      <Router>
+        <Layout>
+          <Routes>
+            {/* Public / User Pages */}
+            <Route path="/" element={<Landing />} />
+            <Route path="/landing/" element={<Landing />} />
+            <Route path="/doctrines" element={<Doctrines />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/fleet/:token" element={<FleetDashboard />} />
 
-            {/* Analysis */}
-            <Route path="users" element={<ManagementUsers />} />
-            <Route path="roles" element={<ManagementRoles />} />
+            {/* Error / System Pages */}
+            <Route path="/access_denied" element={<AccessDenied />} />
+            <Route path="/banned" element={<Banned />} />
 
-            {/* Operations */}
-            <Route path="fleets" element={<ManagementFleets />} />
-            <Route path="fleets/setup" element={<ManagementFleetSetup />} />
-            <Route path="fleets/:token/settings" element={<ManagementFleetSettings />} />
-            <Route path="fleets/:token/history" element={<ManagementHistory />} />
+            {/* Management Console */}
+            <Route path="/management" element={<Management />}>
+              <Route index element={<ManagementDashboard />} />
 
-            {/* Finance */}
-            <Route path="srp" element={<ManagementSRP />} />
-            <Route path="srp/config" element={<ManagementSRPConfig />} />
+              {/* Analysis */}
+              <Route path="users" element={<ManagementUsers />} />
+              <Route path="roles" element={<ManagementRoles />} />
 
-            {/* User Mgmt */}
-            <Route path="bans" element={<ManagementBans />} />
-            <Route path="bans/audit" element={<ManagementBanAudit />} />
+              {/* Operations */}
+              <Route path="fleets" element={<ManagementFleets />} />
+              <Route path="fleets/setup" element={<ManagementFleetSetup />} />
+              <Route path="fleets/:token/settings" element={<ManagementFleetSettings />} />
+              <Route path="fleets/:token/history" element={<ManagementHistory />} />
 
-            {/* System */}
-            <Route path="doctrines" element={<ManagementDoctrines />} />
-            <Route path="skills" element={<ManagementSkills />} />
-            <Route path="rules" element={<ManagementRules />} />
-            <Route path="sde" element={<ManagementSDE />} />
-            <Route path="celery" element={<ManagementCelery />} />
-            <Route path="permissions" element={<ManagementPermissions />} />
+              {/* Finance */}
+              <Route path="srp" element={<ManagementSRP />} />
+              <Route path="srp/config" element={<ManagementSRPConfig />} />
 
-            {/* Fallback for management sub-routes */}
-            <Route path="*" element={<div className="p-10 text-slate-500">Page Not Found</div>} />
-          </Route>
+              {/* User Mgmt */}
+              <Route path="bans" element={<ManagementBans />} />
+              <Route path="bans/audit" element={<ManagementBanAudit />} />
 
-          {/* Global Fallback */}
-          <Route path="*" element={<div className="p-10 text-center text-slate-500">Page Not Found</div>} />
-        </Routes>
-      </Layout>
-    </Router>
+              {/* System */}
+              <Route path="doctrines" element={<ManagementDoctrines />} />
+              <Route path="skills" element={<ManagementSkills />} />
+              <Route path="rules" element={<ManagementRules />} />
+              <Route path="sde" element={<ManagementSDE />} />
+              <Route path="celery" element={<ManagementCelery />} />
+              <Route path="permissions" element={<ManagementPermissions />} />
+
+              {/* Fallback for management sub-routes */}
+              <Route path="*" element={<div className="p-10 text-slate-500">Page Not Found</div>} />
+            </Route>
+
+            {/* Global Fallback */}
+            <Route path="*" element={<div className="p-10 text-center text-slate-500">Page Not Found</div>} />
+          </Routes>
+        </Layout>
+      </Router>
+    </AuthProvider>
   );
 }
 
