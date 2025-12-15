@@ -523,30 +523,25 @@ const SRPCharts = ({ data }) => {
 
     // --- CHART DATA PREP ---
     const months = Object.keys(data.monthly).sort();
-
-    // Dynamically calculate In/Out based on hidden categories
-    const getMonthlySum = (m, type) => {
-        let sum = 0;
-        const monthData = data.monthly[m] || {};
-        Object.entries(monthData).forEach(([cat, val]) => {
-            if (hiddenCategories.has(cat)) return;
-            if (type === 'in' && val > 0) sum += val;
-            if (type === 'out' && val < 0) sum += Math.abs(val);
-        });
-        return sum;
-    };
-
-    const monthlyData = {
-        labels: months,
-        datasets: [
-            { label: 'In', data: months.map(m => getMonthlySum(m, 'in')), backgroundColor: '#4ade80' },
-            { label: 'Out', data: months.map(m => getMonthlySum(m, 'out')), backgroundColor: '#f87171' }
-        ]
-    };
-
     const catKeysIn = Object.keys(data.categories.in);
     const catKeysOut = Object.keys(data.categories.out);
     const allCats = Array.from(new Set([...catKeysIn, ...catKeysOut])).sort();
+
+    // Stacked Bar Chart Datasets (One per category)
+    const monthlyDatasets = allCats.map(cat => {
+        if (hiddenCategories.has(cat)) return null;
+        return {
+            label: cat.replace(/_/g, ' '),
+            data: months.map(m => data.monthly[m] ? (data.monthly[m][cat] || 0) : 0),
+            backgroundColor: getColor(cat),
+            stack: 'stack1'
+        };
+    }).filter(ds => ds !== null);
+
+    const monthlyData = {
+        labels: months,
+        datasets: monthlyDatasets
+    };
 
     const catData = {
         labels: allCats.map(c => c.replace(/_/g, ' ')),
@@ -566,6 +561,39 @@ const SRPCharts = ({ data }) => {
     const payerIskData = {
         labels: payerLabels,
         datasets: [{ label: 'Total ISK', data: payers.map(p => p[1].total), backgroundColor: '#facc15' }]
+    };
+
+    // Stacked Options for Monthly
+    const monthlyChartOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { display: false }, // Controlled by Doughnut Chart Legend
+            tooltip: {
+                callbacks: {
+                    label: (context) => {
+                        let label = context.dataset.label || '';
+                        if (label) label += ': ';
+                        if (context.parsed.y !== null) {
+                            label += parseFloat(context.parsed.y).toLocaleString() + ' ISK';
+                        }
+                        return label;
+                    }
+                }
+            }
+        },
+        scales: {
+            x: {
+                stacked: true,
+                ticks: { color: '#94a3b8', font: { size: 10 } },
+                grid: { color: 'rgba(255,255,255,0.05)' }
+            },
+            y: {
+                stacked: true,
+                ticks: { color: '#94a3b8', font: { size: 10 } },
+                grid: { color: 'rgba(255,255,255,0.05)' }
+            }
+        }
     };
 
     const chartOptions = {
@@ -603,7 +631,7 @@ const SRPCharts = ({ data }) => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="glass-panel p-4 flex flex-col h-80">
                 <h3 className="label-text mb-2">Monthly Cashflow</h3>
-                <div className="flex-grow relative min-h-0"><Bar data={monthlyData} options={chartOptions} /></div>
+                <div className="flex-grow relative min-h-0"><Bar data={monthlyData} options={monthlyChartOptions} /></div>
             </div>
             <div className="glass-panel p-4 flex flex-col h-80">
                 <h3 className="label-text mb-2">Category Breakdown (Volume)</h3>
