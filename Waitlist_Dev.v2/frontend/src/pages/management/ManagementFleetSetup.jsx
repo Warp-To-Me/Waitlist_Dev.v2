@@ -199,18 +199,19 @@ const ManagementFleetSetup = () => {
 
     const launchFleet = () => {
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch('/api/management/fleets/create/', {
+        fetch('/api/management/fleets/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify({
-                fleet_name: fleetName,
+                action: 'create',
+                name: fleetName,
                 character_id: selectedFc,
                 structure,
                 motd,
                 is_offline: offlineMode
             })
         }).then(res => res.json()).then(data => {
-            if (data.success) {
+            if (data.status === 'created') {
                 // If the redirect URL is provided by backend, use it, otherwise assume pattern
                 if (data.redirect_url) {
                     // Backend returns full path, e.g. /management/fleets/TOKEN/settings
