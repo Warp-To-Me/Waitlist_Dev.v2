@@ -27,6 +27,7 @@ class EveCharacter(models.Model):
     # Activity Tracking
     is_online = models.BooleanField(default=False)
     last_login_at = models.DateTimeField(null=True, blank=True)
+    last_online_at = models.DateTimeField(null=True, blank=True)
 
     # Encrypted Fields
     access_token = EncryptedTextField(blank=True, default="")

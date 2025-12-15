@@ -124,7 +124,14 @@ def profile_view(request):
             'character_name': active_char.character_name,
             'corporation_name': active_char.corporation_name,
             'alliance_name': active_char.alliance_name,
-            'is_main': active_char.is_main
+            'is_main': active_char.is_main,
+            'wallet_balance': active_char.wallet_balance,
+            'concord_lp': active_char.concord_lp,
+            'total_sp': active_char.total_sp,
+            'current_ship_name': active_char.current_ship_name,
+            'ship_type_name': getattr(active_char, 'ship_type_name', 'Unknown Hull'),
+            'current_ship_type_id': active_char.current_ship_type_id,
+            'last_updated': active_char.last_updated
         }
 
     return Response({

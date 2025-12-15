@@ -21,7 +21,7 @@ def dispatch_stale_characters():
     processed_ids = set() # Track characters we have already queued
     
     OFFLINE_THROTTLE_WINDOW = timedelta(minutes=15)
-    INACTIVE_SNAPSHOT_WINDOW = timedelta(hours=24) # Daily Heartbeat
+    INACTIVE_SNAPSHOT_WINDOW = timedelta(hours=48) # 48h Snapshot
     
     # --- STRATEGY 1: Safety Net (PRIORITY FIX) ---
     # We run this FIRST to catch broken characters before the cache logic sees them.
@@ -51,7 +51,7 @@ def dispatch_stale_characters():
             tasks_queued += 1
 
     # --- STRATEGY 2: Inactive "Heartbeat" (Keep Token Alive + Skill History) ---
-    # If a character is OFFLINE and hasn't been updated in 24 hours,
+    # If a character is OFFLINE and hasn't been updated in 48 hours,
     # we trigger a specific update for Skills/History.
     # This implicitly refreshes the Auth Token, keeping it valid.
     
@@ -62,7 +62,7 @@ def dispatch_stale_characters():
 
     if heartbeat_chars:
         count = len(heartbeat_chars)
-        logger.info(f"[Dispatcher] Heartbeat: Queueing daily snapshot for {count} inactive pilots.")
+        logger.info(f"[Dispatcher] Heartbeat: Queueing snapshot for {count} inactive pilots.")
         
         for char_id in heartbeat_chars:
             # We ONLY pull persistent data. We SKIP location/ship to save ESI calls.
@@ -86,8 +86,14 @@ def dispatch_stale_characters():
             
         endpoint = header.endpoint_name
         
-        if not char.is_online:
-            # If Offline, we only check the 'online' endpoint to see if they came back.
+        # Check if character is offline AND outside the grace period
+        is_recently_online = False
+        if char.last_online_at:
+            if now - char.last_online_at < OFFLINE_THROTTLE_WINDOW:
+                is_recently_online = True
+
+        if not char.is_online and not is_recently_online:
+            # If Offline and NOT recently online, we only check the 'online' endpoint to see if they came back.
             # We do NOT check other endpoints (ship, wallet) until they wake up.
             if endpoint != 'online':
                 # Apply throttle window to prevent spamming /online/ check too fast
