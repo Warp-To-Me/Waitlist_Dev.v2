@@ -279,15 +279,16 @@ def api_srp_data(request):
         d = row['date']
         month_key = f"{d.year}-{d.month:02d}"
         
-        if month_key not in monthly_stats: monthly_stats[month_key] = {'in': 0, 'out': 0}
-        if amt > 0: monthly_stats[month_key]['in'] += amt
-        else: monthly_stats[month_key]['out'] += abs(amt)
-
+        # Prepare Label First
         category_label = row['custom_category']
         if not category_label:
             category_label = row['ref_type'].replace('_', ' ').title()
         else:
             category_label = category_label.replace('_', ' ').title()
+
+        # Monthly Stats: Store granular breakdown for frontend filtering
+        if month_key not in monthly_stats: monthly_stats[month_key] = {}
+        monthly_stats[month_key][category_label] = monthly_stats[month_key].get(category_label, 0) + amt
 
         if amt > 0:
             ref_type_breakdown['in'][category_label] = ref_type_breakdown['in'].get(category_label, 0) + amt

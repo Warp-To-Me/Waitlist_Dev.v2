@@ -54,11 +54,9 @@ const ManagementSRP = () => {
         };
     }, []);
 
-    // Fetch Data on Filter Change
+    // Fetch Data on Filter Change (Removed dateRange.start check to allow "All" selection)
     useEffect(() => {
-        if (dateRange.start) {
-            fetchData();
-        }
+        fetchData();
     }, [dateRange, divisions, page, limit, filters]);
 
     // --- API CALLS ---
@@ -509,19 +507,7 @@ const TransactionRow = ({ tx, onUpdateCategory, divisionMap }) => {
 };
 
 const SRPCharts = ({ data }) => {
-    // Transform Data for ChartJS
-    const months = Object.keys(data.monthly).sort();
-    const monthlyData = {
-        labels: months,
-        datasets: [
-            { label: 'In', data: months.map(m => data.monthly[m].in), backgroundColor: '#4ade80' },
-            { label: 'Out', data: months.map(m => data.monthly[m].out), backgroundColor: '#f87171' }
-        ]
-    };
-
-    const catKeysIn = Object.keys(data.categories.in);
-    const catKeysOut = Object.keys(data.categories.out);
-    const allCats = Array.from(new Set([...catKeysIn, ...catKeysOut])).sort();
+    const [hiddenCategories, setHiddenCategories] = useState(new Set());
 
     // Color Mapping matching the Categories List
     const getColor = (c) => {
@@ -534,6 +520,33 @@ const SRPCharts = ({ data }) => {
         if(lower.includes('tax')) return '#475569';
         return '#94a3b8'; // Other/Unknown
     };
+
+    // --- CHART DATA PREP ---
+    const months = Object.keys(data.monthly).sort();
+
+    // Dynamically calculate In/Out based on hidden categories
+    const getMonthlySum = (m, type) => {
+        let sum = 0;
+        const monthData = data.monthly[m] || {};
+        Object.entries(monthData).forEach(([cat, val]) => {
+            if (hiddenCategories.has(cat)) return;
+            if (type === 'in' && val > 0) sum += val;
+            if (type === 'out' && val < 0) sum += Math.abs(val);
+        });
+        return sum;
+    };
+
+    const monthlyData = {
+        labels: months,
+        datasets: [
+            { label: 'In', data: months.map(m => getMonthlySum(m, 'in')), backgroundColor: '#4ade80' },
+            { label: 'Out', data: months.map(m => getMonthlySum(m, 'out')), backgroundColor: '#f87171' }
+        ]
+    };
+
+    const catKeysIn = Object.keys(data.categories.in);
+    const catKeysOut = Object.keys(data.categories.out);
+    const allCats = Array.from(new Set([...catKeysIn, ...catKeysOut])).sort();
 
     const catData = {
         labels: allCats.map(c => c.replace(/_/g, ' ')),
@@ -564,10 +577,26 @@ const SRPCharts = ({ data }) => {
             y: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } }
         }
     };
+
     const doughnutOptions = {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { position: 'right', labels: { color: '#94a3b8', font: { size: 10 } } } }
+        plugins: {
+            legend: {
+                position: 'right',
+                labels: { color: '#94a3b8', font: { size: 10 } },
+                onClick: (e, legendItem, legend) => {
+                    const catName = allCats[legendItem.index]; // Map index back to category name
+                    const newHidden = new Set(hiddenCategories);
+                    if (newHidden.has(catName)) newHidden.delete(catName);
+                    else newHidden.add(catName);
+                    setHiddenCategories(newHidden);
+
+                    // Call default to update Doughnut visibility
+                    ChartJS.defaults.plugins.legend.onClick(e, legendItem, legend);
+                }
+            }
+        }
     };
 
     return (
