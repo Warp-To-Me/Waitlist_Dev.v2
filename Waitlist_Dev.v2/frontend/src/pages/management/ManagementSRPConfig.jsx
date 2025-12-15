@@ -13,6 +13,7 @@ const ManagementSRPConfig = () => {
 
     const fetchData = () => {
         setError(null);
+        // This endpoint uses 'management' in urls.py
         fetch('/api/management/srp/config/')
             .then(res => {
                 if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
@@ -32,7 +33,8 @@ const ManagementSRPConfig = () => {
         if (!confirm("Set this character as the global SRP source? This will effect all wallet data.")) return;
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
 
-        fetch('/api/management/srp/set_source/', {
+        // FIX: This endpoint uses 'mgmt' in urls.py
+        fetch('/api/mgmt/srp/set_source/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify({ character_id: charId })
@@ -45,7 +47,8 @@ const ManagementSRPConfig = () => {
     const syncWallet = () => {
         setLoading(true);
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch('/api/management/srp/sync/', {
+        // FIX: This endpoint uses 'mgmt' in urls.py
+        fetch('/api/mgmt/srp/sync/', {
             method: 'POST',
             headers: { 'X-CSRFToken': csrf }
         }).then(res => res.json()).then(data => {
@@ -77,7 +80,7 @@ const ManagementSRPConfig = () => {
             <div className="glass-panel p-6">
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="label-text mb-0">Current Source</h3>
-                    {config?.character_id ? ( // Changed from config.character check to be safe
+                    {config?.character_id ? (
                         <span className="badge badge-green">Active</span>
                     ) : (
                         <span className="badge badge-red">Not Configured</span>
