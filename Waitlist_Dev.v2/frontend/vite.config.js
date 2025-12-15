@@ -10,7 +10,8 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
-  base: '/static/dist/', // IMPORTANT: Base URL for assets in production/django
+  // base: '/static/dist/', // IMPORTANT: Base URL for assets in production/django
+  base: process.env.NODE_ENV === 'production' ? '/static/dist/' : '/',
   build: {
     // Output to Django's static directory
     outDir: '../static/dist',
@@ -28,8 +29,8 @@ export default defineConfig({
     port: 5173,
     // Fix HMR when running behind a reverse proxy (SSL)
     hmr: {
-        host: 'wl.nandn.cc',
-        protocol: 'wss',
+        // host: 'wl.nandn.cc',
+        // protocol: 'wss',
     },
     // Proxy API requests to Django during development
     proxy: {
