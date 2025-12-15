@@ -76,95 +76,107 @@ def sync_corp_wallet(srp_config):
         consecutive_full_dupe_pages = 0
         
         while keep_fetching:
-            url = f"{ESI_BASE}/corporations/{corp_id}/wallets/{division}/journal/"
-            resp = call_esi(character, f'corp_wallet_{corp_id}_{division}_{page}', url, params={'page': page}, force_refresh=True)
-            
-            if resp['status'] != 200:
-                if resp['status'] != 404: 
-                    errors.append(f"Div {division} Page {page}: {resp.get('error')}")
-                keep_fetching = False
-                continue
+            try:
+                url = f"{ESI_BASE}/corporations/{corp_id}/wallets/{division}/journal/"
+                resp = call_esi(character, f'corp_wallet_{corp_id}_{division}_{page}', url, params={'page': page}, force_refresh=True)
 
-            # Capture Date Header for Sync Timestamp
-            if 'headers' in resp:
-                date_header = resp['headers'].get('Date')
-                if date_header:
-                    try:
-                        latest_esi_date = parse(date_header)
-                    except (ValueError, TypeError) as e:
-                        # Log error if date parsing fails but continue
-                        print(f"Warning: Failed to parse Date header '{date_header}': {e}")
-
-            data = resp['data']
-            if not data:
-                keep_fetching = False
-                continue
-
-            batch_ids = [x['id'] for x in data]
-            existing_ids = set(CorpWalletJournal.objects.filter(
-                config=srp_config, 
-                entry_id__in=batch_ids
-            ).values_list('entry_id', flat=True))
-
-            if len(existing_ids) == len(batch_ids):
-                consecutive_full_dupe_pages += 1
-                if consecutive_full_dupe_pages >= 2:
+                if resp['status'] != 200:
+                    if resp['status'] != 404:
+                        errors.append(f"Div {division} Page {page}: {resp.get('error')}")
                     keep_fetching = False
                     continue
-            else:
-                consecutive_full_dupe_pages = 0
 
-            new_entries = []
-            party_ids_to_resolve = set()
+                # Capture Date Header for Sync Timestamp
+                if 'headers' in resp:
+                    date_header = resp['headers'].get('Date')
+                    if date_header:
+                        try:
+                            latest_esi_date = parse(date_header)
+                        except (ValueError, TypeError) as e:
+                            # Log error if date parsing fails but continue
+                            print(f"Warning: Failed to parse Date header '{date_header}': {e}")
 
-            for row in data:
-                if row['id'] in existing_ids:
+                data = resp['data']
+                if not data:
+                    keep_fetching = False
                     continue
 
-                if row.get('first_party_id'): party_ids_to_resolve.add(row['first_party_id'])
-                if row.get('second_party_id'): party_ids_to_resolve.add(row['second_party_id'])
-
-                new_entries.append(row)
-
-            names_map = resolve_unknown_names(list(party_ids_to_resolve))
-
-            db_objects = []
-            for row in new_entries:
-                amount = float(row.get('amount', 0))
-                reason = row.get('reason', '')
-                f_id = row.get('first_party_id')
-                s_id = row.get('second_party_id')
-                ref_type = row.get('ref_type', '')
-
-                # Using shared logic
-                auto_cat = determine_auto_category(amount, reason, f_id, s_id, corp_id, ref_type)
-
-                db_objects.append(CorpWalletJournal(
+                batch_ids = [x['id'] for x in data]
+                existing_ids = set(CorpWalletJournal.objects.filter(
                     config=srp_config,
-                    entry_id=row['id'],
-                    amount=amount,
-                    balance=row.get('balance', 0),
-                    context_id=row.get('context_id'),
-                    context_id_type=row.get('context_id_type'),
-                    date=parse(row['date']),
-                    description=row.get('description', ''),
-                    first_party_id=f_id,
-                    second_party_id=s_id,
-                    reason=reason,
-                    ref_type=ref_type,
-                    tax=row.get('tax'),
-                    division=division,
-                    first_party_name=names_map.get(f_id, ''),
-                    second_party_name=names_map.get(s_id, ''),
-                    custom_category=auto_cat
-                ))
+                    entry_id__in=batch_ids
+                ).values_list('entry_id', flat=True))
 
-            if db_objects:
-                CorpWalletJournal.objects.bulk_create(db_objects, ignore_conflicts=True)
-                total_new += len(db_objects)
+                if len(existing_ids) == len(batch_ids):
+                    consecutive_full_dupe_pages += 1
+                    if consecutive_full_dupe_pages >= 2:
+                        keep_fetching = False
+                        continue
+                else:
+                    consecutive_full_dupe_pages = 0
+
+                new_entries = []
+                party_ids_to_resolve = set()
+
+                for row in data:
+                    if row['id'] in existing_ids:
+                        continue
+
+                    if row.get('first_party_id'): party_ids_to_resolve.add(row['first_party_id'])
+                    if row.get('second_party_id'): party_ids_to_resolve.add(row['second_party_id'])
+
+                    new_entries.append(row)
+
+                names_map = resolve_unknown_names(list(party_ids_to_resolve))
+
+                # Add Corp Name and Own Character Name explicitly
+                if corp_id and character.corporation_name:
+                    names_map[corp_id] = character.corporation_name
+                if character.character_id:
+                    names_map[character.character_id] = character.character_name
+
+                db_objects = []
+                for row in new_entries:
+                    amount = float(row.get('amount', 0))
+                    reason = row.get('reason', '')
+                    f_id = row.get('first_party_id')
+                    s_id = row.get('second_party_id')
+                    ref_type = row.get('ref_type', '')
+
+                    # Using shared logic
+                    auto_cat = determine_auto_category(amount, reason, f_id, s_id, corp_id, ref_type)
+
+                    db_objects.append(CorpWalletJournal(
+                        config=srp_config,
+                        entry_id=row['id'],
+                        amount=amount,
+                        balance=row.get('balance', 0),
+                        context_id=row.get('context_id'),
+                        context_id_type=row.get('context_id_type'),
+                        date=parse(row['date']),
+                        description=row.get('description', ''),
+                        first_party_id=f_id,
+                        second_party_id=s_id,
+                        reason=reason,
+                        ref_type=ref_type,
+                        tax=row.get('tax'),
+                        division=division,
+                        first_party_name=names_map.get(f_id, ''),
+                        second_party_name=names_map.get(s_id, ''),
+                        custom_category=auto_cat
+                    ))
+
+                if db_objects:
+                    CorpWalletJournal.objects.bulk_create(db_objects, ignore_conflicts=True)
+                    total_new += len(db_objects)
+
+                page += 1
+                if page > 50: keep_fetching = False
             
-            page += 1
-            if page > 50: keep_fetching = False
+            except Exception as e:
+                print(f"Error syncing Div {division} Page {page}: {e}")
+                errors.append(f"Div {division} Crash: {str(e)}")
+                keep_fetching = False # Stop this division, but allow loop to continue to next division
 
     if latest_esi_date:
         srp_config.last_sync = latest_esi_date

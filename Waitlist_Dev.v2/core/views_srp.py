@@ -134,7 +134,7 @@ def api_update_transaction_category(request):
     return Response({'success': True})
 
 @api_view(['GET'])
-@check_permission(can_manage_srp)
+@check_permission(can_view_srp)
 def api_divisions(request):
     """
     Fetches corp divisions from ESI.
