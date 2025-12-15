@@ -1,6 +1,7 @@
 import requests
 from django.utils import timezone
 from dateutil.parser import parse
+from django.db.models import Q
 from pilot_data.models import SRPConfiguration, CorpWalletJournal
 from esi_calls.esi_network import call_esi
 from esi_calls.token_manager import check_token, force_refresh_token
@@ -94,6 +95,10 @@ def sync_corp_wallet(srp_config):
                             continue # Retry loop
                         else:
                             break # Refresh failed
+                    elif resp['status'] == 403:
+                         print(f"[SRP Sync] 403 Forbidden on Div {division}. Missing Scope?")
+                         # Do not retry on 403, it won't help
+                         break
                     else:
                         break # Not a 401, proceed
 
@@ -288,6 +293,9 @@ def get_corp_divisions(character):
                 continue
             else:
                 break
+        elif resp['status'] == 403:
+            print(f"[SRP Sync] 403 Forbidden reading Divisions. Missing 'esi-corporations.read_divisions.v1'?")
+            break
         else:
             break
 

@@ -157,9 +157,13 @@ def call_esi(character, endpoint_name, url, method='GET', params=None, body=None
             return {'status': 200, 'data': response.json(), 'headers': response.headers}
             
         # Handle Token Errors
-        if response.status_code in [401, 403]:
-            print(f"  -> [{response.status_code}] Token Invalid/Scope Missing")
-            return {'status': response.status_code, 'data': None}
+        if response.status_code == 401:
+            print(f"  -> [{response.status_code}] Token Invalid / Expired")
+            return {'status': 401, 'data': None}
+
+        if response.status_code == 403:
+            print(f"  -> [{response.status_code}] Access Denied (Missing Scope?)")
+            return {'status': 403, 'data': None}
 
         # --- NEW: Handle Not Found (e.g. Closed Fleet) ---
         if response.status_code == 404:
