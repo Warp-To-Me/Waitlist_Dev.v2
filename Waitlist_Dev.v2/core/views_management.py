@@ -238,7 +238,7 @@ def management_fleets(request):
             'commander': f.commander.username,
             'is_active': f.is_active,
             'created_at': f.created_at,
-            'member_count': f.members.count() # assuming relation
+            'member_count': f.entries.count()
         })
     return Response({'fleets': data})
 
