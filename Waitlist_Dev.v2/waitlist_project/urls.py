@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.urls import path, include, re_path
 from core import views as core_views
-from core import views_management, views_profile, views_rules, views_srp, views_frontend, api_utils
+from core import views_management, views_profile, views_rules, views_srp, views_frontend, api_utils, views_skills
 
 # Define API patterns first
 api_urlpatterns = [
@@ -49,6 +49,16 @@ api_urlpatterns = [
 
     # --- RULE MANAGER ---
     path('management/rules/', views_rules.management_rules, name='management_rules'),
+    # Alias paths for React Frontend which uses /api/management/rules/*
+    path('management/rules/search_groups/', views_rules.api_group_search, name='api_group_search_alias'),
+    path('management/rules/list/', views_rules.api_list_configured_groups, name='api_list_configured_groups_alias'),
+    path('management/rules/discovery/<int:group_id>/', views_rules.api_rule_discovery, name='api_rule_discovery_alias'),
+    path('management/rules/save/', views_rules.api_save_rules, name='api_save_rules_alias'),
+    path('management/rules/delete/', views_rules.api_delete_rules, name='api_delete_rules_alias'),
+    path('management/rules/export/', views_rules.api_export_rules, name='api_export_rules_alias'),
+    path('management/rules/import/', views_rules.api_import_rules, name='api_import_rules_alias'),
+
+    # Original paths (kept for compatibility or internal links)
     path('mgmt/rules/search/', views_rules.api_group_search, name='api_group_search'),
     path('mgmt/rules/list/', views_rules.api_list_configured_groups, name='api_list_configured_groups'),
     path('mgmt/rules/discovery/<int:group_id>/', views_rules.api_rule_discovery, name='api_rule_discovery'),
@@ -73,7 +83,22 @@ api_urlpatterns = [
     path('doctrines/', core_views.doctrine_list, name='doctrine_list_api'),
     path('doctrines/fit/<int:fit_id>/', core_views.doctrine_detail_api, name='doctrine_detail_api'),
     path('doctrines/manage/', core_views.manage_doctrines, name='manage_doctrines_api'),
-    
+
+    # --- DOCTRINE MANAGEMENT (Frontend Matches) ---
+    path('management/doctrines/data/', core_views.api_doctrine_data, name='api_doctrine_data'),
+    path('management/doctrines/save/', core_views.api_doctrine_save, name='api_doctrine_save'),
+    path('management/doctrines/export/', core_views.api_doctrine_export, name='api_doctrine_export'),
+    path('management/doctrines/import/', core_views.api_doctrine_import, name='api_doctrine_import'),
+
+    # --- SKILLS MANAGEMENT ---
+    path('management/skills/data/', views_skills.api_skills_data, name='api_skills_data'),
+    path('search_hull/', views_skills.api_search_hull, name='api_search_hull'),
+    path('skill_req/<str:action>/', views_skills.api_skill_req_manage, name='api_skill_req_manage'),
+    path('skill_group/manage/', views_skills.api_skill_group_manage, name='api_skill_group_manage'),
+    path('skill_group/<int:group_id>/members/', views_skills.api_skill_group_members, name='api_skill_group_members'),
+    path('skill_group/member/<str:action>/', views_skills.api_skill_member_manage, name='api_skill_member_manage'),
+    path('skill_tier/manage/', views_skills.api_skill_tier_manage, name='api_skill_tier_manage'),
+
     # Fleet API Overrides (Must come before waitlist_data.urls to take precedence if name conflicts, 
     # but waitlist_data.urls has the original paths. We should probably rely on waitlist_data.urls 
     # if we modified the views inside it directly.
