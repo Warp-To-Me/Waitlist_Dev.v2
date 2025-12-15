@@ -294,7 +294,7 @@ def management_celery(request):
 @check_permission(is_admin)
 def management_permissions(request):
     db_caps = Capability.objects.all().prefetch_related('groups')
-    groups = Group.objects.all().select_related('priority_config').order_by('priority_config__level', 'name')
+    groups = Group.objects.all().select_related('priority_config').prefetch_related('capabilities').order_by('priority_config__level', 'name')
     
     caps_data = []
     for cap in db_caps:
@@ -305,7 +305,14 @@ def management_permissions(request):
             'groups': [g.id for g in cap.groups.all()]
         })
         
-    groups_data = [{'id': g.id, 'name': g.name, 'level': g.priority_config.level if hasattr(g, 'priority_config') else 999} for g in groups]
+    groups_data = []
+    for g in groups:
+        groups_data.append({
+            'id': g.id,
+            'name': g.name,
+            'level': g.priority_config.level if hasattr(g, 'priority_config') else 999,
+            'capabilities': [c.id for c in g.capabilities.all()]
+        })
 
     return Response({
         'groups': groups_data,
