@@ -1,12 +1,17 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { RefreshCw, Search, X, LogIn, AlertTriangle, ShieldAlert, Plus, Check, Mail, Link as LinkIcon, LogOut, Wind, RotateCw, Anchor, ArrowRightLeft, ArrowUp, ArrowDown, Ban, Lock, Unlock, FileText, Hourglass, Copy } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../context/AuthContext';
+import { fetchProfileData, selectProfileData, selectProfileStatus } from '../store/slices/profileSlice';
 
 const Profile = () => {
-    const [profile, setProfile] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const dispatch = useDispatch();
+    const profile = useSelector(selectProfileData);
+    const status = useSelector(selectProfileStatus);
+    const loading = status === 'loading' && !profile; // Show full loader only if no data
+
     const [activeTab, setActiveTab] = useState('service');
     const [pilotModalOpen, setPilotModalOpen] = useState(false);
     const [pilotSearch, setPilotSearch] = useState('');
@@ -47,39 +52,22 @@ const Profile = () => {
     const allFilters = Object.keys(filterLabels);
 
     useEffect(() => {
-        fetchProfile();
-    }, []);
+        if (status === 'idle') {
+            dispatch(fetchProfileData());
+        }
+    }, [dispatch, status]);
 
-    const fetchProfile = () => {
-        setLoading(true);
-        fetch('/api/profile/')
-            .then(res => {
-                if (res.status === 401) {
-                    window.location.href = '/auth/login/'; // Corrected path
-                    return null;
-                }
-                return res.json();
-            })
-            .then(data => {
-                if (data) {
-                    setProfile(data);
-                    setLoading(false);
-                    // Check for stale data and auto-refresh if needed
-                    if (data.active_char && data.active_char.last_updated) {
-                        const lastUpdated = new Date(data.active_char.last_updated);
-                        const now = new Date();
-                        const diffMins = (now - lastUpdated) / 1000 / 60;
-                        if (diffMins > 5 && !data.is_inspection_mode && !isRefreshing) {
-                           triggerRefresh(data.active_char.character_id);
-                        }
-                    }
-                }
-            })
-            .catch(err => {
-                console.error(err);
-                setLoading(false);
-            });
-    };
+    // Check for stale data and auto-refresh if needed
+    useEffect(() => {
+        if (profile && profile.active_char && profile.active_char.last_updated) {
+            const lastUpdated = new Date(profile.active_char.last_updated);
+            const now = new Date();
+            const diffMins = (now - lastUpdated) / 1000 / 60;
+            if (diffMins > 5 && !profile.is_inspection_mode && !isRefreshing) {
+                triggerRefresh(profile.active_char.character_id);
+            }
+        }
+    }, [profile, isRefreshing]);
 
     const handleSwitchChar = async (charId) => {
         try {
@@ -88,7 +76,7 @@ const Profile = () => {
                 // Update Global Navbar User State first
                 await refreshUser();
                 // Then Update Profile Content
-                fetchProfile();
+                dispatch(fetchProfileData());
             }
         } catch (error) {
             console.error("Failed to switch character", error);
@@ -126,7 +114,7 @@ const Profile = () => {
                 .then(status => {
                     if (profile && status.last_updated !== profile.active_char.last_updated) {
                         clearInterval(interval);
-                        fetchProfile();
+                        dispatch(fetchProfileData());
                         setIsRefreshing(false);
                     }
                 });

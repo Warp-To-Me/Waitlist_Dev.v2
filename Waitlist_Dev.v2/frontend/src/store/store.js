@@ -4,6 +4,7 @@ import authReducer from './slices/authSlice';
 import fleetReducer from './slices/fleetSlice';
 import systemReducer from './slices/systemSlice';
 import srpReducer from './slices/srpSlice';
+import profileReducer from './slices/profileSlice';
 import socketMiddleware from './middleware/socketMiddleware';
 
 export const store = configureStore({
@@ -13,6 +14,7 @@ export const store = configureStore({
     fleet: fleetReducer,
     system: systemReducer,
     srp: srpReducer,
+    profile: profileReducer,
   },
   middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(socketMiddleware()),
 });
