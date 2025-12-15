@@ -546,7 +546,10 @@ const SRPCharts = ({ data }) => {
     const catData = {
         labels: allCats.map(c => c.replace(/_/g, ' ')),
         datasets: [{
-            data: allCats.map(c => (data.categories.in[c] || 0) + Math.abs(data.categories.out[c] || 0)),
+            data: allCats.map(c => {
+                if (hiddenCategories.has(c)) return 0;
+                return (data.categories.in[c] || 0) + Math.abs(data.categories.out[c] || 0);
+            }),
             backgroundColor: allCats.map(c => getColor(c)),
             borderWidth: 0,
         }]
@@ -612,16 +615,28 @@ const SRPCharts = ({ data }) => {
         plugins: {
             legend: {
                 position: 'right',
-                labels: { color: '#94a3b8', font: { size: 10 } },
+                labels: {
+                    color: '#94a3b8',
+                    font: { size: 10 },
+                    generateLabels: (chart) => {
+                        const original = ChartJS.defaults.plugins.legend.labels.generateLabels(chart);
+                        original.forEach(item => {
+                            // Map back to raw category key using index
+                            const rawCat = allCats[item.index];
+                            if (hiddenCategories.has(rawCat)) {
+                                item.hidden = true; // Forces strikethrough styling
+                            }
+                        });
+                        return original;
+                    }
+                },
                 onClick: (e, legendItem, legend) => {
-                    const catName = allCats[legendItem.index]; // Map index back to category name
+                    const catName = allCats[legendItem.index];
                     const newHidden = new Set(hiddenCategories);
                     if (newHidden.has(catName)) newHidden.delete(catName);
                     else newHidden.add(catName);
                     setHiddenCategories(newHidden);
-
-                    // Call default to update Doughnut visibility
-                    ChartJS.defaults.plugins.legend.onClick(e, legendItem, legend);
+                    // Do NOT call default onClick; state change drives re-render with value=0
                 }
             }
         }
