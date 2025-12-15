@@ -68,10 +68,11 @@ def check_token(character):
     if not character.refresh_token: return False
     if not character.token_expires or character.token_expires <= timezone.now() + timedelta(minutes=5):
         print(f"Refreshing token for {character.character_name}...")
-        return _refresh_access_token(character)
+        return force_refresh_token(character)
     return True
 
-def _refresh_access_token(character):
+def force_refresh_token(character):
+    print(f"Forcing token refresh for {character.character_name}...")
     url = "https://login.eveonline.com/v2/oauth/token"
     client_id = settings.EVE_CLIENT_ID
     secret_key = os.getenv('EVE_SECRET_KEY')

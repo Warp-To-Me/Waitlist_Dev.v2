@@ -3,7 +3,7 @@ from django.utils import timezone
 from dateutil.parser import parse
 from pilot_data.models import SRPConfiguration, CorpWalletJournal
 from esi_calls.esi_network import call_esi
-from esi_calls.token_manager import check_token
+from esi_calls.token_manager import check_token, force_refresh_token
 from esi_calls.fleet_service import resolve_unknown_names
 
 ESI_BASE = "https://esi.evetech.net/latest"
@@ -78,8 +78,25 @@ def sync_corp_wallet(srp_config):
         while keep_fetching:
             try:
                 url = f"{ESI_BASE}/corporations/{corp_id}/wallets/{division}/journal/"
-                resp = call_esi(character, f'corp_wallet_{corp_id}_{division}_{page}', url, params={'page': page}, force_refresh=True)
                 
+                # --- RETRY LOGIC FOR 401 (Invalid Token) ---
+                retry_count = 0
+                max_retries = 1
+                resp = {'status': 0}
+
+                while retry_count <= max_retries:
+                    resp = call_esi(character, f'corp_wallet_{corp_id}_{division}_{page}', url, params={'page': page}, force_refresh=True)
+
+                    if resp['status'] == 401:
+                        print(f"[SRP Sync] 401 on Div {division}. Forcing Token Refresh...")
+                        if force_refresh_token(character):
+                            retry_count += 1
+                            continue # Retry loop
+                        else:
+                            break # Refresh failed
+                    else:
+                        break # Not a 401, proceed
+
                 if resp['status'] != 200:
                     if resp['status'] != 404: 
                         errors.append(f"Div {division} Page {page}: {resp.get('error')}")
@@ -199,8 +216,24 @@ def get_corp_divisions(character):
     if not corp_id: return {}
 
     url = f"{ESI_BASE}/corporations/{corp_id}/divisions/"
-    resp = call_esi(character, f'corp_divisions_{corp_id}', url) # Default cache
     
+    # --- RETRY LOGIC FOR 401 ---
+    retry_count = 0
+    max_retries = 1
+    resp = {'status': 0}
+
+    while retry_count <= max_retries:
+        resp = call_esi(character, f'corp_divisions_{corp_id}', url)
+
+        if resp['status'] == 401:
+            if force_refresh_token(character):
+                retry_count += 1
+                continue
+            else:
+                break
+        else:
+            break
+
     if resp['status'] != 200: return {}
     
     data = resp['data']
