@@ -1,40 +1,57 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useSelector, useDispatch } from 'react-redux';
 import { Shield, Crosshair, Zap, Anchor, Clock, Settings, Scroll, Plus } from 'lucide-react';
 import clsx from 'clsx';
+import {
+    setFleetData, setFleetError, selectFleetData, selectFleetColumns,
+    selectFleetPermissions, selectFleetLoading, selectFleetError, selectConnectionStatus
+} from '../store/slices/fleetSlice';
+import { wsConnect, wsDisconnect } from '../store/middleware/socketMiddleware';
 
 const FleetDashboard = () => {
     const { token } = useParams();
-    const [fleetData, setFleetData] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [xupModalOpen, setXupModalOpen] = useState(false);
+    const dispatch = useDispatch();
     const navigate = useNavigate();
 
-    // Polling setup
-    useEffect(() => {
-        const fetchFleet = () => {
-            fetch(`/api/fleet/${token}/dashboard/`)
-                .then(res => {
-                    if (res.status === 404) throw new Error("Fleet not found or you do not have access.");
-                    if (!res.ok) throw new Error("Failed to load fleet data.");
-                    return res.json();
-                })
-                .then(data => {
-                    setFleetData(data);
-                    setLoading(false);
-                })
-                .catch(err => {
-                    console.error(err);
-                    setError(err.message);
-                    setLoading(false);
-                });
-        };
+    // Redux State
+    const fleet = useSelector(selectFleetData);
+    const columns = useSelector(selectFleetColumns);
+    const permissions = useSelector(selectFleetPermissions);
+    const loading = useSelector(selectFleetLoading);
+    const error = useSelector(selectFleetError);
+    const connectionStatus = useSelector(selectConnectionStatus);
 
-        fetchFleet();
-        const interval = setInterval(fetchFleet, 3000); // 3s polling
-        return () => clearInterval(interval);
-    }, [token]);
+    const [xupModalOpen, setXupModalOpen] = useState(false);
+
+    // Initial Fetch & WebSocket Connect
+    useEffect(() => {
+        // 1. Initial Fetch to get state quickly
+        fetch(`/api/fleet/${token}/dashboard/`)
+            .then(res => {
+                if (res.status === 404) throw new Error("Fleet not found or you do not have access.");
+                if (!res.ok) throw new Error("Failed to load fleet data.");
+                return res.json();
+            })
+            .then(data => {
+                dispatch(setFleetData(data));
+
+                // 2. Connect WebSocket after we know fleet exists
+                // Use the token or ID for the channel path
+                // Assuming backend expects /ws/fleet/<id>/ or <token>/
+                // Using token here as per URL params
+                dispatch(wsConnect(`/ws/fleet/${token}/`));
+            })
+            .catch(err => {
+                console.error(err);
+                dispatch(setFleetError(err.message));
+            });
+
+        // Cleanup: Disconnect WS when component unmounts
+        return () => {
+            dispatch(wsDisconnect());
+        };
+    }, [token, dispatch]);
 
     const handleXup = (hullId) => {
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
@@ -67,7 +84,8 @@ const FleetDashboard = () => {
         </div>
     );
 
-    const { fleet, columns, permissions, user_status } = fleetData;
+    // If data loaded but fields missing, show safe fallback
+    if (!fleet) return null;
 
     return (
         <div className="absolute inset-0 flex flex-col overflow-hidden bg-dark-950 opacity-0 animate-fade-in" style={{opacity: 1}}> {/* Forced opacity 1 for React rendering */}
