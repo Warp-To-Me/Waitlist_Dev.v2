@@ -1,19 +1,28 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import { Search } from 'lucide-react';
+import {
+    fetchUsers, setQuery, setPage,
+    selectUsersList, selectUsersQuery, selectUsersPagination
+} from '../../store/slices/usersSlice';
 
 const ManagementUsers = () => {
-    const [users, setUsers] = useState([]);
-    const [query, setQuery] = useState('');
-    const [page, setPage] = useState(1);
+    const dispatch = useDispatch();
+    const users = useSelector(selectUsersList);
+    const query = useSelector(selectUsersQuery);
+    const pagination = useSelector(selectUsersPagination);
 
+    // Debounce search
     useEffect(() => {
         const timeout = setTimeout(() => {
-            fetch(`/api/management/users/?q=${query}&page=${page}`)
-                .then(res => res.json())
-                .then(data => setUsers(data.users || []));
+            dispatch(fetchUsers({ query, page: pagination.current }));
         }, 300);
         return () => clearTimeout(timeout);
-    }, [query, page]);
+    }, [query, pagination.current, dispatch]);
+
+    const handleSearch = (e) => {
+        dispatch(setQuery(e.target.value));
+    };
 
     return (
         <div className="space-y-6">
@@ -26,7 +35,7 @@ const ManagementUsers = () => {
                         placeholder="Search pilots..." 
                         className="input-field pl-10 w-64"
                         value={query}
-                        onChange={e => setQuery(e.target.value)}
+                        onChange={handleSearch}
                     />
                 </div>
             </div>

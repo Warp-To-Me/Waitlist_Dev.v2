@@ -78,6 +78,87 @@ export const deleteFleet = createAsyncThunk(
   }
 );
 
+export const fetchFleetSettings = createAsyncThunk(
+  'fleet/fetchSettings',
+  async (token, { rejectWithValue }) => {
+    try {
+      const res = await fetch(`/api/management/fleets/${token}/settings/`);
+      const data = await res.json();
+      return data;
+    } catch (err) {
+      return rejectWithValue(err.message);
+    }
+  }
+);
+
+export const updateFleetSettings = createAsyncThunk(
+  'fleet/updateSettings',
+  async ({ token, payload }, { rejectWithValue }) => {
+    try {
+      const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+      const res = await fetch(`/api/management/fleets/${token}/update_settings/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) return data;
+      throw new Error(data.error);
+    } catch (err) {
+      return rejectWithValue(err.message);
+    }
+  }
+);
+
+export const linkEsiFleet = createAsyncThunk(
+  'fleet/linkEsi',
+  async (token, { rejectWithValue }) => {
+    try {
+      const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+      const res = await fetch(`/api/management/fleets/${token}/link_esi/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrf }
+      });
+      const data = await res.json();
+      if (data.success) return data;
+      throw new Error(data.error);
+    } catch (err) {
+      return rejectWithValue(err.message);
+    }
+  }
+);
+
+export const closeFleetByToken = createAsyncThunk(
+  'fleet/closeByToken',
+  async (token, { rejectWithValue }) => {
+    try {
+      const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+      const res = await fetch(`/api/management/fleets/${token}/close/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrf }
+      });
+      const data = await res.json();
+      if (data.success) return data;
+      throw new Error(data.error);
+    } catch (err) {
+      return rejectWithValue(err.message);
+    }
+  }
+);
+
+export const fetchFleetHistory = createAsyncThunk(
+  'fleet/fetchHistory',
+  async (token, { rejectWithValue }) => {
+    try {
+      const res = await fetch(`/api/management/fleets/${token}/history/`);
+      const data = await res.json();
+      return data;
+    } catch (err) {
+      return rejectWithValue(err.message);
+    }
+  }
+);
+
 // --- Slice ---
 
 const initialState = {
@@ -86,6 +167,7 @@ const initialState = {
   // Management State
   list: [],
   settings: null, // For settings page
+  history: null, // For history page { fleet, stats, logs }
   canViewAdmin: false,
 
   status: 'idle', // 'idle' | 'connecting' | 'connected' | 'disconnected'
@@ -187,6 +269,17 @@ export const fleetSlice = createSlice({
              if (state.settings && state.settings.fleet) {
                  state.settings.fleet.esi_fleet_id = action.payload.fleet_id;
              }
+        })
+
+        // History
+        .addCase(fetchFleetHistory.pending, (state) => { state.loading = true; })
+        .addCase(fetchFleetHistory.fulfilled, (state, action) => {
+            state.loading = false;
+            state.history = action.payload;
+        })
+        .addCase(fetchFleetHistory.rejected, (state, action) => {
+            state.loading = false;
+            state.error = action.payload;
         });
   }
 });
@@ -196,6 +289,7 @@ export const { setFleetData, setFleetError, setConnectionStatus } = fleetSlice.a
 export const selectFleetData = (state) => state.fleet.data;
 export const selectFleetList = (state) => state.fleet.list;
 export const selectFleetSettings = (state) => state.fleet.settings;
+export const selectFleetHistory = (state) => state.fleet.history;
 export const selectCanViewAdmin = (state) => state.fleet.canViewAdmin;
 export const selectFleetColumns = (state) => state.fleet.columns;
 export const selectFleetPermissions = (state) => state.fleet.permissions;
@@ -204,70 +298,3 @@ export const selectFleetError = (state) => state.fleet.error;
 export const selectConnectionStatus = (state) => state.fleet.status;
 
 export default fleetSlice.reducer;
-export const fetchFleetSettings = createAsyncThunk(
-  'fleet/fetchSettings',
-  async (token, { rejectWithValue }) => {
-    try {
-      const res = await fetch(`/api/management/fleets/${token}/settings/`);
-      const data = await res.json();
-      return data;
-    } catch (err) {
-      return rejectWithValue(err.message);
-    }
-  }
-);
-
-export const updateFleetSettings = createAsyncThunk(
-  'fleet/updateSettings',
-  async ({ token, payload }, { rejectWithValue }) => {
-    try {
-      const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-      const res = await fetch(`/api/management/fleets/${token}/update_settings/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      if (data.success) return data;
-      throw new Error(data.error);
-    } catch (err) {
-      return rejectWithValue(err.message);
-    }
-  }
-);
-
-export const linkEsiFleet = createAsyncThunk(
-  'fleet/linkEsi',
-  async (token, { rejectWithValue }) => {
-    try {
-      const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-      const res = await fetch(`/api/management/fleets/${token}/link_esi/`, {
-        method: 'POST',
-        headers: { 'X-CSRFToken': csrf }
-      });
-      const data = await res.json();
-      if (data.success) return data;
-      throw new Error(data.error);
-    } catch (err) {
-      return rejectWithValue(err.message);
-    }
-  }
-);
-
-export const closeFleetByToken = createAsyncThunk(
-  'fleet/closeByToken',
-  async (token, { rejectWithValue }) => {
-    try {
-      const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-      const res = await fetch(`/api/management/fleets/${token}/close/`, {
-        method: 'POST',
-        headers: { 'X-CSRFToken': csrf }
-      });
-      const data = await res.json();
-      if (data.success) return data;
-      throw new Error(data.error);
-    } catch (err) {
-      return rejectWithValue(err.message);
-    }
-  }
-);
