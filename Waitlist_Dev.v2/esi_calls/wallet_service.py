@@ -1,6 +1,7 @@
 import requests
 from django.utils import timezone
 from dateutil.parser import parse
+from django.core.cache import cache
 from django.db.models import Q
 from pilot_data.models import SRPConfiguration, CorpWalletJournal
 from esi_calls.esi_network import call_esi
@@ -285,6 +286,10 @@ def get_corp_divisions(character):
     corp_id = character.corporation_id
     if not corp_id: return {}
 
+    cache_key = f"corp_divisions_map_{corp_id}"
+    cached = cache.get(cache_key)
+    if cached: return cached
+
     url = f"{ESI_BASE}/corporations/{corp_id}/divisions/"
     
     # --- RETRY LOGIC FOR 401 ---
@@ -293,7 +298,8 @@ def get_corp_divisions(character):
     resp = {'status': 0}
 
     while retry_count <= max_retries:
-        resp = call_esi(character, f'corp_divisions_{corp_id}', url)
+        # Use force_refresh=True to ensure we get body (ignore EsiHeaderCache returning 304)
+        resp = call_esi(character, f'corp_divisions_{corp_id}', url, force_refresh=True)
 
         if resp['status'] == 401:
             if force_refresh_token(character):
@@ -311,7 +317,6 @@ def get_corp_divisions(character):
     
     data = resp['data']
     # Map division ID (1-7) to Name
-    # ESI returns: { "wallet": [ { "division": 1, "name": "Master Wallet" } ... ] }
     
     mapping = {}
     if 'wallet' in data:
@@ -319,7 +324,9 @@ def get_corp_divisions(character):
             div_id = div.get('division')
             if div_id:
                 mapping[div_id] = div.get('name', f"Division {div_id}")
-            
+
+    # Cache for 1 hour
+    cache.set(cache_key, mapping, timeout=3600)
     return mapping
 
 def get_corp_balances(character):
@@ -331,6 +338,10 @@ def get_corp_balances(character):
     corp_id = character.corporation_id
     if not corp_id: return {}
 
+    cache_key = f"live_corp_balances_{corp_id}"
+    cached = cache.get(cache_key)
+    if cached: return cached
+
     url = f"{ESI_BASE}/corporations/{corp_id}/wallets/"
 
     # --- RETRY LOGIC FOR 401 ---
@@ -339,7 +350,8 @@ def get_corp_balances(character):
     resp = {'status': 0}
 
     while retry_count <= max_retries:
-        resp = call_esi(character, f'corp_balances_{corp_id}', url)
+        # Use force_refresh=True to ensure we get body
+        resp = call_esi(character, f'corp_balances_{corp_id}', url, force_refresh=True)
 
         if resp['status'] == 401:
             if force_refresh_token(character):
@@ -362,4 +374,6 @@ def get_corp_balances(character):
     for item in resp['data']:
         balances[item['division']] = item['balance']
 
+    # Cache for 60 seconds
+    cache.set(cache_key, balances, timeout=60)
     return balances
