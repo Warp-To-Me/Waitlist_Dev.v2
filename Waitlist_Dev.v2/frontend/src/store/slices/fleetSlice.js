@@ -39,17 +39,18 @@ export const closeFleet = createAsyncThunk(
   async (fleetId, { dispatch, rejectWithValue }) => {
     try {
       const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-      const res = await fetch('/api/management/fleets/action/', {
+      // Updated URL from /api/management/fleets/action/ to /api/management/fleets/
+      const res = await fetch('/api/management/fleets/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
         body: JSON.stringify({ action: 'close', fleet_id: fleetId })
       });
       const data = await res.json();
-      if (data.success) {
-          dispatch(fetchFleetList()); // Refresh list
+      if (data.status === 'closed') {
+          dispatch(fetchFleetList());
           return data;
       }
-      throw new Error(data.error);
+      throw new Error(data.error || "Close failed");
     } catch (err) {
       return rejectWithValue(err.message);
     }
@@ -61,17 +62,18 @@ export const deleteFleet = createAsyncThunk(
   async (fleetId, { dispatch, rejectWithValue }) => {
     try {
       const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-      const res = await fetch('/api/management/fleets/action/', {
+      // Updated URL from /api/management/fleets/action/ to /api/management/fleets/
+      const res = await fetch('/api/management/fleets/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
         body: JSON.stringify({ action: 'delete', fleet_id: fleetId })
       });
       const data = await res.json();
-      if (data.success) {
+      if (data.status === 'deleted') {
           dispatch(fetchFleetList());
           return data;
       }
-      throw new Error(data.error);
+      throw new Error(data.error || "Delete failed");
     } catch (err) {
       return rejectWithValue(err.message);
     }
@@ -82,7 +84,8 @@ export const fetchFleetSettings = createAsyncThunk(
   'fleet/fetchSettings',
   async (token, { rejectWithValue }) => {
     try {
-      const res = await fetch(`/api/management/fleets/${token}/settings/`);
+      // Updated to new API endpoint that returns JSON
+      const res = await fetch(`/api/fleet/${token}/settings-data/`);
       const data = await res.json();
       return data;
     } catch (err) {
@@ -96,7 +99,7 @@ export const updateFleetSettings = createAsyncThunk(
   async ({ token, payload }, { rejectWithValue }) => {
     try {
       const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-      const res = await fetch(`/api/management/fleets/${token}/update_settings/`, {
+      const res = await fetch(`/fleet/${token}/api/settings/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
         body: JSON.stringify(payload)
@@ -115,7 +118,7 @@ export const linkEsiFleet = createAsyncThunk(
   async (token, { rejectWithValue }) => {
     try {
       const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-      const res = await fetch(`/api/management/fleets/${token}/link_esi/`, {
+      const res = await fetch(`/api/fleet/link/${token}/`, {
         method: 'POST',
         headers: { 'X-CSRFToken': csrf }
       });
@@ -133,7 +136,7 @@ export const closeFleetByToken = createAsyncThunk(
   async (token, { rejectWithValue }) => {
     try {
       const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-      const res = await fetch(`/api/management/fleets/${token}/close/`, {
+      const res = await fetch(`/api/fleet/close/${token}/`, {
         method: 'POST',
         headers: { 'X-CSRFToken': csrf }
       });
@@ -150,7 +153,8 @@ export const fetchFleetHistory = createAsyncThunk(
   'fleet/fetchHistory',
   async (token, { rejectWithValue }) => {
     try {
-      const res = await fetch(`/api/management/fleets/${token}/history/`);
+      // Updated URL to correct endpoint
+      const res = await fetch(`/fleet/${token}/history/`);
       const data = await res.json();
       return data;
     } catch (err) {

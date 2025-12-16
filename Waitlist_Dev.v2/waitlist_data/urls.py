@@ -35,6 +35,7 @@ urlpatterns = [
 
     # FLEET SETTINGS
     path('fleet/<uuid:token>/settings/', fleet_settings.fleet_settings, name='fleet_settings'),
+    path('api/fleet/<uuid:token>/settings-data/', fleet_settings.api_get_fleet_settings, name='api_get_fleet_settings'),
     path('fleet/<uuid:token>/api/settings/', fleet_settings.api_update_fleet_settings, name='api_update_fleet_settings'),
     path('api/fleet/close/<uuid:token>/', fleet_settings.api_close_fleet, name='api_close_fleet'),
     path('api/fleet/link/<uuid:token>/', fleet_settings.api_link_esi_fleet, name='api_link_esi_fleet'), 

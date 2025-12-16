@@ -5,6 +5,9 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.utils import timezone
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 
 from core.permissions import is_fleet_command, get_template_base, get_mgmt_context
 from waitlist_data.models import Fleet, FleetStructureTemplate
@@ -154,4 +157,52 @@ def take_fleet_command(request, token):
     fleet = get_object_or_404(Fleet, join_token=token)
     fleet.commander = request.user
     fleet.save()
-    return redirect('fleet_dashboard', token=fleet.join_token)
+    return redirect('fleet_dashboard', token=fleet.join_token)@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def api_get_fleet_settings(request, token):
+    fleet = get_object_or_404(Fleet, join_token=token)
+    if not is_fleet_command(request.user):
+        return Response({'error': 'Permission Denied'}, status=403)
+
+    fc_char = fleet.commander.characters.filter(is_main=True).first() or fleet.commander.characters.first()
+
+    # Structure Logic (similar to HTML view)
+    initial_structure = []
+    if fleet.esi_fleet_id and fc_char and check_token(fc_char):
+        comp, err = get_fleet_composition(fleet.esi_fleet_id, fc_char)
+        if comp:
+            raw_wings = comp.get('wings', [])
+            raw_wings.sort(key=lambda x: x['id'])
+            for w in raw_wings:
+                squads = [s['name'] for s in sorted(w.get('squads', []), key=lambda x: x['id'])]
+                initial_structure.append({
+                    'name': w['name'],
+                    'squads': squads
+                })
+
+    # Fetch Templates
+    fc_chars = request.user.characters.all()
+    templates = FleetStructureTemplate.objects.filter(character__in=fc_chars).prefetch_related('wings', 'wings__squads')
+    templates_data = []
+    for t in templates:
+        wings_data = [{'name': w.name, 'squads': [s.name for s in w.squads.all()]} for w in t.wings.all()]
+        templates_data.append({
+            'id': t.id,
+            'name': t.name,
+            'motd': t.motd,
+            'wing_count': t.wings.count(),
+            'wings': wings_data
+        })
+
+    return Response({
+        'fleet': {
+            'id': fleet.id,
+            'name': fleet.name,
+            'motd': fleet.motd,
+            'esi_fleet_id': fleet.esi_fleet_id,
+            'commander_id': fc_char.character_id if fc_char else None,
+            'join_token': str(fleet.join_token)
+        },
+        'structure': initial_structure,
+        'templates': templates_data
+    })
