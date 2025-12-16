@@ -316,7 +316,9 @@ def get_corp_divisions(character):
     mapping = {}
     if 'wallet' in data:
         for div in data['wallet']:
-            mapping[div['division']] = div['name']
+            div_id = div.get('division')
+            if div_id:
+                mapping[div_id] = div.get('name', f"Division {div_id}")
             
     return mapping
 
