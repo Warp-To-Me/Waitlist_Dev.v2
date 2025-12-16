@@ -21,13 +21,20 @@ export const createFleet = createAsyncThunk(
   async (payload, { rejectWithValue }) => {
     try {
       const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-      const res = await apiCall('/api/management/fleets/', {
+      
+      // Remap name -> fleet_name for the structured endpoint
+      const bodyPayload = {
+          ...payload,
+          fleet_name: payload.name
+      };
+      
+      const res = await apiCall('/api/management/fleets/create_structured/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(bodyPayload)
       });
       const data = await res.json();
-      if (data.status === 'created') return data;
+      if (data.success) return data; // structured endpoint returns success: true
       throw new Error(data.error || "Creation failed");
     } catch (err) {
       return rejectWithValue(err.message);

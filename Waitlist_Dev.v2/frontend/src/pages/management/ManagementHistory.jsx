@@ -49,7 +49,7 @@ const ManagementHistory = () => {
     const openHistoryFit = (logId) => {
         setModalOpen(true);
         setModalData(null); // Loading state
-        apiCall(`/fleet/history/api/${logId}/`) // Assuming this endpoint works and returns JSON
+        apiCall(`/api/management/fleets/history/api/${logId}/`)
             .then(res => res.json())
             .then(data => setModalData(data))
             .catch(() => setModalData({ error: "Error loading data" }));

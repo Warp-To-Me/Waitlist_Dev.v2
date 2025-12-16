@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 
 class FleetConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        self.fleet_id = self.scope['url_route']['kwargs']['fleet_id']
-        self.room_group_name = f'fleet_{self.fleet_id}'
+        self.token = self.scope['url_route']['kwargs']['token']
+        self.room_group_name = f'fleet_{self.token}'
         self.user = self.scope["user"]
 
         if self.user.is_anonymous:
@@ -76,7 +76,7 @@ class FleetConsumer(AsyncWebsocketConsumer):
                         resolved_names = await sync_to_async(resolve_unknown_names)(all_ids)
 
                         # 2. Audit Logic (Pass names to avoid re-fetch)
-                        await self.audit_fleet_members(self.fleet_id, composite_data, resolved_names)
+                        await self.audit_fleet_members(self.token, composite_data, resolved_names)
 
                         # 3. Process Data for UI (Inject resolved names)
                         summary, hierarchy = await sync_to_async(process_fleet_data)(composite_data, resolved_names)
@@ -89,7 +89,7 @@ class FleetConsumer(AsyncWebsocketConsumer):
                         }))
                     elif error:
                         if "404" in str(error):
-                            await self.invalidate_fleet_id(self.fleet_id)
+                            await self.invalidate_fleet_id(self.token)
                             await self.send(text_data=json.dumps({
                                 'type': 'fleet_error',
                                 'error': "Fleet not found. Attempting to relink..."
@@ -116,7 +116,7 @@ class FleetConsumer(AsyncWebsocketConsumer):
     @sync_to_async
     def get_fleet_context(self):
         try:
-            fleet = Fleet.objects.get(id=self.fleet_id)
+            fleet = Fleet.objects.get(join_token=self.token)
             if not fleet.commander: return {'error': 'No Commander'}
             fc_char = fleet.commander.characters.filter(is_main=True).first()
             if not fc_char: fc_char = fleet.commander.characters.first()
@@ -135,15 +135,15 @@ class FleetConsumer(AsyncWebsocketConsumer):
         except Fleet.DoesNotExist: return None
 
     @sync_to_async
-    def invalidate_fleet_id(self, fleet_db_id):
+    def invalidate_fleet_id(self, token):
         try:
-            fleet = Fleet.objects.get(id=fleet_db_id)
+            fleet = Fleet.objects.get(join_token=token)
             fleet.esi_fleet_id = None
             fleet.save()
         except Fleet.DoesNotExist: pass
 
     @sync_to_async
-    def audit_fleet_members(self, fleet_db_id, composite_data, resolved_names):
+    def audit_fleet_members(self, token, composite_data, resolved_names):
         """
         Compares current ESI state against cached snapshot.
         RUNS SYNCHRONOUSLY inside a thread via @sync_to_async.
@@ -178,7 +178,7 @@ class FleetConsumer(AsyncWebsocketConsumer):
             }
 
         # 2. Retrieve Previous State from Cache
-        cache_key = f"fleet_audit_snapshot_{fleet_db_id}"
+        cache_key = f"fleet_audit_snapshot_{token}"
         previous_state = cache.get(cache_key)
 
         # 3. Save Current as New Snapshot
@@ -197,7 +197,7 @@ class FleetConsumer(AsyncWebsocketConsumer):
         all_relevant_ids = list(joined_ids | left_ids | common_ids)
         known_chars = EveCharacter.objects.filter(character_id__in=all_relevant_ids).in_bulk(field_name='character_id')
         
-        fleet = Fleet.objects.get(id=fleet_db_id)
+        fleet = Fleet.objects.get(join_token=token)
         new_logs = []
         
         needed_ship_ids = set(m['ship_type_id'] for m in members if m['character_id'] in all_relevant_ids)
