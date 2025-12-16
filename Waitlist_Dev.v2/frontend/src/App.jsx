@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import Layout from './components/Layout';
+import BanEnforcer from './components/BanEnforcer';
 import Landing from './pages/Landing';
 import Doctrines from './pages/Doctrines';
 import Profile from './pages/Profile';
@@ -34,9 +35,10 @@ function App() {
     <AuthProvider>
       <Router>
         <Layout>
-          <Routes>
-            {/* Public / User Pages */}
-            <Route path="/" element={<Landing />} />
+          <BanEnforcer>
+            <Routes>
+              {/* Public / User Pages */}
+              <Route path="/" element={<Landing />} />
             <Route path="/landing/" element={<Landing />} />
             <Route path="/doctrines" element={<Doctrines />} />
             <Route path="/profile" element={<Profile />} />
@@ -80,9 +82,10 @@ function App() {
               <Route path="*" element={<div className="p-10 text-slate-500">Page Not Found</div>} />
             </Route>
 
-            {/* Global Fallback */}
-            <Route path="*" element={<div className="p-10 text-center text-slate-500">Page Not Found</div>} />
-          </Routes>
+              {/* Global Fallback */}
+              <Route path="*" element={<div className="p-10 text-center text-slate-500">Page Not Found</div>} />
+            </Routes>
+          </BanEnforcer>
         </Layout>
       </Router>
     </AuthProvider>

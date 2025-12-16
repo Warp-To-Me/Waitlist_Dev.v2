@@ -368,3 +368,4 @@ FodyWeavers.xsd
 /Waitlist_Dev.v2/celerybeat-schedule.dir
 /Waitlist_Dev.v2/.env
 /Waitlist_Dev.v2/wallet.sql
+/Waitlist_Dev.v2/frontend/REDUX_MIGRATION_PLAN.md

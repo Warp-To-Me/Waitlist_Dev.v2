@@ -3,7 +3,7 @@ import { ShieldAlert, Plus, Trash, RotateCcw, Search, Edit } from 'lucide-react'
 
 const ManagementBans = () => {
     const [bans, setBans] = useState([]);
-    const [filter, setFilter] = useState('all'); // all, active, permanent, expired
+    const [filter, setFilter] = useState('active'); // active, permanent
     const [modalOpen, setModalOpen] = useState(false);
     const [editBanId, setEditBanId] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
@@ -118,7 +118,7 @@ const ManagementBans = () => {
 
             {/* Filter Bar */}
             <div className="flex gap-2">
-                {['all', 'active', 'permanent', 'expired'].map(f => (
+                {['active', 'permanent'].map(f => (
                     <button
                         key={f}
                         onClick={() => setFilter(f)}
@@ -133,7 +133,7 @@ const ManagementBans = () => {
             <div className="glass-panel overflow-hidden">
                 <div className="p-6 border-b border-white/5">
                     <h3 className="font-bold text-slate-200 capitalize">
-                        {filter === 'all' ? 'All Records' : `${filter} Only`}
+                        {filter === 'active' ? 'Active Bans' : 'Permanent Bans Only'}
                     </h3>
                 </div>
 
