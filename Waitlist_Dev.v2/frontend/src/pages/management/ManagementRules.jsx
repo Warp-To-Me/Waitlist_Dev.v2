@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Save, Upload, Download, Search, X, Check, Copy, Trash } from 'lucide-react';
 import clsx from 'clsx';
+import { apiCall } from '../../utils/api';
 
 const ManagementRules = () => {
     const [view, setView] = useState('search'); // 'search' or 'saved'
@@ -29,7 +30,7 @@ const ManagementRules = () => {
         }
         if (searchTimeout.current) clearTimeout(searchTimeout.current);
         searchTimeout.current = setTimeout(() => {
-            fetch(`/api/management/rules/search_groups/?q=${encodeURIComponent(searchQuery)}`)
+            apiCall(`/api/management/rules/search_groups/?q=${encodeURIComponent(searchQuery)}`)
                 .then(res => res.json())
                 .then(data => setSearchResults(data.results || []));
         }, 300);
@@ -43,7 +44,7 @@ const ManagementRules = () => {
     }, [view, savedQuery]);
 
     const fetchSavedRules = (page) => {
-        fetch(`/api/management/rules/list/?page=${page}&q=${encodeURIComponent(savedQuery)}`)
+        apiCall(`/api/management/rules/list/?page=${page}&q=${encodeURIComponent(savedQuery)}`)
             .then(res => res.json())
             .then(data => {
                 setSavedRules(data.results || []);
@@ -64,7 +65,7 @@ const ManagementRules = () => {
         setSearchResults([]); // Clear search dropdown
         setSearchQuery(''); // Clear search input
         
-        fetch(`/api/management/rules/discovery/${id}/`)
+        apiCall(`/api/management/rules/discovery/${id}/`)
             .then(res => res.json())
             .then(data => {
                 setRules(data.rules || []);
@@ -89,7 +90,7 @@ const ManagementRules = () => {
         }));
 
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch('/api/management/rules/save/', {
+        apiCall('/api/management/rules/save/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify({ group_id: currentGroup.id, rules: activeRules })
@@ -101,7 +102,7 @@ const ManagementRules = () => {
     const deleteGroupRules = (id, name) => {
         if (!confirm(`Delete all rules for "${name}"?`)) return;
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch('/api/management/rules/delete/', {
+        apiCall('/api/management/rules/delete/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify({ group_id: id })
@@ -117,7 +118,7 @@ const ManagementRules = () => {
     };
 
     const exportRules = () => {
-        fetch('/api/management/rules/export/')
+        apiCall('/api/management/rules/export/')
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
@@ -131,7 +132,7 @@ const ManagementRules = () => {
         if (!importString) return alert("Paste string first");
         if (!confirm("Overwrite all rules?")) return;
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch('/api/management/rules/import/', {
+        apiCall('/api/management/rules/import/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify({ import_string: importString })

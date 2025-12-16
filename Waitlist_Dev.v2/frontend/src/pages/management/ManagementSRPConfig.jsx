@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { RefreshCw, Key, LogIn, AlertTriangle } from 'lucide-react';
+import { apiCall } from '../../utils/api';
 
 const ManagementSRPConfig = () => {
     const [config, setConfig] = useState(null);
@@ -14,7 +15,7 @@ const ManagementSRPConfig = () => {
     const fetchData = () => {
         setError(null);
         // This endpoint uses 'management' in urls.py
-        fetch('/api/management/srp/config/')
+        apiCall('/api/management/srp/config/')
             .then(res => {
                 if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
                 return res.json();
@@ -34,7 +35,7 @@ const ManagementSRPConfig = () => {
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
         
         // FIX: This endpoint uses 'mgmt' in urls.py
-        fetch('/api/mgmt/srp/set_source/', {
+        apiCall('/api/mgmt/srp/set_source/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify({ character_id: charId })
@@ -48,7 +49,7 @@ const ManagementSRPConfig = () => {
         setLoading(true);
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
         // FIX: This endpoint uses 'mgmt' in urls.py
-        fetch('/api/mgmt/srp/sync/', {
+        apiCall('/api/mgmt/srp/sync/', {
             method: 'POST',
             headers: { 'X-CSRFToken': csrf }
         }).then(res => res.json()).then(data => {

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Trash, Plus, X } from 'lucide-react';
 import clsx from 'clsx';
+import { apiCall } from '../../utils/api';
 
 const ManagementSkills = () => {
     const [view, setView] = useState('assignments'); // assignments, groups, tiers
@@ -36,7 +37,7 @@ const ManagementSkills = () => {
     }, []);
 
     const fetchData = () => {
-        fetch('/api/management/skills/data/')
+        apiCall('/api/management/skills/data/')
             .then(res => res.json())
             .then(data => {
                 setFits(data.fits || []);
@@ -55,7 +56,7 @@ const ManagementSkills = () => {
             setHullSearchResults([]);
             return;
         }
-        fetch(`/api/search_hull/?q=${encodeURIComponent(q)}`)
+        apiCall(`/api/search_hull/?q=${encodeURIComponent(q)}`)
             .then(res => res.json())
             .then(data => setHullSearchResults(data.results || []));
     };
@@ -70,7 +71,7 @@ const ManagementSkills = () => {
         };
 
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch('/api/skill_req/add/', {
+        apiCall('/api/skill_req/add/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify(payload)
@@ -85,7 +86,7 @@ const ManagementSkills = () => {
     const deleteRule = (id) => {
         if (!confirm("Delete rule?")) return;
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch('/api/skill_req/delete/', {
+        apiCall('/api/skill_req/delete/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify({ req_id: id })
@@ -98,7 +99,7 @@ const ManagementSkills = () => {
         const name = prompt("Enter Group Name:");
         if (!name) return;
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch('/api/skill_group/manage/', {
+        apiCall('/api/skill_group/manage/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify({ action: 'create', name })
@@ -110,7 +111,7 @@ const ManagementSkills = () => {
     const deleteGroup = () => {
         if (!confirm("Delete group?")) return;
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch('/api/skill_group/manage/', {
+        apiCall('/api/skill_group/manage/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify({ action: 'delete', group_id: selectedGroup.id })
@@ -128,13 +129,13 @@ const ManagementSkills = () => {
         // If not nested, we might need a separate fetch. Let's assume nested for simplicity or fetch here.
         // Actually the template uses `groupsData` which is populated server side.
         // We should fetch members when selecting.
-        fetch(`/api/skill_group/${group.id}/members/`).then(r=>r.json()).then(d=>setGroupMembers(d.members||[]));
+        apiCall(`/api/skill_group/${group.id}/members/`).then(r=>r.json()).then(d=>setGroupMembers(d.members||[]));
     };
 
     const addGroupMember = () => {
         if (!newMemberSkill) return;
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch('/api/skill_group/member/add/', {
+        apiCall('/api/skill_group/member/add/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify({ group_id: selectedGroup.id, skill_name: newMemberSkill, level: newMemberLevel })
@@ -149,7 +150,7 @@ const ManagementSkills = () => {
 
     const removeGroupMember = (memberId) => {
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch('/api/skill_group/member/remove/', {
+        apiCall('/api/skill_group/member/remove/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify({ member_id: memberId })
@@ -160,7 +161,7 @@ const ManagementSkills = () => {
 
     const createTier = () => {
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch('/api/skill_tier/manage/', {
+        apiCall('/api/skill_tier/manage/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify({ action: 'create', ...newTier })
@@ -175,7 +176,7 @@ const ManagementSkills = () => {
     const deleteTier = (id) => {
         if (!confirm("Delete tier?")) return;
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch('/api/skill_tier/manage/', {
+        apiCall('/api/skill_tier/manage/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify({ action: 'delete', tier_id: id })

@@ -1,4 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { apiCall } from '../../utils/api';
 
 // --- Thunks ---
 
@@ -6,7 +7,7 @@ export const fetchFleetList = createAsyncThunk(
   'fleet/fetchList',
   async (_, { rejectWithValue }) => {
     try {
-      const res = await fetch('/api/management/fleets/');
+      const res = await apiCall('/api/management/fleets/');
       const data = await res.json();
       return data;
     } catch (err) {
@@ -20,7 +21,7 @@ export const createFleet = createAsyncThunk(
   async (payload, { rejectWithValue }) => {
     try {
       const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-      const res = await fetch('/api/management/fleets/', {
+      const res = await apiCall('/api/management/fleets/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
         body: JSON.stringify(payload)
@@ -39,7 +40,7 @@ export const closeFleet = createAsyncThunk(
   async (fleetId, { dispatch, rejectWithValue }) => {
     try {
       const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-      const res = await fetch('/api/management/fleets/action/', {
+      const res = await apiCall('/api/management/fleets/action/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
         body: JSON.stringify({ action: 'close', fleet_id: fleetId })
@@ -61,7 +62,7 @@ export const deleteFleet = createAsyncThunk(
   async (fleetId, { dispatch, rejectWithValue }) => {
     try {
       const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-      const res = await fetch('/api/management/fleets/action/', {
+      const res = await apiCall('/api/management/fleets/action/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
         body: JSON.stringify({ action: 'delete', fleet_id: fleetId })
@@ -82,7 +83,7 @@ export const fetchFleetSettings = createAsyncThunk(
   'fleet/fetchSettings',
   async (token, { rejectWithValue }) => {
     try {
-      const res = await fetch(`/api/management/fleets/${token}/settings/`);
+      const res = await apiCall(`/api/management/fleets/${token}/settings/`);
       const data = await res.json();
       return data;
     } catch (err) {
@@ -96,7 +97,7 @@ export const updateFleetSettings = createAsyncThunk(
   async ({ token, payload }, { rejectWithValue }) => {
     try {
       const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-      const res = await fetch(`/api/management/fleets/${token}/update_settings/`, {
+      const res = await apiCall(`/api/management/fleets/${token}/update_settings/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
         body: JSON.stringify(payload)
@@ -115,7 +116,7 @@ export const linkEsiFleet = createAsyncThunk(
   async (token, { rejectWithValue }) => {
     try {
       const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-      const res = await fetch(`/api/management/fleets/${token}/link_esi/`, {
+      const res = await apiCall(`/api/management/fleets/${token}/link_esi/`, {
         method: 'POST',
         headers: { 'X-CSRFToken': csrf }
       });
@@ -133,7 +134,7 @@ export const closeFleetByToken = createAsyncThunk(
   async (token, { rejectWithValue }) => {
     try {
       const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-      const res = await fetch(`/api/management/fleets/${token}/close/`, {
+      const res = await apiCall(`/api/management/fleets/${token}/close/`, {
         method: 'POST',
         headers: { 'X-CSRFToken': csrf }
       });
@@ -150,7 +151,7 @@ export const fetchFleetHistory = createAsyncThunk(
   'fleet/fetchHistory',
   async (token, { rejectWithValue }) => {
     try {
-      const res = await fetch(`/api/management/fleets/${token}/history/`);
+      const res = await apiCall(`/api/management/fleets/${token}/history/`);
       const data = await res.json();
       return data;
     } catch (err) {
