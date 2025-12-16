@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Search } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import SmartPagination from '../../components/SmartPagination';
+import { apiCall } from '../../utils/api';
 
 const ManagementBanAudit = () => {
     const [logs, setLogs] = useState([]);
@@ -12,7 +13,7 @@ const ManagementBanAudit = () => {
     const [pagination, setPagination] = useState({ total: 1, current: 1 });
 
     useEffect(() => {
-        fetch(`/api/management/bans/audit/?q=${encodeURIComponent(query)}&page=${page}&limit=${limit}`)
+        apiCall(`/api/management/bans/audit/?q=${encodeURIComponent(query)}&page=${page}&limit=${limit}`)
             .then(res => res.json())
             .then(data => {
                 setLogs(data.logs || []);

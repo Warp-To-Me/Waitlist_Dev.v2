@@ -4,6 +4,7 @@ import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, ExternalLink, X, Copy, RotateCcw } from 'lucide-react';
 import clsx from 'clsx';
 import { fetchFleetHistory, selectFleetHistory, selectFleetLoading } from '../../store/slices/fleetSlice';
+import { apiCall } from '../../utils/api';
 
 const ManagementHistory = () => {
     const { token } = useParams();
@@ -48,7 +49,7 @@ const ManagementHistory = () => {
     const openHistoryFit = (logId) => {
         setModalOpen(true);
         setModalData(null); // Loading state
-        fetch(`/fleet/history/api/${logId}/`) // Assuming this endpoint works and returns JSON
+        apiCall(`/fleet/history/api/${logId}/`) // Assuming this endpoint works and returns JSON
             .then(res => res.json())
             .then(data => setModalData(data))
             .catch(() => setModalData({ error: "Error loading data" }));

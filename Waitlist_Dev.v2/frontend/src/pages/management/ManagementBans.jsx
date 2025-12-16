@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ShieldAlert, Plus, Trash, RotateCcw, Search, Edit } from 'lucide-react';
+import { apiCall } from '../../utils/api';
 
 const ManagementBans = () => {
     const [bans, setBans] = useState([]);
@@ -13,7 +14,7 @@ const ManagementBans = () => {
     const [duration, setDuration] = useState('permanent');
 
     const fetchBans = () => {
-        fetch(`/api/management/bans/?filter=${filter}`)
+        apiCall(`/api/management/bans/?filter=${filter}`)
             .then(res => res.json())
             .then(data => setBans(data.bans || []));
     };
@@ -29,7 +30,7 @@ const ManagementBans = () => {
             return;
         }
         const timer = setTimeout(() => {
-            fetch(`/api/mgmt/search_users/?q=${encodeURIComponent(searchQuery)}`)
+            apiCall(`/api/mgmt/search_users/?q=${encodeURIComponent(searchQuery)}`)
                 .then(r => r.json())
                 .then(data => setSearchResults(data.results || []));
         }, 300);
@@ -70,7 +71,7 @@ const ManagementBans = () => {
         }
 
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch(editBanId ? '/api/mgmt/bans/update/' : '/api/mgmt/bans/add/', {
+        apiCall(editBanId ? '/api/mgmt/bans/update/' : '/api/mgmt/bans/add/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify(payload)
@@ -87,7 +88,7 @@ const ManagementBans = () => {
     const removeBan = (banId, username) => {
         if (!confirm(`Are you sure you want to remove the ban for ${username}?`)) return;
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch('/api/mgmt/bans/update/', {
+        apiCall('/api/mgmt/bans/update/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify({ action: 'remove', ban_id: banId })

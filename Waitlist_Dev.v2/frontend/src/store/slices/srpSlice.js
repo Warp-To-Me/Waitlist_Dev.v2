@@ -1,4 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { apiCall } from '../../utils/api';
 
 // --- Thunks ---
 
@@ -6,7 +7,7 @@ export const fetchSRPDivisions = createAsyncThunk(
   'srp/fetchDivisions',
   async (_, { rejectWithValue }) => {
     try {
-      const res = await fetch('/api/mgmt/srp/divisions/');
+      const res = await apiCall('/api/mgmt/srp/divisions/');
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       return data;
@@ -20,7 +21,7 @@ export const fetchSRPStatus = createAsyncThunk(
   'srp/fetchStatus',
   async (_, { rejectWithValue }) => {
     try {
-      const res = await fetch('/api/srp/status/');
+      const res = await apiCall('/api/srp/status/');
       return await res.json();
     } catch (err) {
       return rejectWithValue(err.message);
@@ -45,7 +46,7 @@ export const fetchSRPData = createAsyncThunk(
     activeDivisions.forEach(d => params.append('divisions[]', d));
 
     try {
-      const res = await fetch(`/api/srp/data/?${params.toString()}`);
+      const res = await apiCall(`/api/srp/data/?${params.toString()}`);
       return await res.json();
     } catch (err) {
       return rejectWithValue(err.message);
@@ -58,7 +59,7 @@ export const updateSRPCategory = createAsyncThunk(
   async ({ entryId, category }, { dispatch, rejectWithValue }) => {
     try {
       const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-      const res = await fetch('/api/mgmt/srp/update_category/', {
+      const res = await apiCall('/api/mgmt/srp/update_category/', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

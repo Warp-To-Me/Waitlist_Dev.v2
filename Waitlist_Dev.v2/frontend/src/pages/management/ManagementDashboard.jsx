@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
+import { apiCall } from '../../utils/api';
 
 const ManagementDashboard = () => {
     const [stats, setStats] = useState(null);
 
     useEffect(() => {
-        fetch('/api/management/') // Maps to management_dashboard
+        apiCall('/api/management/') // Maps to management_dashboard
             .then(res => res.json())
             .then(data => setStats(data));
     }, []);

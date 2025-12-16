@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Database } from 'lucide-react';
+import { apiCall } from '../../utils/api';
 
 const ManagementSDE = () => {
     const [data, setData] = useState(null);
 
     useEffect(() => {
-        fetch('/api/management/sde/')
+        apiCall('/api/management/sde/')
             .then(res => res.json())
             .then(setData);
     }, []);

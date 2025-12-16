@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, X, Shield, Wallet, BookOpen, Layers, User } from 'lucide-react';
 import clsx from 'clsx';
 import SmartPagination from '../../components/SmartPagination';
+import { apiCall } from '../../utils/api';
 import { 
     fetchUsers, setQuery, setPage, setSort, 
     fetchUserProfile, fetchUserRoles, clearInspect,
@@ -75,7 +76,7 @@ const ManagementUsers = () => {
         if (!selectedUser) return;
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
         
-        fetch('/api/mgmt/update_role/', {
+        apiCall('/api/mgmt/update_role/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify({ user_id: selectedUser.id, role, action })

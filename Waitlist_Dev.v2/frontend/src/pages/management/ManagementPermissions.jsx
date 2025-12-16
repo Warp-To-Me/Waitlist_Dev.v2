@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronUp, ChevronDown, Plus, Edit, Trash, Save, HelpCircle } from 'lucide-react';
-import clsx from 'clsx';
+import { ChevronUp, ChevronDown, Plus, Edit, Trash, Save } from 'lucide-react';
+import { apiCall } from '../../utils/api';
 
 const ManagementPermissions = () => {
     const [groups, setGroups] = useState([]);
@@ -14,7 +14,7 @@ const ManagementPermissions = () => {
     }, []);
 
     const fetchData = () => {
-        fetch('/api/management/permissions/')
+        apiCall('/api/management/permissions/')
             .then(res => res.json())
             .then(data => {
                 setGroups(data.groups || []);
@@ -41,7 +41,7 @@ const ManagementPermissions = () => {
         });
         setGroups(updatedGroups);
 
-        fetch('/api/mgmt/permissions/toggle/', {
+        apiCall('/api/mgmt/permissions/toggle/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify({ group_id: groupId, cap_id: capId })
@@ -66,7 +66,7 @@ const ManagementPermissions = () => {
 
     const saveOrder = () => {
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch('/api/mgmt/roles/reorder/', {
+        apiCall('/api/mgmt/roles/reorder/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify({ ordered_ids: groups.map(g => g.id) })
@@ -81,7 +81,7 @@ const ManagementPermissions = () => {
 
     const handleModalSubmit = () => {
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch('/api/mgmt/groups/', {
+        apiCall('/api/mgmt/groups/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify(modalData)
@@ -98,7 +98,7 @@ const ManagementPermissions = () => {
     const deleteGroup = (id, name) => {
         if (!confirm(`Delete group "${name}"?`)) return;
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch('/api/mgmt/groups/', {
+        apiCall('/api/mgmt/groups/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify({ action: 'delete', id })

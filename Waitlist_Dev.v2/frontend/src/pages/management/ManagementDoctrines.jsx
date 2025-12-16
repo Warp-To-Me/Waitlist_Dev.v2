@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Upload, Download, Edit, Trash, X } from 'lucide-react';
+import { apiCall } from '../../utils/api';
 
 const ManagementDoctrines = () => {
     const [categories, setCategories] = useState([]);
@@ -17,7 +18,7 @@ const ManagementDoctrines = () => {
     }, []);
 
     const fetchData = () => {
-        fetch('/api/management/doctrines/data/')
+        apiCall('/api/management/doctrines/data/')
             .then(res => res.json())
             .then(data => {
                 setCategories(data.categories || []);
@@ -56,7 +57,7 @@ const ManagementDoctrines = () => {
     const handleSubmit = (e) => {
         e.preventDefault();
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch('/api/management/doctrines/save/', {
+        apiCall('/api/management/doctrines/save/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify({ action: formAction, ...formData })
@@ -73,7 +74,7 @@ const ManagementDoctrines = () => {
     const deleteFit = (id) => {
         if (!confirm('Are you sure?')) return;
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch('/api/management/doctrines/save/', {
+        apiCall('/api/management/doctrines/save/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify({ action: 'delete', fit_id: id })
@@ -83,7 +84,7 @@ const ManagementDoctrines = () => {
     };
 
     const exportDoctrines = () => {
-        fetch('/api/management/doctrines/export/')
+        apiCall('/api/management/doctrines/export/')
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
@@ -97,7 +98,7 @@ const ManagementDoctrines = () => {
         if (!importString.trim()) return alert("Paste string first");
         if (!confirm("Overwrite all data?")) return;
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch('/api/management/doctrines/import/', {
+        apiCall('/api/management/doctrines/import/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify({ import_string: importString })
