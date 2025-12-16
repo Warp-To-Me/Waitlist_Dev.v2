@@ -1,41 +1,32 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useContext, useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchUserMe, selectUser, selectAuthLoading } from '../store/slices/authSlice';
 
+// We keep the Context to avoid breaking every import in the app,
+// but now it just bridges Redux state.
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true);
-
-    const fetchUser = async () => {
-        try {
-            const res = await fetch('/api/me/');
-            if (res.ok) {
-                const data = await res.json();
-                setUser(data);
-                
-                // Check for ban status
-                if (data.is_banned) {
-                     // Optionally redirect here or let components handle it
-                     // window.location.href = '/banned'; 
-                }
-            } else {
-                setUser(null);
-            }
-        } catch (error) {
-            console.error("Failed to fetch user:", error);
-            setUser(null);
-        } finally {
-            setLoading(false);
-        }
-    };
+    const dispatch = useDispatch();
+    const user = useSelector(selectUser);
+    const loading = useSelector(selectAuthLoading);
 
     useEffect(() => {
-        fetchUser();
-    }, []);
+        // Only fetch if we haven't already (or if status is idle)
+        // For now, we just force fetch on mount like the original context did
+        dispatch(fetchUserMe());
+    }, [dispatch]);
+
+    // Check for ban status - Side Effect logic
+    useEffect(() => {
+        if (user && user.is_banned) {
+             // Optionally redirect here or let components handle it
+             // window.location.href = '/banned'; 
+        }
+    }, [user]);
 
     const refreshUser = async () => {
-        // Return the promise so callers can wait for it
-        return fetchUser();
+        return dispatch(fetchUserMe()).unwrap();
     };
 
     return (

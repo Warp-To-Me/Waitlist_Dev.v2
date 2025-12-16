@@ -3,25 +3,28 @@ import { Link } from 'react-router-dom';
 import clsx from 'clsx';
 import { Menu, ChevronDown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useSelector, useDispatch } from 'react-redux';
+import { setTheme, selectTheme } from '../store/slices/uiSlice';
 
 const Layout = ({ children }) => {
-  const [theme, setTheme] = useState('default');
+  const theme = useSelector(selectTheme);
+  const dispatch = useDispatch();
   const { user } = useAuth(); // Consume global user state
 
   useEffect(() => {
     // Check cookie for theme
     const match = document.cookie.match(new RegExp('(^| )site_theme=([^;]+)'));
     if (match) {
-      setTheme(match[2]);
+      dispatch(setTheme(match[2]));
     }
     
     // Cleanup existing theme classes
     document.body.classList.remove('theme-default', 'theme-caldari', 'theme-gallente', 'theme-amarr', 'theme-light');
     document.body.classList.add(`theme-${theme}`);
-  }, [theme]);
+  }, [theme, dispatch]);
 
   const handleSetTheme = (newTheme) => {
-    setTheme(newTheme);
+    dispatch(setTheme(newTheme));
     const d = new Date();
     d.setTime(d.getTime() + (365 * 24 * 60 * 60 * 1000));
     document.cookie = `site_theme=${newTheme};expires=${d.toUTCString()};path=/`;

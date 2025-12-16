@@ -1,9 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useDispatch } from 'react-redux';
 import { useNavigate, Link } from 'react-router-dom';
 import { Save, Rocket, Palette, X, Trash } from 'lucide-react';
 import Picker from 'vanilla-picker';
+import { createFleet } from '../../store/slices/fleetSlice';
 
 const ManagementFleetSetup = () => {
+    const dispatch = useDispatch();
     const navigate = useNavigate();
     const [fleetName, setFleetName] = useState("New Fleet");
     const [fcChars, setFcChars] = useState([]);
@@ -198,31 +201,24 @@ const ManagementFleetSetup = () => {
     };
 
     const launchFleet = () => {
-        const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch('/api/management/fleets/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-            body: JSON.stringify({
-                action: 'create',
-                name: fleetName,
-                character_id: selectedFc,
-                structure,
-                motd,
-                is_offline: offlineMode
-            })
-        }).then(res => res.json()).then(data => {
-            if (data.status === 'created') {
-                // If the redirect URL is provided by backend, use it, otherwise assume pattern
-                if (data.redirect_url) {
-                    // Backend returns full path, e.g. /management/fleets/TOKEN/settings
-                    // We need to navigate via React Router if possible to avoid full reload
-                    navigate(data.redirect_url);
-                } else {
-                    navigate('/management/fleets');
-                }
+        dispatch(createFleet({
+            action: 'create',
+            name: fleetName,
+            character_id: selectedFc,
+            structure,
+            motd,
+            is_offline: offlineMode
+        }))
+        .unwrap()
+        .then(data => {
+            if (data.redirect_url) {
+                navigate(data.redirect_url);
             } else {
-                alert("Launch Failed: " + data.error);
+                navigate('/management/fleets');
             }
+        })
+        .catch(err => {
+            alert("Launch Failed: " + err);
         });
     };
 

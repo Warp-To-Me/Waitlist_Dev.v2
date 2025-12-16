@@ -1,36 +1,45 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Save, Trash, Link as LinkIcon, AlertTriangle, ArrowLeft, Palette, Plus, X } from 'lucide-react';
 import Picker from 'vanilla-picker';
+import { 
+    fetchFleetSettings, updateFleetSettings, linkEsiFleet, closeFleetByToken,
+    selectFleetSettings, selectFleetLoading 
+} from '../../store/slices/fleetSlice';
 
 const ManagementFleetSettings = () => {
     const { token } = useParams();
+    const dispatch = useDispatch();
     const navigate = useNavigate();
-    const [fleet, setFleet] = useState(null);
+    
+    const settingsData = useSelector(selectFleetSettings);
+    const loading = useSelector(selectFleetLoading);
+
+    // Local state for editing form
     const [structure, setStructure] = useState([]);
     const [motd, setMotd] = useState('');
     const [previewHtml, setPreviewHtml] = useState('');
     const [templates, setTemplates] = useState([]);
     const pickerRef = useRef(null);
 
+    // Initial Fetch
     useEffect(() => {
-        fetchFleetData();
-    }, [token]);
+        dispatch(fetchFleetSettings(token));
+    }, [dispatch, token]);
+
+    // Sync Redux state to local state on load
+    useEffect(() => {
+        if (settingsData) {
+            setStructure(settingsData.structure || []);
+            setMotd(settingsData.fleet.motd || '');
+            setTemplates(settingsData.templates || []);
+        }
+    }, [settingsData]);
 
     useEffect(() => {
         updatePreview(motd);
     }, [motd]);
-
-    const fetchFleetData = () => {
-        fetch(`/api/management/fleets/${token}/settings/`)
-            .then(res => res.json())
-            .then(data => {
-                setFleet(data.fleet);
-                setStructure(data.structure || []);
-                setMotd(data.fleet.motd || '');
-                setTemplates(data.templates || []);
-            });
-    };
 
     const updatePreview = (text) => {
         let html = text || '';
@@ -118,58 +127,48 @@ const ManagementFleetSettings = () => {
     };
 
     const saveSettings = () => {
-        const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch(`/api/management/fleets/${token}/update_settings/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-            body: JSON.stringify({ motd, structure })
-        }).then(res => res.json()).then(data => {
-            if (data.success) alert("Synced!"); else alert("Update Failed: " + data.error);
-        });
+        dispatch(updateFleetSettings({ token, payload: { motd, structure } }))
+            .unwrap()
+            .then(() => alert("Synced!"))
+            .catch(err => alert("Update Failed: " + err));
     };
 
-    const linkEsiFleet = () => {
-        const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch(`/api/management/fleets/${token}/link_esi/`, {
-            method: 'POST',
-            headers: { 'X-CSRFToken': csrf }
-        }).then(res => res.json()).then(data => {
-            if (data.success) {
-                alert("Fleet successfully linked! ID: " + data.fleet_id);
-                fetchFleetData();
-            } else {
-                alert("Link Failed: " + data.error);
-            }
-        });
+    const linkEsiFleetAction = () => {
+        dispatch(linkEsiFleet(token))
+            .unwrap()
+            .then(data => alert("Fleet successfully linked! ID: " + data.fleet_id))
+            .catch(err => alert("Link Failed: " + err));
     };
 
-    const closeFleet = () => {
+    const closeFleetAction = () => {
         if (!confirm("Are you sure you want to CLOSE this fleet? This stops the waitlist.")) return;
-        const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch(`/api/management/fleets/${token}/close/`, {
-            method: 'POST',
-            headers: { 'X-CSRFToken': csrf }
-        }).then(res => res.json()).then(data => {
-            if (data.success) navigate('/management/fleets'); else alert("Error closing fleet: " + data.error);
-        });
+        dispatch(closeFleetByToken(token))
+            .unwrap()
+            .then(() => navigate('/management/fleets'))
+            .catch(err => alert("Error closing fleet: " + err));
     };
 
     const saveTemplate = () => {
         const name = prompt("Enter a name for this template:", "My Fleet Setup");
         if (!name) return;
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+        // Template saving is distinct from fleet settings, keeping local fetch for this specific aux action
+        // or we could add another thunk. For now, local is fine as it just refreshes settings.
         fetch('/api/management/fleets/templates/save/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-            body: JSON.stringify({ character_id: fleet.commander_id, template_name: name, structure, motd })
+            body: JSON.stringify({ character_id: settingsData.fleet.commander_id, template_name: name, structure, motd })
         }).then(res => res.json()).then(data => {
-            if (data.success) { alert("Template saved!"); fetchFleetData(); } else alert("Error: " + data.error);
+            if (data.success) { 
+                alert("Template saved!"); 
+                dispatch(fetchFleetSettings(token)); // Refresh templates list via Redux
+            } else alert("Error: " + data.error);
         });
     };
 
     const loadTemplate = (tpl) => {
         if (!confirm("Apply template? This will replace your current structure and MOTD.")) return;
-        setStructure(tpl.wings.map(w => ({ name: w.name, squads: w.squads }))); // Adjust based on actual API shape
+        setStructure(tpl.wings.map(w => ({ name: w.name, squads: w.squads })));
         setMotd(tpl.motd || "");
     };
 
@@ -181,7 +180,7 @@ const ManagementFleetSettings = () => {
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify({ template_id: id })
         }).then(res => res.json()).then(data => {
-            if (data.success) fetchFleetData(); else alert("Error: " + data.error);
+            if (data.success) dispatch(fetchFleetSettings(token)); else alert("Error: " + data.error);
         });
     };
 
@@ -214,7 +213,10 @@ const ManagementFleetSettings = () => {
         setStructure(newStruct);
     };
 
-    if (!fleet) return <div className="p-12 text-center">Loading...</div>;
+    // Wait for settings data
+    if (!settingsData || !settingsData.fleet) return <div className="p-12 text-center text-slate-500">Loading Fleet Settings...</div>;
+    
+    const { fleet } = settingsData;
 
     return (
         <div className="flex flex-col min-h-[calc(100vh-8rem)] bg-dark-950 relative rounded-xl border border-white/5 shadow-2xl">
@@ -228,14 +230,14 @@ const ManagementFleetSettings = () => {
                 </div>
                 <div className="flex flex-wrap gap-2 items-center justify-center md:justify-end">
                     {!fleet.esi_fleet_id && (
-                        <button onClick={linkEsiFleet} className="btn-secondary text-xs py-1.5 px-3 border-blue-500/30 text-blue-400 hover:bg-blue-500/10 shadow-lg shadow-blue-500/10">
+                        <button onClick={linkEsiFleetAction} className="btn-secondary text-xs py-1.5 px-3 border-blue-500/30 text-blue-400 hover:bg-blue-500/10 shadow-lg shadow-blue-500/10">
                             <LinkIcon size={14} /> Link ESI
                         </button>
                     )}
                     <button onClick={saveTemplate} className="btn-secondary text-xs py-1.5 px-3 border-brand-500/30 text-brand-400 hover:bg-brand-500/10">
                         <Save size={14} /> Save Template
                     </button>
-                    <button onClick={closeFleet} className="btn-danger text-xs py-1.5 px-3 shadow-lg shadow-red-500/20 border-red-500/50 hover:bg-red-900/80">
+                    <button onClick={closeFleetAction} className="btn-danger text-xs py-1.5 px-3 shadow-lg shadow-red-500/20 border-red-500/50 hover:bg-red-900/80">
                         <AlertTriangle size={14} /> Close Fleet
                     </button>
                     <Link to={`/fleet/${fleet.join_token}`} className="btn-secondary text-xs py-1.5 px-3">

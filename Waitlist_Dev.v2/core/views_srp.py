@@ -16,7 +16,7 @@ from rest_framework.response import Response
 from core.permissions import get_template_base, get_mgmt_context
 from pilot_data.models import SRPConfiguration, EveCharacter, CorpWalletJournal, EsiHeaderCache
 from scheduler.tasks import refresh_srp_wallet_task
-from esi_calls.wallet_service import get_corp_divisions
+from esi_calls.wallet_service import get_corp_divisions, get_corp_balances
 
 def can_manage_srp(user):
     if user.is_superuser: return True
@@ -256,15 +256,26 @@ def api_srp_data(request):
     total_outcome = agg_qs.filter(amount__lt=0).aggregate(s=Sum('amount'))['s'] or 0
     net_change = total_income + total_outcome
 
-    # 4. Division Balances
+    # 4. Division Balances (Try ESI first, fallback to DB)
     div_balances = {}
+    live_balances = get_corp_balances(config.character)
+    
     if divisions:
-        for div_id in divisions:
-            latest_entry = CorpWalletJournal.objects.filter(
-                config=config, 
-                division=div_id
-            ).order_by('-entry_id').values('balance').first()
-            div_balances[div_id] = latest_entry['balance'] if latest_entry else 0
+        for div_id_str in divisions:
+            try:
+                div_id = int(div_id_str)
+            except:
+                continue
+                
+            if live_balances and div_id in live_balances:
+                div_balances[div_id] = live_balances[div_id]
+            else:
+                # Fallback to Journal
+                latest_entry = CorpWalletJournal.objects.filter(
+                    config=config, 
+                    division=div_id
+                ).order_by('-entry_id').values('balance').first()
+                div_balances[div_id] = latest_entry['balance'] if latest_entry else 0
 
     # 5. Process Data for Charts
     chart_data = qs.values('amount', 'date', 'ref_type', 'first_party_name', 'second_party_name', 'custom_category').order_by('date')

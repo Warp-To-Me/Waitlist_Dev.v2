@@ -1,13 +1,17 @@
 import React, { useEffect, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, ExternalLink, X, Copy, RotateCcw } from 'lucide-react';
 import clsx from 'clsx';
+import { fetchFleetHistory, selectFleetHistory, selectFleetLoading } from '../../store/slices/fleetSlice';
 
 const ManagementHistory = () => {
     const { token } = useParams();
-    const [fleet, setFleet] = useState(null);
-    const [stats, setStats] = useState({ xups: 0, pilots: 0 });
-    const [logs, setLogs] = useState([]);
+    const dispatch = useDispatch();
+    const historyData = useSelector(selectFleetHistory);
+    const loading = useSelector(selectFleetLoading);
+
+    // Local UI state for filters and modal (these don't need to be global)
     const [activeFilters, setActiveFilters] = useState(new Set());
     const [modalOpen, setModalOpen] = useState(false);
     const [modalData, setModalData] = useState(null);
@@ -29,14 +33,8 @@ const ManagementHistory = () => {
     ];
 
     useEffect(() => {
-        fetch(`/api/management/fleets/${token}/history/`)
-            .then(res => res.json())
-            .then(data => {
-                setFleet(data.fleet);
-                setStats(data.stats);
-                setLogs(data.logs);
-            });
-    }, [token]);
+        dispatch(fetchFleetHistory(token));
+    }, [dispatch, token]);
 
     const toggleFilter = (id) => {
         const newFilters = new Set(activeFilters);
@@ -79,8 +77,9 @@ const ManagementHistory = () => {
         }
     };
 
-    if (!fleet) return <div className="p-12 text-center">Loading History...</div>;
+    if (!historyData || !historyData.fleet) return <div className="p-12 text-center text-slate-500">{loading ? "Loading History..." : "No history found."}</div>;
 
+    const { fleet, stats, logs } = historyData;
     const filteredLogs = logs.filter(log => activeFilters.size === 0 || activeFilters.has(log.action));
 
     return (
