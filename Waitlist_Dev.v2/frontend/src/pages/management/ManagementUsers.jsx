@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Search, X, Shield, Wallet, BookOpen, Layers } from 'lucide-react';
+import { Search, X, Shield, Wallet, BookOpen, Layers, User } from 'lucide-react';
 import clsx from 'clsx';
 import SmartPagination from '../../components/SmartPagination';
 import { 
