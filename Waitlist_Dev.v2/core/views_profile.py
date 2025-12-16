@@ -64,7 +64,7 @@ def profile_view(request):
         for log in ban_logs:
             logs_data.append({
                 'type': 'ban',
-                'timestamp': log.created_at, # BanAuditLog uses timestamp or created_at? Model check needed. Assuming timestamp based on previous read.
+                'timestamp': log.timestamp,
                 'action': log.action,
                 'details': log.details,
                 'actor': log.actor.username if log.actor else 'System'
