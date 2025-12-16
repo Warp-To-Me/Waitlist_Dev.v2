@@ -235,6 +235,7 @@ def management_fleets(request):
         data.append({
             'id': f.id,
             'name': f.name or f.type,
+            'join_token': f.join_token,
             'commander': f.commander.username,
             'is_active': f.is_active,
             'created_at': f.created_at,

@@ -208,6 +208,10 @@ def fleet_history_view(request, token):
 
     return Response({
         'fleet_id': fleet.id,
+        'fleet': {
+            'name': fleet.name,
+            'join_token': fleet.join_token
+        },
         'logs': logs_data,
         'stats': {
             'xups': logs.filter(action='x_up').count(),
