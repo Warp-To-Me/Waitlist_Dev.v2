@@ -157,7 +157,9 @@ def take_fleet_command(request, token):
     fleet = get_object_or_404(Fleet, join_token=token)
     fleet.commander = request.user
     fleet.save()
-    return redirect('fleet_dashboard', token=fleet.join_token)@api_view(['GET'])
+    return redirect('fleet_dashboard', token=fleet.join_token)
+
+@api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def api_get_fleet_settings(request, token):
     fleet = get_object_or_404(Fleet, join_token=token)
