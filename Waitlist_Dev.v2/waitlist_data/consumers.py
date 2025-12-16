@@ -5,6 +5,8 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from asgiref.sync import sync_to_async, async_to_sync
 from django.utils import timezone
 from django.core.cache import cache
+from django.core.exceptions import ValidationError
+import uuid
 
 # Local Imports
 from waitlist_data.models import Fleet, FleetActivity, WaitlistEntry, CharacterStats # Added CharacterStats
@@ -113,10 +115,31 @@ class FleetConsumer(AsyncWebsocketConsumer):
                 logger.error(f"Fleet Poll Error: {e}")
                 await asyncio.sleep(5)
 
+    def _get_fleet_by_token_or_id(self, identifier):
+        """
+        Helper to fetch Fleet by UUID token OR Integer ID (legacy fallback).
+        Run inside sync context.
+        """
+        # 1. Try UUID
+        try:
+            # Check if valid UUID string first to avoid DB error spam
+            uuid.UUID(str(identifier))
+            return Fleet.objects.get(join_token=identifier)
+        except (ValueError, ValidationError):
+            # 2. Try Integer ID
+            if str(identifier).isdigit():
+                return Fleet.objects.get(id=int(identifier))
+            raise Fleet.DoesNotExist
+        except Fleet.DoesNotExist:
+            # If UUID valid but not found, try ID if digits? Unlikely intersection but safe.
+            if str(identifier).isdigit():
+                return Fleet.objects.get(id=int(identifier))
+            raise
+
     @sync_to_async
     def get_fleet_context(self):
         try:
-            fleet = Fleet.objects.get(join_token=self.token)
+            fleet = self._get_fleet_by_token_or_id(self.token)
             if not fleet.commander: return {'error': 'No Commander'}
             fc_char = fleet.commander.characters.filter(is_main=True).first()
             if not fc_char: fc_char = fleet.commander.characters.first()
@@ -137,7 +160,7 @@ class FleetConsumer(AsyncWebsocketConsumer):
     @sync_to_async
     def invalidate_fleet_id(self, token):
         try:
-            fleet = Fleet.objects.get(join_token=token)
+            fleet = self._get_fleet_by_token_or_id(token)
             fleet.esi_fleet_id = None
             fleet.save()
         except Fleet.DoesNotExist: pass
@@ -197,7 +220,7 @@ class FleetConsumer(AsyncWebsocketConsumer):
         all_relevant_ids = list(joined_ids | left_ids | common_ids)
         known_chars = EveCharacter.objects.filter(character_id__in=all_relevant_ids).in_bulk(field_name='character_id')
         
-        fleet = Fleet.objects.get(join_token=token)
+        fleet = self._get_fleet_by_token_or_id(token)
         new_logs = []
         
         needed_ship_ids = set(m['ship_type_id'] for m in members if m['character_id'] in all_relevant_ids)
