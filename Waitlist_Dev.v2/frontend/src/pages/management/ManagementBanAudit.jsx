@@ -1,27 +1,33 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Search } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
+import SmartPagination from '../../components/SmartPagination';
 
 const ManagementBanAudit = () => {
     const [logs, setLogs] = useState([]);
     const [searchParams, setSearchParams] = useSearchParams();
     const query = searchParams.get('q') || '';
     const page = parseInt(searchParams.get('page')) || 1;
-    const [pagination, setPagination] = useState({ has_next: false, has_previous: false, num_pages: 1, current_page: 1 });
+    const [limit, setLimit] = useState(20);
+    const [pagination, setPagination] = useState({ total: 1, current: 1 });
 
     useEffect(() => {
-        fetch(`/api/management/bans/audit/?q=${encodeURIComponent(query)}&page=${page}`)
+        fetch(`/api/management/bans/audit/?q=${encodeURIComponent(query)}&page=${page}&limit=${limit}`)
             .then(res => res.json())
             .then(data => {
                 setLogs(data.logs || []);
-                setPagination(data.pagination || {});
+                setPagination(data.pagination || { total: 1, current: 1 });
             });
-    }, [query, page]);
+    }, [query, page, limit]);
 
     const handleSearch = (e) => {
         e.preventDefault();
         const formData = new FormData(e.target);
         setSearchParams({ q: formData.get('q'), page: 1 });
+    };
+
+    const handlePageChange = (newPage) => {
+        setSearchParams({ q: query, page: newPage });
     };
 
     return (
@@ -54,6 +60,34 @@ const ManagementBanAudit = () => {
 
             {/* Table */}
             <div className="glass-panel overflow-hidden">
+                {/* Pagination Controls Top */}
+                <div className="p-3 border-b border-white/5 bg-slate-900/50 flex justify-between items-center">
+                    <h3 className="label-text mb-0 w-1/3">Audit Entries</h3>
+                    <div className="w-1/3 flex justify-center">
+                        <SmartPagination
+                            current={page}
+                            total={pagination.total || 1}
+                            onChange={handlePageChange}
+                        />
+                    </div>
+                    <div className="w-1/3 flex justify-end">
+                        <select
+                            value={limit}
+                            onChange={(e) => {
+                                setLimit(Number(e.target.value));
+                                setSearchParams({ q: query, page: 1 }); // Reset to page 1 on limit change
+                            }}
+                            className="bg-black/30 border border-slate-700 text-slate-300 text-xs rounded px-2 py-1 outline-none focus:border-brand-500"
+                        >
+                            <option value="10">10 Rows</option>
+                            <option value="20">20 Rows</option>
+                            <option value="25">25 Rows</option>
+                            <option value="50">50 Rows</option>
+                            <option value="100">100 Rows</option>
+                        </select>
+                    </div>
+                </div>
+
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm text-slate-400">
                         <thead className="text-xs uppercase bg-white/5 text-slate-300 font-bold border-b border-white/5">
@@ -67,7 +101,7 @@ const ManagementBanAudit = () => {
                         </thead>
                         <tbody className="divide-y divide-white/5 text-slate-300">
                             {logs.map(log => (
-                                <tr key={log.id} className="hover:bg-white/5 transition group">
+                                <tr key={log.timestamp + log.action} className="hover:bg-white/5 transition group">
                                     <td className="px-6 py-4 whitespace-nowrap font-mono text-xs">
                                         {new Date(log.timestamp).toLocaleString()}
                                     </td>
@@ -79,10 +113,10 @@ const ManagementBanAudit = () => {
                                         {!['create', 'update', 'remove', 'expire'].includes(log.action) && <span className="badge badge-slate">{log.action.toUpperCase()}</span>}
                                     </td>
                                     <td className="px-6 py-4 font-bold text-white">
-                                        {log.target_char_name || log.target_user_username}
+                                        {log.target_name || "Unknown"}
                                     </td>
                                     <td className="px-6 py-4 text-slate-400">
-                                        {log.actor_char_name || log.actor_username || "System"}
+                                        {log.actor_name || "System"}
                                     </td>
                                     <td className="px-6 py-4 text-xs text-slate-500 italic max-w-md truncate group-hover:text-slate-300 transition" title={log.details}>
                                         {log.details}
@@ -100,22 +134,14 @@ const ManagementBanAudit = () => {
                     </table>
                 </div>
 
-                {/* Pagination */}
-                {pagination.num_pages > 1 && (
-                    <div className="p-4 border-t border-white/5 flex justify-between items-center bg-white/5">
-                        <span className="text-xs text-slate-500 font-mono">
-                            Page {pagination.current_page} of {pagination.num_pages}
-                        </span>
-                        <div className="flex gap-2">
-                            {pagination.has_previous && (
-                                <button onClick={() => setSearchParams({ q: query, page: page - 1 })} className="btn-secondary py-1 px-3 text-xs">Previous</button>
-                            )}
-                            {pagination.has_next && (
-                                <button onClick={() => setSearchParams({ q: query, page: page + 1 })} className="btn-secondary py-1 px-3 text-xs">Next</button>
-                            )}
-                        </div>
-                    </div>
-                )}
+                {/* Pagination Controls Bottom */}
+                <div className="p-3 border-t border-white/5 bg-slate-900/50 flex justify-center items-center">
+                    <SmartPagination
+                        current={page}
+                        total={pagination.total || 1}
+                        onChange={handlePageChange}
+                    />
+                </div>
             </div>
         </div>
     );

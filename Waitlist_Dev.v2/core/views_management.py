@@ -510,7 +510,13 @@ def management_ban_audit(request):
         actor_char_name=Subquery(actor_main.values('character_name')[:1])
     ).order_by('-timestamp')
 
-    paginator = Paginator(logs, 20)
+    try:
+        limit = int(request.GET.get('limit', 20))
+    except ValueError:
+        limit = 20
+    if limit not in [10, 25, 50, 100]: limit = 20
+
+    paginator = Paginator(logs, limit)
     page_obj = paginator.get_page(request.GET.get('page'))
     
     results = []
