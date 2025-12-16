@@ -1,7 +1,11 @@
 import React from 'react';
 import { ShieldAlert, Lock, ArrowLeft } from 'lucide-react';
+import { useSelector } from 'react-redux';
+import { selectUser } from '../store/slices/authSlice';
 
 const AccessDenied = () => {
+    const user = useSelector(selectUser);
+
     return (
         <div className="absolute inset-0 flex items-center justify-center bg-dark-950 overflow-hidden">
             {/* Background Effects */}
@@ -30,10 +34,12 @@ const AccessDenied = () => {
                     </p>
 
                     <div className="flex flex-col gap-3">
-                        <a href="/auth/login/" className="btn-primary w-full py-3 justify-center text-base shadow-brand-500/20 group">
-                            <span className="group-hover:scale-110 transition mr-2">🚀</span>
-                            Log In via EVE Online
-                        </a>
+                        {!user && (
+                            <a href="/auth/login/" className="btn-primary w-full py-3 justify-center text-base shadow-brand-500/20 group">
+                                <span className="group-hover:scale-110 transition mr-2">🚀</span>
+                                Log In via EVE Online
+                            </a>
+                        )}
                         <a href="/" className="btn-secondary w-full justify-center flex items-center gap-2">
                             <ArrowLeft size={16} /> Return to Dashboard
                         </a>

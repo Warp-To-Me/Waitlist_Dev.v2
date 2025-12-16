@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Save, Trash, Link as LinkIcon, AlertTriangle, ArrowLeft, Palette, Plus, X } from 'lucide-react';
 import Picker from 'vanilla-picker';
+import { apiCall } from '../../utils/api';
 import { 
     fetchFleetSettings, updateFleetSettings, linkEsiFleet, closeFleetByToken,
     selectFleetSettings, selectFleetLoading 
@@ -154,7 +155,7 @@ const ManagementFleetSettings = () => {
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
         // Template saving is distinct from fleet settings, keeping local fetch for this specific aux action
         // or we could add another thunk. For now, local is fine as it just refreshes settings.
-        fetch('/api/management/fleets/templates/save/', {
+        apiCall('/api/management/fleets/templates/save/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify({ character_id: settingsData.fleet.commander_id, template_name: name, structure, motd })
@@ -175,7 +176,7 @@ const ManagementFleetSettings = () => {
     const deleteTemplate = (id) => {
         if (!confirm("Delete template?")) return;
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch('/api/management/fleets/templates/delete/', {
+        apiCall('/api/management/fleets/templates/delete/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify({ template_id: id })

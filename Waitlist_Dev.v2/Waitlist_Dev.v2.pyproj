@@ -23,9 +23,11 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="core\admin.py" />
+    <Compile Include="core\api_utils.py" />
     <Compile Include="core\apps.py" />
     <Compile Include="core\consumers.py" />
     <Compile Include="core\context_processors.py" />
+    <Compile Include="core\decorators.py" />
     <Compile Include="core\eft_parser.py" />
     <Compile Include="core\management\commands\cleanup_sim_users.py" />
     <Compile Include="core\management\commands\migrate_capabilities.py" />
@@ -37,6 +39,9 @@
     <Compile Include="core\models.py" />
     <Compile Include="core\permissions.py" />
     <Compile Include="core\routing.py" />
+    <Compile Include="core\tasks.py" />
+    <Compile Include="core\views_frontend.py" />
+    <Compile Include="core\views_skills.py" />
     <Compile Include="core\views_srp.py" />
     <Compile Include="core\templatetags\core_filters.py" />
     <Compile Include="core\templatetags\__init__.py" />
@@ -119,6 +124,7 @@
     <Content Include="frontend\src\components\BanEnforcer.jsx" />
     <Content Include="frontend\src\components\Layout.jsx" />
     <Content Include="frontend\src\components\SmartPagination.jsx" />
+    <Content Include="frontend\src\context\AuthContext.jsx" />
     <Content Include="frontend\src\index.css" />
     <Content Include="frontend\src\main.jsx" />
     <Content Include="frontend\src\pages\AccessDenied.jsx" />
@@ -153,6 +159,7 @@
     <Content Include="frontend\src\store\slices\uiSlice.js" />
     <Content Include="frontend\src\store\slices\usersSlice.js" />
     <Content Include="frontend\src\store\store.js" />
+    <Content Include="frontend\src\utils\api.js" />
     <Content Include="frontend\tailwind.config.js" />
     <Content Include="frontend\vite.config.js" />
     <Content Include="templates\access_denied.html" />
@@ -161,6 +168,8 @@
     <Content Include="templates\doctrines\fit_card.html" />
     <Content Include="templates\doctrines\fit_row.html" />
     <Content Include="templates\doctrines\public_skills.html" />
+    <Content Include="templates\management\bans.html" />
+    <Content Include="templates\management\ban_audit.html" />
     <Content Include="templates\management\doctrines.html" />
     <Content Include="templates\doctrines\public_content.html" />
     <Content Include="templates\doctrines\public_index.html" />
@@ -206,11 +215,13 @@
     <Folder Include="frontend\" />
     <Folder Include="frontend\src\" />
     <Folder Include="frontend\src\components\" />
+    <Folder Include="frontend\src\context\" />
     <Folder Include="frontend\src\pages\" />
     <Folder Include="frontend\src\pages\management\" />
     <Folder Include="frontend\src\store\" />
     <Folder Include="frontend\src\store\middleware\" />
     <Folder Include="frontend\src\store\slices\" />
+    <Folder Include="frontend\src\utils\" />
     <Folder Include="static\" />
     <Folder Include="pilot_data\management\" />
     <Folder Include="pilot_data\management\commands\" />

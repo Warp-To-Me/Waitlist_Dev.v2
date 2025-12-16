@@ -21,6 +21,7 @@ api_urlpatterns = [
     path('srp/status/', views_srp.api_srp_status, name='api_srp_status'),
     
     # --- CORE MANAGEMENT ---
+    path('management/', views_management.management_dashboard, name='management_dashboard'),
     path('management/users/', views_management.management_users, name='management_users'),
     path('management/users/<int:user_id>/inspect/', views_management.management_user_inspect, name='management_user_inspect'),
     path('management/users/<int:user_id>/inspect/<int:char_id>/', views_management.management_user_inspect, name='management_user_inspect_char'),

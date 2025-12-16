@@ -4,6 +4,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Save, Rocket, Palette, X, Trash } from 'lucide-react';
 import Picker from 'vanilla-picker';
 import { createFleet } from '../../store/slices/fleetSlice';
+import { apiCall } from '../../utils/api';
 
 const ManagementFleetSetup = () => {
     const dispatch = useDispatch();
@@ -20,7 +21,7 @@ const ManagementFleetSetup = () => {
 
     useEffect(() => {
         // Fetch initial data (FC characters, templates)
-        fetch('/api/management/fleets/setup/init/')
+        apiCall('/api/management/fleets/setup/init/')
             .then(res => res.json())
             .then(data => {
                 setFcChars(data.fc_chars || []);
@@ -167,7 +168,7 @@ const ManagementFleetSetup = () => {
         const name = prompt("Enter a name for this template:", "My Fleet Setup");
         if (!name) return;
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch('/api/management/fleets/templates/save/', {
+        apiCall('/api/management/fleets/templates/save/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify({ character_id: selectedFc, template_name: name, structure, motd })
@@ -175,7 +176,7 @@ const ManagementFleetSetup = () => {
             if (data.success) { 
                 alert("Template saved!"); 
                 // Refresh templates
-                fetch('/api/management/fleets/setup/init/').then(r=>r.json()).then(d=>setTemplates(d.templates||[]));
+                apiCall('/api/management/fleets/setup/init/').then(r=>r.json()).then(d=>setTemplates(d.templates||[]));
             } else alert("Error: " + data.error);
         });
     };
@@ -189,7 +190,7 @@ const ManagementFleetSetup = () => {
     const deleteTemplate = (id) => {
         if (!confirm("Delete template?")) return;
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch('/api/management/fleets/templates/delete/', {
+        apiCall('/api/management/fleets/templates/delete/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
             body: JSON.stringify({ template_id: id })

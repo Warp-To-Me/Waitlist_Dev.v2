@@ -1,10 +1,11 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { apiCall } from '../../utils/api';
 
 export const fetchUsers = createAsyncThunk(
   'users/fetchList',
   async ({ query = '', page = 1, sort = 'character', dir = 'asc' }, { rejectWithValue }) => {
     try {
-      const res = await fetch(`/api/management/users/?q=${query}&page=${page}&sort=${sort}&dir=${dir}`);
+      const res = await apiCall(`/api/management/users/?q=${query}&page=${page}&sort=${sort}&dir=${dir}`);
       const data = await res.json();
       return data;
     } catch (err) {
@@ -17,7 +18,7 @@ export const fetchUserProfile = createAsyncThunk(
   'users/fetchProfile',
   async (userId, { rejectWithValue }) => {
     try {
-      const res = await fetch(`/api/management/users/${userId}/inspect/`);
+      const res = await apiCall(`/api/management/users/${userId}/inspect/`);
       if (!res.ok) throw new Error('Failed to fetch profile');
       return await res.json();
     } catch (err) {
@@ -30,7 +31,7 @@ export const fetchUserRoles = createAsyncThunk(
     'users/fetchRoles',
     async (userId, { rejectWithValue }) => {
         try {
-            const res = await fetch(`/api/mgmt/user_roles/${userId}/`);
+            const res = await apiCall(`/api/mgmt/user_roles/${userId}/`);
             if (!res.ok) throw new Error('Failed to fetch roles');
             return await res.json();
         } catch (err) {

@@ -5,7 +5,7 @@ from django.conf import settings
 from django.utils import timezone
 from django.db.models import Q
 from core.context_processors import navbar_context
-from core.models import Ban
+from core.models import Ban, Capability
 
 @api_view(['GET'])
 def api_me(request):
@@ -41,7 +41,17 @@ def api_me(request):
             'expires_at': active_ban.expires_at,
             'created_at': active_ban.created_at
         }
-        
+
+    # Fetch User Capabilities (aggregated from groups)
+    capabilities = []
+    if request.user.is_superuser:
+         # Superusers technically have everything, but we don't need to list them all 
+         # because selectHasCapability checks is_superuser. 
+         # However, we can return empty or all if needed for other logic.
+         pass
+    else:
+        capabilities = list(Capability.objects.filter(groups__in=request.user.groups.all()).values_list('slug', flat=True).distinct())
+            
     return Response({
         'username': request.user.username,
         'is_staff': request.user.is_staff,
@@ -49,6 +59,7 @@ def api_me(request):
         'is_management': ctx.get('user_is_management', False),
         'navbar_char': char_data,
         'is_banned': bool(active_ban),
-        'ban': ban_data
+        'ban': ban_data,
+        'capabilities': capabilities
         # Theme is handled by cookie on client side, but we could return pref here if stored in DB
     })
