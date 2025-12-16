@@ -10,5 +10,5 @@ websocket_urlpatterns = [
     re_path(r'ws/user/notify/$', core_consumers.UserConsumer.as_asgi()),
     
     # Fleet Dashboard
-    re_path(r'ws/fleet/(?P<fleet_id>\d+)/$', waitlist_consumers.FleetConsumer.as_asgi()),
+    re_path(r'ws/fleet/(?P<token>[0-9a-f-]+)/$', waitlist_consumers.FleetConsumer.as_asgi()),
 ]
