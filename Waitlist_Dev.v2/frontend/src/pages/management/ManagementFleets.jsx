@@ -1,23 +1,20 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import { Plus, Settings, Scroll, ExternalLink, Trash, Power } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import {
+    fetchFleetList, closeFleet, deleteFleet,
+    selectFleetList, selectCanViewAdmin
+} from '../../store/slices/fleetSlice';
 
 const ManagementFleets = () => {
-    const [fleets, setFleets] = useState([]);
-    const [canViewAdmin, setCanViewAdmin] = useState(false);
+    const dispatch = useDispatch();
+    const fleets = useSelector(selectFleetList);
+    const canViewAdmin = useSelector(selectCanViewAdmin);
 
     useEffect(() => {
-        fetchFleets();
-    }, []);
-
-    const fetchFleets = () => {
-        fetch('/api/management/fleets/')
-            .then(res => res.json())
-            .then(data => {
-                setFleets(data.fleets || []);
-                setCanViewAdmin(data.can_view_admin);
-            });
-    };
+        dispatch(fetchFleetList());
+    }, [dispatch]);
 
     const handleAction = (action, fleetId) => {
         const msg = action === 'close' 
@@ -26,15 +23,15 @@ const ManagementFleets = () => {
         
         if (!confirm(msg)) return;
 
-        const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        fetch('/api/management/fleets/action/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-            body: JSON.stringify({ action, fleet_id: fleetId })
-        }).then(res => res.json()).then(data => {
-            if (data.success) fetchFleets();
-            else alert(data.error);
-        });
+        if (action === 'close') {
+            dispatch(closeFleet(fleetId))
+                .unwrap()
+                .catch(err => alert(err));
+        } else if (action === 'delete') {
+            dispatch(deleteFleet(fleetId))
+                .unwrap()
+                .catch(err => alert(err));
+        }
     };
 
     return (
