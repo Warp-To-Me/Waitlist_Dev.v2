@@ -63,4 +63,8 @@ export const selectUser = (state) => state.auth.user;
 export const selectAuthStatus = (state) => state.auth.status;
 export const selectAuthLoading = (state) => state.auth.status === 'loading' || state.auth.status === 'idle';
 
+export const selectHasCapability = (slug) => (state) => {
+    return state.auth.user?.capabilities?.includes(slug) || state.auth.user?.is_superuser;
+};
+
 export default authSlice.reducer;
