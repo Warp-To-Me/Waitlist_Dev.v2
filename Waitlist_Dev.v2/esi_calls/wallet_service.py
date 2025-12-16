@@ -72,9 +72,11 @@ def sync_corp_wallet(srp_config):
 
     # Iterate divisions 1 through 7
     for division in range(1, 8):
+        print(f"[SRP Sync] Starting Division {division}...")
         page = 1
         keep_fetching = True
         consecutive_full_dupe_pages = 0
+        div_new_count = 0
         
         while keep_fetching:
             try:
@@ -190,15 +192,21 @@ def sync_corp_wallet(srp_config):
 
                 if db_objects:
                     CorpWalletJournal.objects.bulk_create(db_objects, ignore_conflicts=True)
-                    total_new += len(db_objects)
+                    count = len(db_objects)
+                    total_new += count
+                    div_new_count += count
                 
                 page += 1
-                if page > 50: keep_fetching = False
+                if page > 50:
+                    print(f"[SRP Sync] Div {division} hit page limit (50). Stopping.")
+                    keep_fetching = False
             
             except Exception as e:
                 print(f"Error syncing Div {division} Page {page}: {e}")
                 errors.append(f"Div {division} Crash: {str(e)}")
                 keep_fetching = False # Stop this division, but allow loop to continue to next division
+
+        print(f"[SRP Sync] Finished Division {division}. New Entries: {div_new_count}")
 
     if latest_esi_date:
         srp_config.last_sync = latest_esi_date
@@ -311,3 +319,45 @@ def get_corp_divisions(character):
             mapping[div['division']] = div['name']
             
     return mapping
+
+def get_corp_balances(character):
+    """
+    Fetches LIVE balances for all divisions directly from ESI.
+    Returns: { division_id (int): balance (float) }
+    """
+    if not check_token(character): return {}
+    corp_id = character.corporation_id
+    if not corp_id: return {}
+
+    url = f"{ESI_BASE}/corporations/{corp_id}/wallets/"
+
+    # --- RETRY LOGIC FOR 401 ---
+    retry_count = 0
+    max_retries = 1
+    resp = {'status': 0}
+
+    while retry_count <= max_retries:
+        resp = call_esi(character, f'corp_balances_{corp_id}', url)
+
+        if resp['status'] == 401:
+            if force_refresh_token(character):
+                retry_count += 1
+                continue
+            else:
+                break
+        elif resp['status'] == 403:
+            print(f"[SRP Sync] 403 Forbidden reading Balances. Missing 'esi-wallet.read_corporation_wallets.v1'?")
+            break
+        else:
+            break
+
+    if resp['status'] != 200:
+        print(f"[SRP Sync] Failed to fetch balances: {resp.get('status')} {resp.get('error')}")
+        return {}
+
+    # ESI Returns: [ {"division": 1, "balance": 100.00}, ... ]
+    balances = {}
+    for item in resp['data']:
+        balances[item['division']] = item['balance']
+
+    return balances
