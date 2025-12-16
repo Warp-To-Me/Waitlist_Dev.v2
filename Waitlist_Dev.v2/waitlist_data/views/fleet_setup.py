@@ -5,6 +5,10 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+
 from core.permissions import is_fleet_command, get_template_base, get_mgmt_context
 from pilot_data.models import EveCharacter
 from waitlist_data.models import Fleet, FleetStructureTemplate, StructureWing, StructureSquad
@@ -31,6 +35,38 @@ def fleet_setup(request):
     }
     context.update(get_mgmt_context(request.user))
     return render(request, 'management/fleet_setup.html', context)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def api_fleet_setup_init(request):
+    if not is_fleet_command(request.user):
+        return Response({'error': 'Permission Denied'}, status=403)
+
+    # 1. Get FC Characters
+    fc_chars = request.user.characters.all()
+    chars_data = [{
+        'character_id': c.character_id,
+        'character_name': c.character_name,
+        'is_main': c.is_main
+    } for c in fc_chars]
+
+    # 2. Get Saved Templates
+    templates = FleetStructureTemplate.objects.filter(character__in=fc_chars).prefetch_related('wings', 'wings__squads')
+    templates_data = []
+    for t in templates:
+        wings_data = [{'name': w.name, 'squads': [s.name for s in w.squads.all()]} for w in t.wings.all()]
+        templates_data.append({
+            'id': t.id,
+            'name': t.name,
+            'motd': t.default_motd,
+            'wing_count': t.wings.count(),
+            'wings': wings_data
+        })
+
+    return Response({
+        'fc_chars': chars_data,
+        'templates': templates_data
+    })
 
 @login_required
 @user_passes_test(is_fleet_command)

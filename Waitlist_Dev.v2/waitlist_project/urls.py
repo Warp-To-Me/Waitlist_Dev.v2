@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.urls import path, include, re_path
 from core import views as core_views
 from core import views_management, views_profile, views_rules, views_srp, views_frontend, api_utils, views_skills
+from waitlist_data.views import fleet_setup, fleet_settings, dashboard, actions
 
 # Define API patterns first
 api_urlpatterns = [
@@ -27,6 +28,21 @@ api_urlpatterns = [
     path('management/users/<int:user_id>/inspect/<int:char_id>/', views_management.management_user_inspect, name='management_user_inspect_char'),
 
     path('management/fleets/', views_management.management_fleets, name='management_fleets'),
+
+    # --- FLEET MANAGEMENT (REACT) ---
+    path('management/fleets/setup/init/', fleet_setup.api_fleet_setup_init, name='api_fleet_setup_init'),
+    path('management/fleets/create_structured/', fleet_setup.api_create_fleet_with_structure, name='api_create_fleet_with_structure'),
+    path('management/fleets/templates/save/', fleet_setup.api_save_structure_template, name='api_save_structure_template'),
+    path('management/fleets/templates/delete/', fleet_setup.api_delete_structure_template, name='api_delete_structure_template'),
+
+    path('management/fleets/<uuid:token>/settings/', fleet_settings.api_get_fleet_settings, name='api_get_fleet_settings'),
+    path('management/fleets/<uuid:token>/update_settings/', fleet_settings.api_update_fleet_settings, name='api_update_fleet_settings'),
+    path('management/fleets/<uuid:token>/link_esi/', fleet_settings.api_link_esi_fleet, name='api_link_esi_fleet'),
+    path('management/fleets/<uuid:token>/close/', fleet_settings.api_close_fleet, name='api_close_fleet'),
+
+    path('management/fleets/<uuid:token>/history/', dashboard.fleet_history_view, name='fleet_history_api'),
+    path('management/fleets/history/api/<int:log_id>/', actions.api_history_fit_details, name='api_history_fit_details'),
+
     path('management/sde/', views_management.management_sde, name='management_sde'),
     path('management/system/', views_management.management_celery, name='management_celery'),
     path('management/permissions/', views_management.management_permissions, name='management_permissions'),

@@ -199,11 +199,16 @@ def fleet_history_view(request, token):
     logs_data = []
     for log in logs:
         logs_data.append({
+            'id': log.id, # Added ID for key
             'timestamp': log.timestamp,
             'character': log.character.character_name if log.character else "Unknown",
+            'character_id': log.character.character_id if log.character else 0, # For portrait
+            'character_name': log.character.character_name if log.character else "Unknown", # Explicit name
             'action': log.action,
-            'actor': log.actor_char_name or (log.actor.username if log.actor else "System"),
-            'details': log.details # if exists? Model check needed
+            'actor_name': log.actor_char_name or (log.actor.username if log.actor else "System"),
+            'details': log.details,
+            'ship_name': log.ship_name,
+            'fit_eft': log.fit_eft
         })
 
     return Response({
