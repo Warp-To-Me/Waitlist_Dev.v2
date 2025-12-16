@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { RefreshCw, Search, X, LogIn, AlertTriangle, ShieldAlert, Plus, Check, Mail, Link as LinkIcon, LogOut, Wind, RotateCw, Anchor, ArrowRightLeft, ArrowUp, ArrowDown, Ban, Lock, Unlock, FileText, Hourglass, Copy } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../context/AuthContext';
@@ -8,6 +8,9 @@ import { fetchProfileData, selectProfileData, selectProfileStatus } from '../sto
 
 const Profile = () => {
     const dispatch = useDispatch();
+    const [searchParams] = useSearchParams();
+    const inspectUserId = searchParams.get('user_id');
+
     const profile = useSelector(selectProfileData);
     const status = useSelector(selectProfileStatus);
     const loading = status === 'loading' && !profile; // Show full loader only if no data
@@ -52,10 +55,12 @@ const Profile = () => {
     const allFilters = Object.keys(filterLabels);
 
     useEffect(() => {
-        if (status === 'idle') {
-            dispatch(fetchProfileData());
-        }
-    }, [dispatch, status]);
+        // Reset if we changed who we are inspecting (or stopped inspecting)
+        // For simplicity, we just fetch every time component mounts or ID changes
+        // But strict mode might trigger double fetch.
+        // We rely on status check in redux or just force it here.
+        dispatch(fetchProfileData({ userId: inspectUserId }));
+    }, [dispatch, inspectUserId]);
 
     // Check for stale data and auto-refresh if needed
     useEffect(() => {
@@ -63,13 +68,19 @@ const Profile = () => {
             const lastUpdated = new Date(profile.active_char.last_updated);
             const now = new Date();
             const diffMins = (now - lastUpdated) / 1000 / 60;
-            if (diffMins > 5 && !profile.is_inspection_mode && !isRefreshing) {
+            if (diffMins > 5 && !profile.is_inspection_mode && !isRefreshing && !inspectUserId) {
                 triggerRefresh(profile.active_char.character_id);
             }
         }
-    }, [profile, isRefreshing]);
+    }, [profile, isRefreshing, inspectUserId]);
 
     const handleSwitchChar = async (charId) => {
+        if (inspectUserId) {
+            // Inspection Mode Switch: Just re-fetch data for that char
+            dispatch(fetchProfileData({ userId: inspectUserId, charId }));
+            return;
+        }
+
         try {
             const res = await fetch(`/api/profile/switch/${charId}/`, { method: 'GET' });
             if (res.ok) {

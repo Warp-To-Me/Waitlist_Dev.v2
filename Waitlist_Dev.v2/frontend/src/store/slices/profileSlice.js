@@ -2,9 +2,21 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 
 export const fetchProfileData = createAsyncThunk(
   'profile/fetchData',
-  async (_, { rejectWithValue }) => {
+  async (args, { rejectWithValue }) => {
     try {
-      const res = await fetch('/api/profile/');
+      let url = '/api/profile/';
+      // Support object with userId/charId or empty/undefined
+      const userId = args?.userId;
+      const charId = args?.charId;
+
+      if (userId) {
+          url = `/api/management/users/${userId}/inspect/`;
+          if (charId) {
+              url += `${charId}/`;
+          }
+      }
+
+      const res = await fetch(url);
       if (!res.ok) {
         throw new Error('Failed to fetch profile data');
       }
