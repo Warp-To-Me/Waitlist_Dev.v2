@@ -14,7 +14,6 @@ import Banned from './pages/Banned';
 import Management from './pages/Management';
 import ManagementDashboard from './pages/management/ManagementDashboard';
 import ManagementUsers from './pages/management/ManagementUsers';
-import ManagementRoles from './pages/management/ManagementRoles';
 import ManagementFleets from './pages/management/ManagementFleets';
 import ManagementFleetSetup from './pages/management/ManagementFleetSetup';
 import ManagementFleetSettings from './pages/management/ManagementFleetSettings';
@@ -54,7 +53,6 @@ function App() {
               
               {/* Analysis */}
               <Route path="users" element={<ManagementUsers />} />
-              <Route path="roles" element={<ManagementRoles />} />
               
               {/* Operations */}
               <Route path="fleets" element={<ManagementFleets />} />

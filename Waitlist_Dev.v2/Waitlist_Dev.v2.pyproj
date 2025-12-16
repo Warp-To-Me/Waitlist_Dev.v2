@@ -137,7 +137,6 @@
     <Content Include="frontend\src\pages\management\ManagementFleetSetup.jsx" />
     <Content Include="frontend\src\pages\management\ManagementHistory.jsx" />
     <Content Include="frontend\src\pages\management\ManagementPermissions.jsx" />
-    <Content Include="frontend\src\pages\management\ManagementRoles.jsx" />
     <Content Include="frontend\src\pages\management\ManagementRules.jsx" />
     <Content Include="frontend\src\pages\management\ManagementSDE.jsx" />
     <Content Include="frontend\src\pages\management\ManagementSkills.jsx" />
