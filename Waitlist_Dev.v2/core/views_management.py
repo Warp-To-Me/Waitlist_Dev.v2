@@ -490,7 +490,7 @@ def management_bans(request):
             'user_id': b.user.id,
             'user_name': b.user_char_name or b.user.username,
             'user_char_id': b.user_char_id,
-            'issuer_name': b.issuer_char_name or b.issuer.username,
+            'issuer_name': b.issuer_char_name or (b.issuer.username if b.issuer else "System"),
             'reason': b.reason,
             'created_at': b.created_at,
             'expires_at': b.expires_at,
@@ -518,8 +518,8 @@ def management_ban_audit(request):
         results.append({
             'timestamp': log.timestamp,
             'action': log.action,
-            'target_name': log.target_char_name or log.target_user.username,
-            'actor_name': log.actor_char_name or log.actor.username,
+            'target_name': log.target_char_name or (log.target_user.username if log.target_user else "Unknown User"),
+            'actor_name': log.actor_char_name or (log.actor.username if log.actor else "System"),
             'details': log.details
         })
 

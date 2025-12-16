@@ -29,7 +29,6 @@ const BanEnforcer = ({ children }) => {
 
       if (!allowedPaths.includes(path)) {
          // Prevent infinite loop if we are already trying to go there (though logic handles it)
-         console.log("User is banned, redirecting to /banned");
          navigate('/banned', { replace: true });
       }
     } else {
