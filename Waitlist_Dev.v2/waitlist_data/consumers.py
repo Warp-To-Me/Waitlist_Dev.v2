@@ -1,6 +1,7 @@
 import json
 import asyncio
 import logging
+import uuid
 from channels.generic.websocket import AsyncWebsocketConsumer
 from asgiref.sync import sync_to_async, async_to_sync
 from django.utils import timezone
@@ -21,6 +22,13 @@ class FleetConsumer(AsyncWebsocketConsumer):
         self.token = self.scope['url_route']['kwargs']['token']
         self.room_group_name = f'fleet_{self.token}'
         self.user = self.scope["user"]
+
+        # Get client IP from scope headers
+        headers = dict(self.scope.get('headers', []))
+        if b'x-forwarded-for' in headers:
+            self.client_ip = headers[b'x-forwarded-for'].decode('utf-8').split(',')[0].strip()
+        else:
+            self.client_ip = self.scope.get('client', ['unknown'])[0]
 
         if self.user.is_anonymous:
             await self.close()
@@ -110,13 +118,34 @@ class FleetConsumer(AsyncWebsocketConsumer):
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"Fleet Poll Error: {e}")
+                logger.error(f"Fleet Poll Error (IP: {getattr(self, 'client_ip', 'Unknown')}): {e}")
                 await asyncio.sleep(5)
 
     @sync_to_async
     def get_fleet_context(self):
         try:
-            fleet = Fleet.objects.get(join_token=self.token)
+            # Try parsing as UUID first (standard join_token)
+            is_uuid = False
+            try:
+                uuid.UUID(str(self.token))
+                is_uuid = True
+            except ValueError:
+                pass
+
+            fleet = None
+            if is_uuid:
+                try:
+                    fleet = Fleet.objects.get(join_token=self.token)
+                except Fleet.DoesNotExist:
+                    pass
+
+            # Fallback to legacy ID
+            if not fleet:
+                try:
+                    fleet = Fleet.objects.get(id=self.token)
+                except (Fleet.DoesNotExist, ValueError):
+                    return None
+
             if not fleet.commander: return {'error': 'No Commander'}
             fc_char = fleet.commander.characters.filter(is_main=True).first()
             if not fc_char: fc_char = fleet.commander.characters.first()
@@ -132,15 +161,28 @@ class FleetConsumer(AsyncWebsocketConsumer):
                         fleet.save()
                 except Exception: pass
             return {'esi_fleet_id': fleet.esi_fleet_id, 'fc_char': fc_char}
-        except Fleet.DoesNotExist: return None
+        except Exception as e:
+            return {'error': str(e)}
 
     @sync_to_async
     def invalidate_fleet_id(self, token):
         try:
-            fleet = Fleet.objects.get(join_token=token)
+            # Try parsing as UUID first (standard join_token)
+            is_uuid = False
+            try:
+                uuid.UUID(str(token))
+                is_uuid = True
+            except ValueError:
+                pass
+
+            if is_uuid:
+                fleet = Fleet.objects.get(join_token=token)
+            else:
+                fleet = Fleet.objects.get(id=token)
+
             fleet.esi_fleet_id = None
             fleet.save()
-        except Fleet.DoesNotExist: pass
+        except (Fleet.DoesNotExist, ValueError): pass
 
     @sync_to_async
     def audit_fleet_members(self, token, composite_data, resolved_names):

@@ -189,7 +189,7 @@ def api_get_fleet_settings(request, token):
         templates_data.append({
             'id': t.id,
             'name': t.name,
-            'motd': t.motd,
+            'motd': t.default_motd,
             'wing_count': t.wings.count(),
             'wings': wings_data
         })
