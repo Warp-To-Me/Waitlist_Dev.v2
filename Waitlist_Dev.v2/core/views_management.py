@@ -41,7 +41,8 @@ from core.models import Capability, RolePriority, Ban, BanAuditLog
 
 # Model Imports
 from pilot_data.models import EveCharacter, ItemType, ItemGroup, TypeAttribute
-from waitlist_data.models import Fleet, WaitlistEntry
+from waitlist_data.models import Fleet, WaitlistEntry, FleetActivity
+from waitlist_data.stats import calculate_pilot_stats
 
 # Decorator Helper
 def check_permission(perm_func):
@@ -136,9 +137,51 @@ def management_user_inspect(request, user_id, char_id=None):
         if not active_char and characters.exists(): active_char = characters.first()
     
     esi_data, grouped_skills = None, None
+    service_record = {}
+
     if active_char:
         # Use Shared Helper
         esi_data, grouped_skills = get_character_data(active_char)
+
+        # Calculate Service Record (Same as profile_view)
+        service_record = calculate_pilot_stats(active_char)
+
+        # 1. Fetch Fleet Logs
+        fleet_logs = FleetActivity.objects.filter(character=active_char)\
+            .select_related('fleet', 'actor').order_by('-timestamp')[:50]
+
+        # 2. Fetch Ban Logs (Targeting the User account)
+        ban_logs = BanAuditLog.objects.filter(target_user=active_char.user)\
+            .select_related('actor').order_by('-timestamp')[:20]
+
+        # 3. Merge & Sort
+        logs_data = []
+        for log in fleet_logs:
+            logs_data.append({
+                'type': 'fleet',
+                'timestamp': log.timestamp,
+                'action': log.action,
+                'details': log.details,
+                'actor': log.actor.username if log.actor else 'System'
+            })
+        for log in ban_logs:
+            logs_data.append({
+                'type': 'ban',
+                'timestamp': log.timestamp,
+                'action': log.action,
+                'details': log.details,
+                'actor': log.actor.username if log.actor else 'System'
+            })
+
+        combined_logs = sorted(logs_data, key=lambda x: x['timestamp'], reverse=True)[:50]
+        service_record['history_logs'] = combined_logs
+
+        if 'hull_breakdown' in service_record:
+            service_record['hull_breakdown'] = sorted(
+                [{'name': k, 'seconds': v} for k, v in service_record['hull_breakdown'].items()],
+                key=lambda x: x['seconds'],
+                reverse=True
+            )
     
     totals = characters.aggregate(wallet_sum=Sum('wallet_balance'), lp_sum=Sum('concord_lp'), sp_sum=Sum('total_sp'))
     
@@ -153,22 +196,43 @@ def management_user_inspect(request, user_id, char_id=None):
         'alliance_name': c.alliance_name
     } for c in characters]
     
-    return Response({
-        'active_char': {
+    # Check for missing tokens/scopes (Simplified for inspect)
+    token_missing = False
+    if active_char and not active_char.refresh_token: token_missing = True
+
+    # We construct active_char_data to match profile_view expectations
+    active_char_data = None
+    if active_char:
+        active_char_data = {
             'character_id': active_char.character_id,
             'character_name': active_char.character_name,
             'corporation_name': active_char.corporation_name,
             'alliance_name': active_char.alliance_name,
-        } if active_char else None,
+            'is_main': active_char.is_main,
+            'wallet_balance': active_char.wallet_balance,
+            'concord_lp': active_char.concord_lp,
+            'total_sp': active_char.total_sp,
+            'current_ship_name': active_char.current_ship_name,
+            'ship_type_name': getattr(active_char, 'ship_type_name', 'Unknown Hull'),
+            'current_ship_type_id': active_char.current_ship_type_id,
+            'last_updated': active_char.last_updated
+        }
+
+    return Response({
+        'active_char': active_char_data,
         'characters': char_list,
-        'esi_data': esi_data,
+        'esi': esi_data, # Renamed from esi_data to match frontend
         'grouped_skills': grouped_skills,
+        'service_record': service_record,
+        'token_missing': token_missing,
+        'scopes_missing': False, # Not relevant for inspection usually
         'totals': {
             'wallet': totals['wallet_sum'] or 0,
             'lp': totals['lp_sum'] or 0,
             'sp': totals['sp_sum'] or 0
         },
         'obfuscate_financials': obfuscate_financials,
+        'is_inspection_mode': True, # Explicitly flag inspection mode
         'inspect_user_id': target_user.id,
         'username': target_user.username
     })
