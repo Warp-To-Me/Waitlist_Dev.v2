@@ -2,7 +2,10 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.conf import settings
+from django.utils import timezone
+from django.db.models import Q
 from core.context_processors import navbar_context
+from core.models import Ban
 
 @api_view(['GET'])
 def api_me(request):
@@ -25,6 +28,19 @@ def api_me(request):
             'character_name': c.character_name,
             'is_main': c.is_main
         }
+
+    # Check for active ban
+    active_ban = Ban.objects.filter(user=request.user).filter(
+        Q(expires_at__isnull=True) | Q(expires_at__gt=timezone.now())
+    ).first()
+
+    ban_data = None
+    if active_ban:
+        ban_data = {
+            'reason': active_ban.reason,
+            'expires_at': active_ban.expires_at,
+            'created_at': active_ban.created_at
+        }
         
     return Response({
         'username': request.user.username,
@@ -32,5 +48,7 @@ def api_me(request):
         'is_superuser': request.user.is_superuser,
         'is_management': ctx.get('user_is_management', False),
         'navbar_char': char_data,
+        'is_banned': bool(active_ban),
+        'ban': ban_data
         # Theme is handled by cookie on client side, but we could return pref here if stored in DB
     })

@@ -1,10 +1,15 @@
 import React from 'react';
 import { Ban, User } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
-const Banned = ({ reason, expires, createdAt }) => {
-    // If props aren't passed (e.g. direct nav), we might want to fetch them or show generic
-    // For now, we'll assume the context might provide them or we just show a generic message if missing.
+const Banned = () => {
+    const { user } = useAuth();
     
+    // Fallback defaults
+    const reason = user?.ban?.reason || "Restricted Access";
+    const expires = user?.ban?.expires_at;
+    const createdAt = user?.ban?.created_at;
+
     return (
         <div className="min-h-screen flex items-center justify-center -mt-20">
             <div className="max-w-md w-full bg-slate-800 border border-slate-700 rounded-xl shadow-2xl p-8 text-center relative overflow-hidden">
