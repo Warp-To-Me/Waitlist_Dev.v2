@@ -6,8 +6,10 @@ export const fetchScripts = createAsyncThunk(
     async (_, { rejectWithValue }) => {
         try {
             const response = await apiCall('/api/mgmt/scripts/');
+            console.log("DEBUG: fetchScripts response:", response);
             return response;
         } catch (error) {
+            console.error("DEBUG: fetchScripts error:", error);
             return rejectWithValue(error.message);
         }
     }
@@ -74,6 +76,7 @@ const scriptSlice = createSlice({
         builder.addCase(fetchScripts.fulfilled, (state, action) => {
             state.status = 'succeeded';
             // Defensive coding: ensure arrays
+            console.log("DEBUG: fetchScripts fulfilled payload:", action.payload);
             state.available = Array.isArray(action.payload?.available) ? action.payload.available : [];
             state.active = Array.isArray(action.payload?.active) ? action.payload.active : [];
         });
