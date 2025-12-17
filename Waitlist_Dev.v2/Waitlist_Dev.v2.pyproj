@@ -61,8 +61,8 @@
     <Compile Include="esi_calls\wallet_service.py" />
     <Compile Include="pilot_data\admin.py" />
     <Compile Include="pilot_data\management\commands\audit_scopes.py" />
-    <Compile Include="pilot_data\management\commands\backfill_wallet_categories.py" />
-    <Compile Include="pilot_data\management\commands\import_legacy_wallet.py" />
+    <Compile Include="scriptsbackup\pilot_data\backfill_wallet_categories.py" />
+    <Compile Include="scriptsbackup\pilot_data\import_legacy_wallet.py" />
     <Compile Include="pilot_data\management\commands\refresh_all_characters.py" />
     <Compile Include="pilot_data\management\commands\wipe_all_characters.py" />
     <Compile Include="pilot_data\management\commands\__init__.py" />
@@ -230,6 +230,8 @@
     <Folder Include="frontend\src\store\middleware\" />
     <Folder Include="frontend\src\store\slices\" />
     <Folder Include="frontend\src\utils\" />
+    <Folder Include="scriptsbackup\" />
+    <Folder Include="scriptsbackup\pilot_data\" />
     <Folder Include="static\" />
     <Folder Include="pilot_data\management\" />
     <Folder Include="pilot_data\management\commands\" />

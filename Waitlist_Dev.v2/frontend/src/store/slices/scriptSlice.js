@@ -6,7 +6,8 @@ export const fetchScripts = createAsyncThunk(
     async (_, { rejectWithValue }) => {
         try {
             const response = await apiCall('/api/mgmt/scripts/');
-            return response;
+            const data = await response.json();
+            return data;
         } catch (error) {
             return rejectWithValue(error.message);
         }
@@ -17,14 +18,20 @@ export const runScript = createAsyncThunk(
     'scripts/runScript',
     async ({ name, args }, { rejectWithValue }) => {
         try {
+            const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
             const response = await apiCall('/api/mgmt/scripts/run/', {
                 method: 'POST',
-                body: JSON.stringify({ name, args })
+                body: JSON.stringify({ name, args }),
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrf
+                }
             });
-            if (response.success) {
-                return response;
+            const data = await response.json();
+            if (data.success) {
+                return data;
             } else {
-                return rejectWithValue(response.error);
+                return rejectWithValue(data.error);
             }
         } catch (error) {
             return rejectWithValue(error.message);
@@ -36,14 +43,20 @@ export const stopScript = createAsyncThunk(
     'scripts/stopScript',
     async (scriptId, { rejectWithValue }) => {
         try {
+            const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
             const response = await apiCall('/api/mgmt/scripts/stop/', {
                 method: 'POST',
-                body: JSON.stringify({ script_id: scriptId })
+                body: JSON.stringify({ script_id: scriptId }),
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrf
+                }
             });
-            if (response.success) {
+            const data = await response.json();
+            if (data.success) {
                 return scriptId;
             } else {
-                return rejectWithValue(response.error);
+                return rejectWithValue(data.error);
             }
         } catch (error) {
             return rejectWithValue(error.message);
