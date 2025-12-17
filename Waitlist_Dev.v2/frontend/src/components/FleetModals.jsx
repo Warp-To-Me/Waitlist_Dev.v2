@@ -20,7 +20,7 @@ export const XUpModal = ({ isOpen, onClose, fleetToken }) => {
         try {
             const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
             
-            const res = await apiCall(`/fleet/${fleetToken}/xup/`, {
+            const res = await apiCall(`/api/fleet/${fleetToken}/xup/`, {
                 method: 'POST',
                 headers: { 'X-CSRFToken': csrf },
                 body: formData 
@@ -140,7 +140,7 @@ export const UpdateModal = ({ isOpen, onClose, entryId }) => {
 
         try {
             const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-            const res = await apiCall(`/fleet/entry/${entryId}/update/`, {
+            const res = await apiCall(`/api/fleet/entry/${entryId}/update/`, {
                 method: 'POST',
                 headers: { 'X-CSRFToken': csrf },
                 body: formData
