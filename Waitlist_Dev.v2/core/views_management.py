@@ -673,8 +673,11 @@ def management_scripts(request):
     """
     Returns available scripts and active scripts.
     """
+    print("DEBUG: API management_scripts called.")
     available = ScriptManager.get_available_scripts()
     active = ScriptManager.get_active_scripts()
+
+    print(f"DEBUG: Returning {len(available)} available scripts.")
 
     return Response({
         'available': available,

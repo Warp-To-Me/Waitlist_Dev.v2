@@ -29,12 +29,17 @@ class ScriptManager:
         target_apps = ['core', 'waitlist_data']
         scripts = []
 
+        print(f"DEBUG: ScriptManager scanning {target_apps}")
+
         for app_name in target_apps:
             try:
                 app_config = apps.get_app_config(app_name)
                 path = os.path.join(app_config.path, 'management', 'commands')
 
+                print(f"DEBUG: Scanning {app_name} at {path}")
+
                 if not os.path.exists(path):
+                    print(f"DEBUG: Path does not exist: {path}")
                     continue
 
                 for filename in os.listdir(path):
@@ -48,6 +53,7 @@ class ScriptManager:
                             help_text = getattr(cmd_class, 'help', 'No description available.')
                         except Exception as e:
                             help_text = f"Could not load description: {e}"
+                            print(f"DEBUG: Error loading {cmd_name}: {e}")
 
                         scripts.append({
                             'name': cmd_name,
@@ -55,8 +61,10 @@ class ScriptManager:
                             'help': help_text
                         })
             except LookupError:
+                print(f"DEBUG: App {app_name} not found in apps registry.")
                 continue
 
+        print(f"DEBUG: Found {len(scripts)} scripts: {[s['name'] for s in scripts]}")
         return sorted(scripts, key=lambda x: x['name'])
 
     @staticmethod
