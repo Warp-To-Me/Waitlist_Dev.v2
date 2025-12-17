@@ -133,6 +133,8 @@ def fleet_dashboard(request, token):
         user_chars_data.append({
             'character_id': char.character_id,
             'character_name': char.character_name,
+            'corporation_name': char.corporation_name,
+            'is_main': char.is_main,
             'active_implants': active_implants
         })
 
