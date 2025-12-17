@@ -19,11 +19,13 @@ export const runScript = createAsyncThunk(
     'scripts/runScript',
     async ({ name, args }, { rejectWithValue }) => {
         try {
+            const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
             const response = await apiCall('/api/mgmt/scripts/run/', {
                 method: 'POST',
                 body: JSON.stringify({ name, args }),
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrf
                 }
             });
             const data = await response.json();
@@ -42,11 +44,13 @@ export const stopScript = createAsyncThunk(
     'scripts/stopScript',
     async (scriptId, { rejectWithValue }) => {
         try {
+            const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
             const response = await apiCall('/api/mgmt/scripts/stop/', {
                 method: 'POST',
                 body: JSON.stringify({ script_id: scriptId }),
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrf
                 }
             });
             const data = await response.json();
@@ -84,6 +88,7 @@ const scriptSlice = createSlice({
         builder.addCase(fetchScripts.fulfilled, (state, action) => {
             state.status = 'succeeded';
             // Defensive coding: ensure arrays
+            // console.log("DEBUG: fetchScripts fulfilled payload:", action.payload);
             state.available = Array.isArray(action.payload?.available) ? action.payload.available : [];
             state.active = Array.isArray(action.payload?.active) ? action.payload.active : [];
         });
