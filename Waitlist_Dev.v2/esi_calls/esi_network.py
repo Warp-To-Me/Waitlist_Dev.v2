@@ -206,11 +206,19 @@ def _update_cache_headers(character, endpoint_name, headers, existing_entry=None
         except ValueError:
             pass
 
-    EsiHeaderCache.objects.update_or_create(
-        character=character,
-        endpoint_name=endpoint_name,
-        defaults={
-            'etag': etag.strip('"') if etag else None,
-            'expires': expires_dt
-        }
-    )
+    defaults = {
+        'etag': etag.strip('"') if etag else None,
+        'expires': expires_dt
+    }
+
+    # FIX: Use update-then-create pattern to avoid 'select_for_update outside transaction'
+    # errors in gevent-patched environments, and to reduce lock contention.
+    rows_updated = EsiHeaderCache.objects.filter(character=character, endpoint_name=endpoint_name).update(**defaults)
+
+    if rows_updated == 0:
+        try:
+            EsiHeaderCache.objects.create(character=character, endpoint_name=endpoint_name, **defaults)
+        except Exception:
+            # If create fails (likely IntegrityError due to race condition),
+            # we assume another worker created it successfully.
+            pass
