@@ -283,6 +283,7 @@ def management_fleets(request):
             fleet_id = request.data.get('fleet_id')
             fleet = get_object_or_404(Fleet, id=fleet_id)
             fleet.is_active = False
+            fleet.end_time = timezone.now()
             fleet.save()
             return Response({'status': 'closed'})
         elif action == 'delete':

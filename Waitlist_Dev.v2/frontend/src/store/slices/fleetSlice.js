@@ -47,7 +47,7 @@ export const closeFleet = createAsyncThunk(
   async (fleetId, { dispatch, rejectWithValue }) => {
     try {
       const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-      const res = await apiCall('/api/management/fleets/action/', {
+      const res = await apiCall('/api/management/fleets/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
         body: JSON.stringify({ action: 'close', fleet_id: fleetId })
@@ -69,7 +69,7 @@ export const deleteFleet = createAsyncThunk(
   async (fleetId, { dispatch, rejectWithValue }) => {
     try {
       const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-      const res = await apiCall('/api/management/fleets/action/', {
+      const res = await apiCall('/api/management/fleets/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
         body: JSON.stringify({ action: 'delete', fleet_id: fleetId })
