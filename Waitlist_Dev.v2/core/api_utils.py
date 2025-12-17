@@ -53,6 +53,7 @@ def api_me(request):
         capabilities = list(Capability.objects.filter(groups__in=request.user.groups.all()).values_list('slug', flat=True).distinct())
             
     return Response({
+        'id': request.user.id,
         'username': request.user.username,
         'is_staff': request.user.is_staff,
         'is_superuser': request.user.is_superuser,
