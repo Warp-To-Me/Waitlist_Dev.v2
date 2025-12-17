@@ -42,7 +42,7 @@ def fleet_dashboard(request, token):
 
     # Fetch Entries
     entries = WaitlistEntry.objects.filter(fleet=fleet).exclude(status__in=['rejected', 'left']).select_related(
-        'character', 'fit', 'fit__ship_type', 'fit__category', 'hull'
+        'character', 'fit', 'fit__ship_type', 'fit__category', 'hull', 'tier'
     ).order_by('created_at')
 
     # Calculate Stats
@@ -112,7 +112,15 @@ def fleet_dashboard(request, token):
             'status': entry.status,
             'stats': entry.display_stats,
             'other_categories': other_categories,
-            'created_at': entry.created_at
+            'created_at': entry.created_at,
+            'can_fly': entry.can_fly,
+            'missing_skills': entry.missing_skills,
+            'time_waiting': entry.time_waiting,
+            'tier': {
+                'name': entry.tier.name,
+                'hex_color': entry.tier.hex_color,
+                'badge_class': entry.tier.badge_class
+            } if entry.tier else None
         })
 
     # --- User Characters (for X-Up Modal) ---
