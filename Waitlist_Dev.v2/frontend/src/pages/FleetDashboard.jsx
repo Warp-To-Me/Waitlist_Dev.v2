@@ -61,7 +61,7 @@ const FleetDashboard = () => {
     // Handlers
     const handleEntryAction = (entryId, action) => {
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        apiCall(`/fleet/action/${entryId}/${action}/`, {
+        apiCall(`/api/fleet/action/${entryId}/${action}/`, {
             method: 'POST',
             headers: { 'X-CSRFToken': csrf }
         })

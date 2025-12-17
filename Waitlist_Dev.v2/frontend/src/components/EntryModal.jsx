@@ -15,7 +15,7 @@ export const EntryModal = ({ isOpen, onClose, entryId, isFC }) => {
             setError(null);
             setData(null);
 
-            apiCall(`/fleet/entry/api/${entryId}/`)
+            apiCall(`/api/fleet/entry/api/${entryId}/`)
                 .then(r => {
                     if (r.status === 403) throw new Error("Unauthorized Access");
                     if (r.status === 500) throw new Error("Server Error (500): Check SDE Data");
@@ -39,7 +39,7 @@ export const EntryModal = ({ isOpen, onClose, entryId, isFC }) => {
 
     const handleAction = (action) => {
         const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        apiCall(`/fleet/action/${entryId}/${action}/`, {
+        apiCall(`/api/fleet/action/${entryId}/${action}/`, {
             method: 'POST',
             headers: { 'X-CSRFToken': csrf }
         })

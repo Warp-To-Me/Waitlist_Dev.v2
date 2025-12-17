@@ -20,8 +20,15 @@ logger = logging.getLogger(__name__)
 class FleetConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.token = self.scope['url_route']['kwargs']['token']
-        self.room_group_name = f'fleet_{self.token}'
         self.user = self.scope["user"]
+
+        # Resolve Fleet ID for Group Name (Must match broadcast_update using Integer ID)
+        fleet_id = await self.resolve_fleet_id(self.token)
+        if not fleet_id:
+            await self.close()
+            return
+
+        self.room_group_name = f'fleet_{fleet_id}'
         
         # Get client IP from scope headers
         headers = dict(self.scope.get('headers', []))
@@ -48,10 +55,31 @@ class FleetConsumer(AsyncWebsocketConsumer):
         if hasattr(self, 'overview_task'):
             self.overview_task.cancel()
 
-        await self.channel_layer.group_discard(
-            self.room_group_name,
-            self.channel_name
-        )
+        # Only discard if room_group_name was set (i.e. connection accepted)
+        if hasattr(self, 'room_group_name'):
+            await self.channel_layer.group_discard(
+                self.room_group_name,
+                self.channel_name
+            )
+
+    @sync_to_async
+    def resolve_fleet_id(self, token):
+        try:
+            # Try parsing as UUID first
+            is_uuid = False
+            try:
+                uuid.UUID(str(token))
+                is_uuid = True
+            except ValueError:
+                pass
+            
+            if is_uuid:
+                fleet = Fleet.objects.get(join_token=token)
+            else:
+                fleet = Fleet.objects.get(id=token)
+            return fleet.id
+        except (Fleet.DoesNotExist, ValueError):
+            return None
 
     @sync_to_async
     def check_overview_permission(self, user):
