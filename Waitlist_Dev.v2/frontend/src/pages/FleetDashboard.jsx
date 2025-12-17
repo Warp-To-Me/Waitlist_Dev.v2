@@ -36,7 +36,7 @@ const FleetDashboard = () => {
 
     // Initial Fetch & WebSocket Connect
     useEffect(() => {
-        // 1. Initial Fetch
+        // 1. Initial Fetch & Socket Setup (with specific channel key)
         apiCall(`/api/fleet/${token}/dashboard/`)
             .then(res => {
                 if (res.status === 404) throw new Error("Fleet not found or you do not have access.");
