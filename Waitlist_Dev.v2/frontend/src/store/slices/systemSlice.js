@@ -23,15 +23,21 @@ export const systemSlice = createSlice({
   },
   extraReducers: (builder) => {
       builder
-        .addCase('WS_CONNECTED', (state) => {
-            state.status = 'connected';
+        .addCase('WS_CONNECTED', (state, action) => {
+            if (action.payload.channelKey === 'system') {
+                state.status = 'connected';
+            }
         })
-        .addCase('WS_DISCONNECTED', (state) => {
-            state.status = 'disconnected';
+        .addCase('WS_DISCONNECTED', (state, action) => {
+            if (action.payload.channelKey === 'system') {
+                state.status = 'disconnected';
+            }
         })
         .addCase('WS_MESSAGE_RECEIVED', (state, action) => {
-             // Dispatch to internal reducer logic
-             systemSlice.caseReducers.handleWsMessage(state, action);
+             if (action.payload.channelKey === 'system') {
+                 // Dispatch to internal reducer logic with unwrapped message
+                 systemSlice.caseReducers.handleWsMessage(state, { payload: action.payload.msg });
+             }
         });
   }
 });
