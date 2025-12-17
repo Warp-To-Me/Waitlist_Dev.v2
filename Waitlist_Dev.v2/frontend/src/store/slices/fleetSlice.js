@@ -47,7 +47,7 @@ export const closeFleet = createAsyncThunk(
   async (fleetId, { dispatch, rejectWithValue }) => {
     try {
       const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-      const res = await apiCall('/api/management/fleets/action/', {
+      const res = await apiCall('/api/management/fleets/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
         body: JSON.stringify({ action: 'close', fleet_id: fleetId })
@@ -69,7 +69,7 @@ export const deleteFleet = createAsyncThunk(
   async (fleetId, { dispatch, rejectWithValue }) => {
     try {
       const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-      const res = await apiCall('/api/management/fleets/action/', {
+      const res = await apiCall('/api/management/fleets/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
         body: JSON.stringify({ action: 'delete', fleet_id: fleetId })
@@ -167,6 +167,57 @@ export const fetchFleetHistory = createAsyncThunk(
   }
 );
 
+export const fetchFleetSetupInit = createAsyncThunk(
+  'fleet/fetchSetupInit',
+  async (_, { rejectWithValue }) => {
+    try {
+      const res = await apiCall('/api/management/fleets/setup/init/');
+      const data = await res.json();
+      return data;
+    } catch (err) {
+      return rejectWithValue(err.message);
+    }
+  }
+);
+
+export const saveFleetTemplate = createAsyncThunk(
+  'fleet/saveTemplate',
+  async (payload, { rejectWithValue }) => {
+    try {
+      const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+      const res = await apiCall('/api/management/fleets/templates/save/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) return data.template;
+      throw new Error(data.error);
+    } catch (err) {
+      return rejectWithValue(err.message);
+    }
+  }
+);
+
+export const deleteFleetTemplate = createAsyncThunk(
+  'fleet/deleteTemplate',
+  async (templateId, { rejectWithValue }) => {
+    try {
+      const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+      const res = await apiCall('/api/management/fleets/templates/delete/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+        body: JSON.stringify({ template_id: templateId })
+      });
+      const data = await res.json();
+      if (data.success) return templateId;
+      throw new Error(data.error);
+    } catch (err) {
+      return rejectWithValue(err.message);
+    }
+  }
+);
+
 // --- Slice ---
 
 const initialState = {
@@ -174,7 +225,9 @@ const initialState = {
   
   // Management State
   list: [],
-  settings: null, // For settings page
+  settings: null, // For settings page (fleet, structure)
+  templates: [], // Shared templates
+  setup: { fc_chars: [] }, // Setup wizard state
   history: null, // For history page { fleet, stats, logs }
   canViewAdmin: false,
   
@@ -256,9 +309,49 @@ export const fleetSlice = createSlice({
         .addCase(fetchFleetSettings.pending, (state) => { state.loading = true; })
         .addCase(fetchFleetSettings.fulfilled, (state, action) => {
             state.loading = false;
-            state.settings = action.payload;
+            // Extract templates to shared state
+            state.templates = action.payload.templates || [];
+            // Remove templates from settings to avoid duplication (optional but cleaner)
+            const { templates, ...settings } = action.payload;
+            state.settings = settings;
         })
         .addCase(fetchFleetSettings.rejected, (state, action) => {
+            state.loading = false;
+            state.error = action.payload;
+        })
+        
+        // Setup Init
+        .addCase(fetchFleetSetupInit.pending, (state) => { state.loading = true; })
+        .addCase(fetchFleetSetupInit.fulfilled, (state, action) => {
+            state.loading = false;
+            state.setup.fc_chars = action.payload.fc_chars || [];
+            state.templates = action.payload.templates || [];
+        })
+        .addCase(fetchFleetSetupInit.rejected, (state, action) => {
+            state.loading = false;
+            state.error = action.payload;
+        })
+
+        // Template Actions
+        .addCase(saveFleetTemplate.pending, (state) => { state.loading = true; })
+        .addCase(saveFleetTemplate.fulfilled, (state, action) => {
+            state.loading = false;
+            // Add or Update template in list
+            const idx = state.templates.findIndex(t => t.id === action.payload.id);
+            if (idx >= 0) state.templates[idx] = action.payload;
+            else state.templates.push(action.payload);
+        })
+        .addCase(saveFleetTemplate.rejected, (state, action) => {
+            state.loading = false;
+            state.error = action.payload;
+        })
+
+        .addCase(deleteFleetTemplate.pending, (state) => { state.loading = true; })
+        .addCase(deleteFleetTemplate.fulfilled, (state, action) => {
+            state.loading = false;
+            state.templates = state.templates.filter(t => t.id !== action.payload);
+        })
+        .addCase(deleteFleetTemplate.rejected, (state, action) => {
             state.loading = false;
             state.error = action.payload;
         })
@@ -297,6 +390,8 @@ export const { setFleetData, setFleetError, setConnectionStatus } = fleetSlice.a
 export const selectFleetData = (state) => state.fleet.data;
 export const selectFleetList = (state) => state.fleet.list;
 export const selectFleetSettings = (state) => state.fleet.settings;
+export const selectFleetTemplates = (state) => state.fleet.templates;
+export const selectFleetSetup = (state) => state.fleet.setup;
 export const selectFleetHistory = (state) => state.fleet.history;
 export const selectCanViewAdmin = (state) => state.fleet.canViewAdmin;
 export const selectFleetColumns = (state) => state.fleet.columns;

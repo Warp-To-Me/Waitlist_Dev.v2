@@ -6,7 +6,8 @@ import Picker from 'vanilla-picker';
 import { apiCall } from '../../utils/api';
 import { 
     fetchFleetSettings, updateFleetSettings, linkEsiFleet, closeFleetByToken,
-    selectFleetSettings, selectFleetLoading 
+    selectFleetSettings, selectFleetLoading, selectFleetTemplates,
+    saveFleetTemplate, deleteFleetTemplate
 } from '../../store/slices/fleetSlice';
 
 const ManagementFleetSettings = () => {
@@ -16,12 +17,12 @@ const ManagementFleetSettings = () => {
     
     const settingsData = useSelector(selectFleetSettings);
     const loading = useSelector(selectFleetLoading);
+    const templates = useSelector(selectFleetTemplates);
 
     // Local state for editing form
     const [structure, setStructure] = useState([]);
     const [motd, setMotd] = useState('');
     const [previewHtml, setPreviewHtml] = useState('');
-    const [templates, setTemplates] = useState([]);
     const pickerRef = useRef(null);
 
     // Initial Fetch
@@ -34,7 +35,7 @@ const ManagementFleetSettings = () => {
         if (settingsData) {
             setStructure(settingsData.structure || []);
             setMotd(settingsData.fleet.motd || '');
-            setTemplates(settingsData.templates || []);
+            // templates are now selected from selectFleetTemplates
         }
     }, [settingsData]);
 
@@ -149,22 +150,13 @@ const ManagementFleetSettings = () => {
             .catch(err => alert("Error closing fleet: " + err));
     };
 
-    const saveTemplate = () => {
+    const saveTemplateAction = () => {
         const name = prompt("Enter a name for this template:", "My Fleet Setup");
         if (!name) return;
-        const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        // Template saving is distinct from fleet settings, keeping local fetch for this specific aux action
-        // or we could add another thunk. For now, local is fine as it just refreshes settings.
-        apiCall('/api/management/fleets/templates/save/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-            body: JSON.stringify({ character_id: settingsData.fleet.commander_id, template_name: name, structure, motd })
-        }).then(res => res.json()).then(data => {
-            if (data.success) { 
-                alert("Template saved!"); 
-                dispatch(fetchFleetSettings(token)); // Refresh templates list via Redux
-            } else alert("Error: " + data.error);
-        });
+        dispatch(saveFleetTemplate({ character_id: settingsData.fleet.commander_id, template_name: name, structure, motd }))
+            .unwrap()
+            .then(() => alert("Template saved!"))
+            .catch(err => alert("Error: " + err));
     };
 
     const loadTemplate = (tpl) => {
@@ -173,16 +165,11 @@ const ManagementFleetSettings = () => {
         setMotd(tpl.motd || "");
     };
 
-    const deleteTemplate = (id) => {
+    const deleteTemplateAction = (id) => {
         if (!confirm("Delete template?")) return;
-        const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        apiCall('/api/management/fleets/templates/delete/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-            body: JSON.stringify({ template_id: id })
-        }).then(res => res.json()).then(data => {
-            if (data.success) dispatch(fetchFleetSettings(token)); else alert("Error: " + data.error);
-        });
+        dispatch(deleteFleetTemplate(id))
+            .unwrap()
+            .catch(err => alert("Error: " + err));
     };
 
     // Structure Manipulation
@@ -235,7 +222,7 @@ const ManagementFleetSettings = () => {
                             <LinkIcon size={14} /> Link ESI
                         </button>
                     )}
-                    <button onClick={saveTemplate} className="btn-secondary text-xs py-1.5 px-3 border-brand-500/30 text-brand-400 hover:bg-brand-500/10">
+                    <button onClick={saveTemplateAction} className="btn-secondary text-xs py-1.5 px-3 border-brand-500/30 text-brand-400 hover:bg-brand-500/10">
                         <Save size={14} /> Save Template
                     </button>
                     <button onClick={closeFleetAction} className="btn-danger text-xs py-1.5 px-3 shadow-lg shadow-red-500/20 border-red-500/50 hover:bg-red-900/80">
@@ -244,8 +231,12 @@ const ManagementFleetSettings = () => {
                     <Link to={`/fleet/${fleet.join_token}`} className="btn-secondary text-xs py-1.5 px-3">
                         <ArrowLeft size={14} /> Back to Dashboard
                     </Link>
-                    <button onClick={saveSettings} className="btn-primary text-xs py-1.5 px-4 shadow-lg shadow-brand-500/20">
-                        <Save size={14} /> Update Fleet
+                    <button 
+                        onClick={saveSettings} 
+                        disabled={loading}
+                        className="btn-primary text-xs py-1.5 px-4 shadow-lg shadow-brand-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {loading ? <span className="animate-pulse">Updating...</span> : <><Save size={14} /> Update Fleet</>}
                     </button>
                 </div>
             </div>
@@ -308,7 +299,7 @@ const ManagementFleetSettings = () => {
                                         <div className="font-bold text-sm text-slate-200 group-hover:text-brand-400">{t.name}</div>
                                         <div className="text-[10px] text-slate-500">{t.wing_count} Wings</div>
                                     </button>
-                                    <button onClick={() => deleteTemplate(t.id)} className="absolute top-2 right-2 p-1.5 text-slate-500 hover:text-red-400 hover:bg-white/5 rounded transition opacity-0 group-hover:opacity-100 z-10">
+                                    <button onClick={() => deleteTemplateAction(t.id)} className="absolute top-2 right-2 p-1.5 text-slate-500 hover:text-red-400 hover:bg-white/5 rounded transition opacity-0 group-hover:opacity-100 z-10">
                                         <Trash size={14} />
                                     </button>
                                 </div>

@@ -278,18 +278,19 @@ def management_fleets(request):
         if action == 'create':
             name = request.data.get('name')
             if name: Fleet.objects.create(name=name, commander=request.user, is_active=True)
-            return Response({'status': 'created'})
+            return Response({'success': True, 'status': 'created'})
         elif action == 'close':
             fleet_id = request.data.get('fleet_id')
             fleet = get_object_or_404(Fleet, id=fleet_id)
             fleet.is_active = False
+            fleet.end_time = timezone.now()
             fleet.save()
-            return Response({'status': 'closed'})
+            return Response({'success': True, 'status': 'closed'})
         elif action == 'delete':
             fleet_id = request.data.get('fleet_id')
             if is_admin(request.user): 
                 Fleet.objects.filter(id=fleet_id).delete()
-                return Response({'status': 'deleted'})
+                return Response({'success': True, 'status': 'deleted'})
             else:
                 return Response({'error': 'Permission denied'}, status=403)
                 
