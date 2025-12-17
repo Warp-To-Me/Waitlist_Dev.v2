@@ -103,14 +103,22 @@ class Command(BaseCommand):
         session_key = self.create_session_cookie(user)
         session.cookies.set(settings.SESSION_COOKIE_NAME, session_key)
         
-        # Initial GET to grab CSRF Token
+        # FIX: Ensure we hit a path that sets CSRF (e.g. login or api/me)
+        # Using /admin/login/ is reliable for ensuring CSRF cookie
+        csrf_url = f"{base_url}/admin/login/"
+
         try:
-            r = session.get(f"{base_url}/")
+            r = session.get(csrf_url)
             if 'csrftoken' in session.cookies:
                 csrf_token = session.cookies['csrftoken']
             else:
-                self.stdout.write(self.style.WARNING(f"[User {index}] Failed to get CSRF token"))
-                return
+                # Fallback to base url if admin fails (e.g. if disabled)
+                r = session.get(f"{base_url}/")
+                if 'csrftoken' in session.cookies:
+                    csrf_token = session.cookies['csrftoken']
+                else:
+                    self.stdout.write(self.style.WARNING(f"[User {index}] Failed to get CSRF token from {csrf_url}"))
+                    return
         except Exception as e:
             self.stdout.write(self.style.ERROR(f"[User {index}] Connection failed: {e}"))
             return
