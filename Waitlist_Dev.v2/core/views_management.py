@@ -37,6 +37,7 @@ from core.utils import (
     get_user_highest_role
 )
 
+from core.script_manager import ScriptManager
 from core.models import Capability, RolePriority, Ban, BanAuditLog
 
 # Model Imports
@@ -663,3 +664,48 @@ def api_update_ban(request):
         return Response({'success': True})
         
     return Response({'success': False, 'error': 'Invalid action'}, status=400)
+
+# --- SCRIPT MANAGEMENT ---
+
+@api_view(['GET'])
+@check_permission(is_admin)
+def management_scripts(request):
+    """
+    Returns available scripts and active scripts.
+    """
+    available = ScriptManager.get_available_scripts()
+    active = ScriptManager.get_active_scripts()
+
+    return Response({
+        'available': available,
+        'active': active
+    })
+
+@api_view(['POST'])
+@check_permission(is_admin)
+def api_run_script(request):
+    script_name = request.data.get('name')
+    args = request.data.get('args', '')
+
+    if not script_name:
+        return Response({'error': 'Script name required'}, status=400)
+
+    try:
+        script_id = ScriptManager.start_script(script_name, args)
+        return Response({'success': True, 'script_id': script_id})
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
+
+@api_view(['POST'])
+@check_permission(is_admin)
+def api_stop_script(request):
+    script_id = request.data.get('script_id')
+
+    if not script_id:
+        return Response({'error': 'Script ID required'}, status=400)
+
+    success = ScriptManager.stop_script(script_id)
+    if success:
+        return Response({'success': True})
+    else:
+        return Response({'error': 'Could not stop script (not found or not running)'}, status=400)

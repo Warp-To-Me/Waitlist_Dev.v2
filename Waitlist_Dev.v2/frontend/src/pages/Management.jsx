@@ -3,7 +3,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import clsx from 'clsx';
 import { 
     Activity, Users, Shield, Radio, AlertTriangle, Settings, 
-    BarChart2, Wallet, FileText, Database, Server, Key
+    BarChart2, Wallet, FileText, Database, Server, Key, Terminal
 } from 'lucide-react';
 import { useSelector } from 'react-redux';
 import { selectHasCapability } from '../store/slices/authSlice';
@@ -131,6 +131,9 @@ const Management = () => {
                                         </NavLink>
                                         <NavLink to="/management/permissions" className={({ isActive }) => clsx("flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm font-medium", isActive ? "bg-brand-500/10 text-brand-400 border border-brand-500/20" : "text-slate-400 hover:text-white hover:bg-white/5")}>
                                             <Key size={16} /> Permissions
+                                        </NavLink>
+                                        <NavLink to="/management/scripts" className={({ isActive }) => clsx("flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm font-medium", isActive ? "bg-brand-500/10 text-brand-400 border border-brand-500/20" : "text-slate-400 hover:text-white hover:bg-white/5")}>
+                                            <Terminal size={16} /> Script Runner
                                         </NavLink>
                                     </>
                                 )}
