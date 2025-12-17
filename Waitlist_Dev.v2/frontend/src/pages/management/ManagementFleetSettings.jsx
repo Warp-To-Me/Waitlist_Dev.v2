@@ -244,8 +244,12 @@ const ManagementFleetSettings = () => {
                     <Link to={`/fleet/${fleet.join_token}`} className="btn-secondary text-xs py-1.5 px-3">
                         <ArrowLeft size={14} /> Back to Dashboard
                     </Link>
-                    <button onClick={saveSettings} className="btn-primary text-xs py-1.5 px-4 shadow-lg shadow-brand-500/20">
-                        <Save size={14} /> Update Fleet
+                    <button
+                        onClick={saveSettings}
+                        disabled={loading}
+                        className="btn-primary text-xs py-1.5 px-4 shadow-lg shadow-brand-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {loading ? <span className="animate-pulse">Updating...</span> : <><Save size={14} /> Update Fleet</>}
                     </button>
                 </div>
             </div>

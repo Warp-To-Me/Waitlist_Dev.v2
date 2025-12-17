@@ -1,14 +1,15 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, Link } from 'react-router-dom';
 import { Save, Rocket, Palette, X, Trash } from 'lucide-react';
 import Picker from 'vanilla-picker';
-import { createFleet } from '../../store/slices/fleetSlice';
+import { createFleet, selectFleetLoading } from '../../store/slices/fleetSlice';
 import { apiCall } from '../../utils/api';
 
 const ManagementFleetSetup = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
+    const loading = useSelector(selectFleetLoading);
     const [fleetName, setFleetName] = useState("New Fleet");
     const [fcChars, setFcChars] = useState([]);
     const [selectedFc, setSelectedFc] = useState('');
@@ -238,8 +239,12 @@ const ManagementFleetSetup = () => {
                     <button onClick={saveTemplate} className="btn-secondary text-xs py-1.5 px-3 border-brand-500/30 text-brand-400 hover:bg-brand-500/10">
                         <Save size={14} /> Save Template
                     </button>
-                    <button onClick={launchFleet} className="btn-primary text-xs py-1.5 px-4 shadow-lg shadow-brand-500/20">
-                        <Rocket size={14} /> Launch Fleet
+                    <button
+                        onClick={launchFleet}
+                        disabled={loading}
+                        className="btn-primary text-xs py-1.5 px-4 shadow-lg shadow-brand-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {loading ? <span className="animate-pulse">Launching...</span> : <><Rocket size={14} /> Launch Fleet</>}
                     </button>
                 </div>
             </div>
