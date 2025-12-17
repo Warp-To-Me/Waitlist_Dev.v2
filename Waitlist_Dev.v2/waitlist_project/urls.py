@@ -53,6 +53,11 @@ api_urlpatterns = [
     path('mgmt/bans/add/', views_management.api_ban_user, name='api_ban_user'),
     path('mgmt/bans/update/', views_management.api_update_ban, name='api_update_ban'),
     
+    # Script Management
+    path('mgmt/scripts/', views_management.management_scripts, name='management_scripts'),
+    path('mgmt/scripts/run/', views_management.api_run_script, name='api_run_script'),
+    path('mgmt/scripts/stop/', views_management.api_stop_script, name='api_stop_script'),
+
     # Roles API
     path('management/roles/', views_management.management_roles, name='management_roles'),
     path('mgmt/search_users/', views_management.api_search_users, name='api_search_users'),
