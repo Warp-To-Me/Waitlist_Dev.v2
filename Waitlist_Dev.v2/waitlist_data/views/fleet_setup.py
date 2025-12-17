@@ -197,7 +197,7 @@ def api_create_fleet_with_structure(request):
 
         return JsonResponse({
             'success': True, 
-            'redirect_url': f"/fleet/{fleet.join_token}/dashboard/",
+            'redirect_url': f"/fleet/{fleet.join_token}",
             'logs': logs
         })
         
