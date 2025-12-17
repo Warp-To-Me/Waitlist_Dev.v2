@@ -5,6 +5,8 @@ import { Menu, ChevronDown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSelector, useDispatch } from 'react-redux';
 import { setTheme, selectTheme } from '../store/slices/uiSlice';
+import { wsConnect, wsDisconnect } from '../store/middleware/socketMiddleware';
+import { selectNotificationBuckets } from '../store/slices/notificationSlice';
 
 const Layout = ({ children }) => {
   const theme = useSelector(selectTheme);
@@ -133,29 +135,19 @@ const Layout = ({ children }) => {
 };
 
 const ESIMonitor = ({ user }) => {
-    const [buckets, setBuckets] = useState({});
+    const dispatch = useDispatch();
+    const buckets = useSelector(selectNotificationBuckets);
 
     useEffect(() => {
         if (!user) return;
+        
+        // Connect via Redux Middleware with specific key
+        dispatch(wsConnect('/ws/user/notify/', 'user_notify'));
 
-        const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-        // In dev, we might be on port 5173, but socket is on 8000.
-        // The proxy config in vite handles /ws calls, but standard WebSocket ctor needs full URL.
-        // If we are proxying, window.location.host is correct (5173), and Vite proxies.
-        const socketUrl = `${protocol}${window.location.host}/ws/user/notify/`;
-        
-        const socket = new WebSocket(socketUrl);
-        
-        socket.onmessage = (e) => {
-            const msg = JSON.parse(e.data);
-            if (msg.type === 'ratelimit') {
-                setBuckets(prev => ({ ...prev, [msg.bucket]: msg }));
-                // Auto remove after 30s logic handled by component rendering check or timeout
-            }
+        return () => {
+            dispatch(wsDisconnect('user_notify'));
         };
-
-        return () => socket.close();
-    }, [user]);
+    }, [user, dispatch]);
 
     return (
         <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 items-end pointer-events-none">

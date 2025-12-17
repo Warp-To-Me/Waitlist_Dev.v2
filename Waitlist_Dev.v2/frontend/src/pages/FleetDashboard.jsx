@@ -40,7 +40,7 @@ const FleetDashboard = () => {
                 // Use the token or ID for the channel path
                 // Assuming backend expects /ws/fleet/<id>/ or <token>/
                 // Using token here as per URL params
-                dispatch(wsConnect(`/ws/fleet/${token}/`));
+                dispatch(wsConnect(`/ws/fleet/${token}/`, 'fleet'));
             })
             .catch(err => {
                 console.error(err);
@@ -49,7 +49,7 @@ const FleetDashboard = () => {
 
         // Cleanup: Disconnect WS when component unmounts
         return () => {
-            dispatch(wsDisconnect());
+            dispatch(wsDisconnect('fleet'));
         };
     }, [token, dispatch]);
 

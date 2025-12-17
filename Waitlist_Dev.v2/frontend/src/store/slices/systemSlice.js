@@ -14,20 +14,30 @@ export const systemSlice = createSlice({
     },
     // Handler for WebSocket messages
     handleWsMessage: (state, action) => {
-        const msg = action.payload;
-        // The backend sends { html: "..." }
-        if (msg.html) {
-            state.celeryStatus = msg.html;
+        const { key, data } = action.payload;
+        // Only process messages for the 'system' socket
+        if (key !== 'system') return;
+
+        // The backend sends { html: "..." } or { data: ... }
+        if (data.html) {
+            state.celeryStatus = data.html;
+        } else if (data.data) {
+             // New JSON format
+             state.celeryStatus = data.data;
         }
     }
   },
   extraReducers: (builder) => {
       builder
-        .addCase('WS_CONNECTED', (state) => {
-            state.status = 'connected';
+        .addCase('WS_CONNECTED', (state, action) => {
+            if (action.payload.key === 'system') {
+                state.status = 'connected';
+            }
         })
-        .addCase('WS_DISCONNECTED', (state) => {
-            state.status = 'disconnected';
+        .addCase('WS_DISCONNECTED', (state, action) => {
+            if (action.payload.key === 'system') {
+                state.status = 'disconnected';
+            }
         })
         .addCase('WS_MESSAGE_RECEIVED', (state, action) => {
              // Dispatch to internal reducer logic
