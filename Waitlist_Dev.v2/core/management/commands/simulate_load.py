@@ -103,16 +103,13 @@ class Command(BaseCommand):
         session_key = self.create_session_cookie(user)
         session.cookies.set(settings.SESSION_COOKIE_NAME, session_key)
         
-        # FIX: Ensure we hit a path that sets CSRF (e.g. login or api/me)
-        # Using /admin/login/ is reliable for ensuring CSRF cookie
+        # Initial GET to grab CSRF Token
         csrf_url = f"{base_url}/admin/login/"
-
         try:
             r = session.get(csrf_url)
             if 'csrftoken' in session.cookies:
                 csrf_token = session.cookies['csrftoken']
             else:
-                # Fallback to base url if admin fails (e.g. if disabled)
                 r = session.get(f"{base_url}/")
                 if 'csrftoken' in session.cookies:
                     csrf_token = session.cookies['csrftoken']
@@ -144,10 +141,6 @@ class Command(BaseCommand):
                     self.stdout.write(self.style.ERROR(f"  [User {index}] Request Error: {e}"))
 
             elif action == 'x_up':
-                # Check if already x-ed up to avoid spamming duplicates if not intended
-                # But request asked to simulate load, so spamming fits is okay.
-                
-                # Logic: Randomly choose 1 to 3 fits to paste at once
                 num_fits = random.randint(1, 3)
                 selected_fits = random.sample(fits, min(len(fits), num_fits))
                 
@@ -173,14 +166,20 @@ class Command(BaseCommand):
                     )
                     duration = round(time.time() - start, 2)
                     
-                    if resp.status_code == 200 and resp.json().get('success'):
-                        self.stdout.write(self.style.SUCCESS(f"  [User {index}] X-UP {', '.join(fit_names)} - OK ({duration}s)"))
-                    else:
-                        err = resp.json().get('error') if resp.headers.get('content-type') == 'application/json' else resp.status_code
-                        self.stdout.write(self.style.WARNING(f"  [User {index}] X-UP Failed: {err}"))
+                    try:
+                        data = resp.json()
+                        if resp.status_code == 200 and data.get('success'):
+                            self.stdout.write(self.style.SUCCESS(f"  [User {index}] X-UP {', '.join(fit_names)} - OK ({duration}s)"))
+                        else:
+                            err = data.get('error') if data else resp.status_code
+                            self.stdout.write(self.style.WARNING(f"  [User {index}] X-UP Failed: {err} (Status {resp.status_code})"))
+                    except Exception:
+                        # JSON decode failed
+                        self.stdout.write(self.style.ERROR(f"  [User {index}] POST Failed (Non-JSON): Status {resp.status_code}"))
+                        self.stdout.write(f"Response: {resp.text[:200]}...") # Print first 200 chars
                         
                 except Exception as e:
-                    self.stdout.write(self.style.ERROR(f"  [User {index}] POST Error: {e}"))
+                    self.stdout.write(self.style.ERROR(f"  [User {index}] POST Exception: {e}"))
 
             # Sleep between actions
             time.sleep(random.uniform(2.0, 5.0))
