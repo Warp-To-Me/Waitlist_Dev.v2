@@ -71,6 +71,13 @@ def check_token(character):
         return _refresh_access_token(character)
     return True
 
+def force_refresh_token(character):
+    """
+    Public wrapper to force a token refresh immediately.
+    Useful for 401 Retry logic.
+    """
+    return _refresh_access_token(character)
+
 def _refresh_access_token(character):
     url = "https://login.eveonline.com/v2/oauth/token"
     client_id = settings.EVE_CLIENT_ID
