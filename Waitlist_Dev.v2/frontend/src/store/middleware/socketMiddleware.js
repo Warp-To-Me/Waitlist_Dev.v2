@@ -1,42 +1,46 @@
 // Actions
-export const wsConnect = (url) => ({ type: 'WS_CONNECT', payload: url });
-export const wsDisconnect = () => ({ type: 'WS_DISCONNECT' });
-export const wsConnected = () => ({ type: 'WS_CONNECTED' });
-export const wsDisconnected = () => ({ type: 'WS_DISCONNECTED' });
-export const wsMessageReceived = (msg) => ({ type: 'WS_MESSAGE_RECEIVED', payload: msg });
+export const wsConnect = (url, key = 'default') => ({ type: 'WS_CONNECT', payload: { url, key } });
+export const wsDisconnect = (key = 'default') => ({ type: 'WS_DISCONNECT', payload: { key } });
+export const wsConnected = (key) => ({ type: 'WS_CONNECTED', payload: { key } });
+export const wsDisconnected = (key) => ({ type: 'WS_DISCONNECTED', payload: { key } });
+export const wsMessageReceived = (msg, key) => ({ type: 'WS_MESSAGE_RECEIVED', payload: { data: msg, key } });
 
 const socketMiddleware = () => {
-  let socket = null;
+  const sockets = {};
 
   return store => next => action => {
     switch (action.type) {
       case 'WS_CONNECT':
-        if (socket !== null) {
-          socket.close();
+        const { url, key } = action.payload;
+
+        if (sockets[key]) {
+          sockets[key].close();
         }
 
         // Determine protocol
         const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
         // The payload is the path, e.g. '/ws/fleet/123/'
         // If the path already includes protocol, use it as is
-        const url = action.payload.startsWith('ws') 
-            ? action.payload 
-            : `${protocol}${window.location.host}${action.payload}`;
+        const fullUrl = url.startsWith('ws')
+            ? url
+            : `${protocol}${window.location.host}${url}`;
 
-        socket = new WebSocket(url);
+        const socket = new WebSocket(fullUrl);
+        sockets[key] = socket;
 
         socket.onopen = () => {
-          store.dispatch(wsConnected());
+          store.dispatch(wsConnected(key));
         };
 
         socket.onclose = () => {
-          store.dispatch(wsDisconnected());
+          store.dispatch(wsDisconnected(key));
+          delete sockets[key];
         };
 
         socket.onmessage = (event) => {
           try {
              const data = JSON.parse(event.data);
-             store.dispatch(wsMessageReceived(data));
+             store.dispatch(wsMessageReceived(data, key));
           } catch (e) {
              console.error("WS Parse Error", e);
           }
@@ -45,10 +49,11 @@ const socketMiddleware = () => {
         break;
 
       case 'WS_DISCONNECT':
-        if (socket !== null) {
-          socket.close();
+        const disconnectKey = action.payload.key;
+        if (sockets[disconnectKey]) {
+          sockets[disconnectKey].close();
+          delete sockets[disconnectKey];
         }
-        socket = null;
         break;
 
       default:

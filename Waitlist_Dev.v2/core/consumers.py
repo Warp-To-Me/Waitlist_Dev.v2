@@ -1,20 +1,20 @@
 import asyncio
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
-from django.template.loader import render_to_string
 from asgiref.sync import sync_to_async
 from core.utils import get_system_status
+
 
 class SystemMonitorConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         # Authenticate user
         if self.scope["user"].is_anonymous or not self.scope["user"].is_staff:
-             # Code 4003: Forbidden/Auth Failed
-             await self.close(code=4003)
-             return
+            # Code 4003: Forbidden/Auth Failed
+            await self.close(code=4003)
+            return
 
         await self.accept()
-        
+
         # Start the background task
         self.keep_running = True
         self.task = asyncio.create_task(self.send_status_updates())
@@ -23,7 +23,7 @@ class SystemMonitorConsumer(AsyncWebsocketConsumer):
         self.keep_running = False
         if hasattr(self, 'task'):
             self.task.cancel()
-            # FIX: Do not await task here. 
+            # FIX: Do not await task here.
             # try: await self.task
             # except asyncio.CancelledError: pass
 
@@ -32,23 +32,20 @@ class SystemMonitorConsumer(AsyncWebsocketConsumer):
             try:
                 # 1. Fetch Data
                 context = await sync_to_async(get_system_status)()
-                
-                # 2. Render HTML Partial
-                html = await sync_to_async(render_to_string)('partials/celery_content.html', context)
-                
-                # 3. Send to Client
+
+                # 2. Send JSON Data
                 await self.send(text_data=json.dumps({
-                    'html': html,
+                    'data': context,
                     'timestamp': context.get('redis_latency', 0)
                 }))
 
                 # Wait 1 second (High speed refresh)
                 await asyncio.sleep(1)
-            
+
             except asyncio.CancelledError:
                 # Break the loop immediately if cancelled
                 break
-                
+
             except Exception as e:
                 print(f"Monitor Error: {e}")
                 # On error, back off slightly to prevent log spam
@@ -56,14 +53,16 @@ class SystemMonitorConsumer(AsyncWebsocketConsumer):
                 if self.keep_running:
                     await asyncio.sleep(5)
 
+
 class UserConsumer(AsyncWebsocketConsumer):
     """
     Handles personal notifications for a specific logged-in user.
     Used for: ESI Rate Limit monitoring, Personal Alerts, etc.
     """
+
     async def connect(self):
         self.user = self.scope["user"]
-        
+
         if self.user.is_anonymous:
             await self.close()
             return

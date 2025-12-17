@@ -267,7 +267,10 @@ export const fleetSlice = createSlice({
     },
     // Handler for generic WebSocket updates
     handleWsMessage: (state, action) => {
-        const msg = action.payload;
+        const { key, data } = action.payload;
+        if (key !== 'fleet') return;
+
+        const msg = data;
         if (msg.type === 'fleet_update') {
             if (msg.data) {
                 if (msg.data.fleet) state.data = msg.data.fleet;
@@ -279,8 +282,12 @@ export const fleetSlice = createSlice({
   extraReducers: (builder) => {
       builder
         // WS Events
-        .addCase('WS_CONNECTED', (state) => { state.status = 'connected'; })
-        .addCase('WS_DISCONNECTED', (state) => { state.status = 'disconnected'; })
+        .addCase('WS_CONNECTED', (state, action) => {
+            if (action.payload.key === 'fleet') state.status = 'connected';
+        })
+        .addCase('WS_DISCONNECTED', (state, action) => {
+            if (action.payload.key === 'fleet') state.status = 'disconnected';
+        })
         .addCase('WS_MESSAGE_RECEIVED', (state, action) => {
              fleetSlice.caseReducers.handleWsMessage(state, action);
         })
