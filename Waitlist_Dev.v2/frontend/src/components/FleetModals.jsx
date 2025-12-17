@@ -20,7 +20,7 @@ export const XUpModal = ({ isOpen, onClose, fleetToken }) => {
         try {
             const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
 
-            const res = await apiCall(`/fleet/${fleetToken}/join/`, {
+            const res = await apiCall(`/fleet/${fleetToken}/xup/`, {
                 method: 'POST',
                 headers: { 'X-CSRFToken': csrf },
                 body: formData
