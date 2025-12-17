@@ -159,8 +159,9 @@ class Command(BaseCommand):
                 
                 try:
                     start = time.time()
+                    # FIX: Use /api/ prefix for X-UP as endpoints are mounted under /api/
                     resp = session.post(
-                        f"{base_url}/fleet/{fleet.join_token}/xup/",
+                        f"{base_url}/api/fleet/{fleet.join_token}/xup/",
                         data=payload,
                         headers=headers
                     )
