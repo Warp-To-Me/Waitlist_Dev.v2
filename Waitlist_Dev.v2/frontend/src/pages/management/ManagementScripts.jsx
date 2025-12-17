@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Terminal, Play, Square, RefreshCw, ChevronRight, X, Maximize2 } from 'lucide-react';
+import { Terminal, Play, Square, RefreshCw, ChevronRight, X, Maximize2, AlertTriangle } from 'lucide-react';
 import useWebSocket from 'react-use-websocket';
 import { useDispatch, useSelector } from 'react-redux';
 import {
@@ -106,6 +106,7 @@ const ManagementScripts = () => {
     const scripts = useSelector(selectAvailableScripts) || [];
     const activeScripts = useSelector(selectActiveScripts) || [];
     const status = useSelector(selectScriptStatus);
+    const error = useSelector(state => state.scripts.error);
 
     // Modal State
     const [selectedScript, setSelectedScript] = useState(null);
@@ -167,6 +168,14 @@ const ManagementScripts = () => {
                 </button>
             </div>
 
+            {/* Error Message */}
+            {status === 'failed' && (
+                <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-xl flex items-center gap-3">
+                    <AlertTriangle size={20} />
+                    <span>Error loading scripts: {error || 'Unknown error'}</span>
+                </div>
+            )}
+
             {/* Active Scripts Banner */}
             {activeScripts && activeScripts.length > 0 && (
                 <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
@@ -200,6 +209,11 @@ const ManagementScripts = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {status === 'loading' && (!scripts || scripts.length === 0) ? (
                     <div className="text-slate-500 col-span-full py-10 text-center">Loading scripts...</div>
+                ) : (scripts || []).length === 0 && status === 'succeeded' ? (
+                    <div className="text-slate-500 col-span-full py-10 text-center flex flex-col items-center gap-2">
+                        <Terminal size={32} className="opacity-20" />
+                        <span>No management scripts found in core/waitlist_data.</span>
+                    </div>
                 ) : (scripts || []).map(script => (
                     <div key={script.name} className="group bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 rounded-xl p-5 transition flex flex-col h-full">
                         <div className="flex items-start justify-between mb-3">
