@@ -103,7 +103,17 @@ def api_save_structure_template(request):
                 order=j
             )
             
-    return JsonResponse({'success': True, 'template_id': template.id})
+    # Return full template object for Redux state update
+    return JsonResponse({
+        'success': True,
+        'template': {
+            'id': template.id,
+            'name': template.name,
+            'motd': template.default_motd,
+            'wing_count': len(wings_data),
+            'wings': wings_data
+        }
+    })
 
 @login_required
 @user_passes_test(is_fleet_command)

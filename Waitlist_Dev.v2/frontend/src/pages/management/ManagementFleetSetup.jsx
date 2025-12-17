@@ -3,39 +3,40 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, Link } from 'react-router-dom';
 import { Save, Rocket, Palette, X, Trash } from 'lucide-react';
 import Picker from 'vanilla-picker';
-import { createFleet, selectFleetLoading } from '../../store/slices/fleetSlice';
-import { apiCall } from '../../utils/api';
+import {
+    createFleet, selectFleetLoading, selectFleetTemplates, selectFleetSetup,
+    fetchFleetSetupInit, saveFleetTemplate, deleteFleetTemplate
+} from '../../store/slices/fleetSlice';
 
 const ManagementFleetSetup = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
     const loading = useSelector(selectFleetLoading);
+    const templates = useSelector(selectFleetTemplates);
+    const { fc_chars: fcChars } = useSelector(selectFleetSetup);
+
     const [fleetName, setFleetName] = useState("New Fleet");
-    const [fcChars, setFcChars] = useState([]);
     const [selectedFc, setSelectedFc] = useState('');
     const [offlineMode, setOfflineMode] = useState(false);
     const [motd, setMotd] = useState('');
     const [previewHtml, setPreviewHtml] = useState('');
-    const [templates, setTemplates] = useState([]);
     const [structure, setStructure] = useState([]);
     const pickerRef = useRef(null);
 
     useEffect(() => {
-        // Fetch initial data (FC characters, templates)
-        apiCall('/api/management/fleets/setup/init/')
-            .then(res => res.json())
-            .then(data => {
-                setFcChars(data.fc_chars || []);
-                if (data.fc_chars?.length > 0) {
-                    const main = data.fc_chars.find(c => c.is_main) || data.fc_chars[0];
-                    setSelectedFc(main.character_id);
-                    setFleetName(`${main.character_name}'s Fleet`);
-                }
-                setTemplates(data.templates || []);
-                // Load default structure
-                setStructure([{name: "Wing 1", squads: ["Squad 1", "Squad 2"]}]);
-            });
-    }, []);
+        dispatch(fetchFleetSetupInit());
+        // Set default structure
+        setStructure([{name: "Wing 1", squads: ["Squad 1", "Squad 2"]}]);
+    }, [dispatch]);
+
+    // Update form when Redux data loads
+    useEffect(() => {
+        if (fcChars.length > 0 && !selectedFc) {
+            const main = fcChars.find(c => c.is_main) || fcChars[0];
+            setSelectedFc(main.character_id);
+            setFleetName(`${main.character_name}'s Fleet`);
+        }
+    }, [fcChars, selectedFc]);
 
     useEffect(() => {
         updatePreview(motd);
@@ -165,21 +166,13 @@ const ManagementFleetSetup = () => {
     };
 
     // Actions
-    const saveTemplate = () => {
+    const saveTemplateAction = () => {
         const name = prompt("Enter a name for this template:", "My Fleet Setup");
         if (!name) return;
-        const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        apiCall('/api/management/fleets/templates/save/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-            body: JSON.stringify({ character_id: selectedFc, template_name: name, structure, motd })
-        }).then(res => res.json()).then(data => {
-            if (data.success) { 
-                alert("Template saved!"); 
-                // Refresh templates
-                apiCall('/api/management/fleets/setup/init/').then(r=>r.json()).then(d=>setTemplates(d.templates||[]));
-            } else alert("Error: " + data.error);
-        });
+        dispatch(saveFleetTemplate({ character_id: selectedFc, template_name: name, structure, motd }))
+            .unwrap()
+            .then(() => alert("Template saved!"))
+            .catch(err => alert("Error: " + err));
     };
 
     const loadTemplate = (tpl) => {
@@ -188,18 +181,11 @@ const ManagementFleetSetup = () => {
         setMotd(tpl.motd || "");
     };
 
-    const deleteTemplate = (id) => {
+    const deleteTemplateAction = (id) => {
         if (!confirm("Delete template?")) return;
-        const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-        apiCall('/api/management/fleets/templates/delete/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-            body: JSON.stringify({ template_id: id })
-        }).then(res => res.json()).then(data => {
-            if (data.success) {
-                setTemplates(templates.filter(t => t.id !== id));
-            } else alert("Error: " + data.error);
-        });
+        dispatch(deleteFleetTemplate(id))
+            .unwrap()
+            .catch(err => alert("Error: " + err));
     };
 
     const launchFleet = () => {
@@ -236,7 +222,7 @@ const ManagementFleetSetup = () => {
                 </div>
                 <div className="flex gap-2">
                     <Link to="/management/fleets" className="btn-secondary text-xs py-1.5 px-3">Cancel</Link>
-                    <button onClick={saveTemplate} className="btn-secondary text-xs py-1.5 px-3 border-brand-500/30 text-brand-400 hover:bg-brand-500/10">
+                    <button onClick={saveTemplateAction} className="btn-secondary text-xs py-1.5 px-3 border-brand-500/30 text-brand-400 hover:bg-brand-500/10">
                         <Save size={14} /> Save Template
                     </button>
                     <button
@@ -336,7 +322,7 @@ const ManagementFleetSetup = () => {
                                         <div className="font-bold text-sm text-slate-200 group-hover:text-brand-400">{t.name}</div>
                                         <div className="text-[10px] text-slate-500">{t.wing_count} Wings</div>
                                     </button>
-                                    <button onClick={() => deleteTemplate(t.id)} className="absolute top-2 right-2 p-1.5 text-slate-500 hover:text-red-400 hover:bg-white/5 rounded transition opacity-0 group-hover:opacity-100 z-10">
+                                    <button onClick={() => deleteTemplateAction(t.id)} className="absolute top-2 right-2 p-1.5 text-slate-500 hover:text-red-400 hover:bg-white/5 rounded transition opacity-0 group-hover:opacity-100 z-10">
                                         <Trash size={14} />
                                     </button>
                                 </div>
