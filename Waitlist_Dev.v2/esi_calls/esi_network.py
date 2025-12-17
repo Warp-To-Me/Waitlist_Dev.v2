@@ -1,13 +1,13 @@
 import requests
 import email.utils
 import asyncio
+import threading
 from django.utils import timezone
 from datetime import datetime, timezone as dt_timezone
 from pilot_data.models import EsiHeaderCache
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-from django.core.cache import cache # Import Django Cache
-import asyncio
+from django.core.cache import cache
 
 # Channels imports for broadcasting
 from asgiref.sync import async_to_sync
@@ -29,6 +29,17 @@ def get_esi_session():
     )
     session.mount('https://', HTTPAdapter(max_retries=retries))
     return session
+
+def _threaded_broadcast(channel_layer, channel_name, payload):
+    """
+    Worker function to run broadcast in a separate thread.
+    This ensures async_to_sync runs in a clean environment with its own event loop,
+    isolating it from the main request thread and any potential gevent monkey-patching issues.
+    """
+    try:
+        async_to_sync(channel_layer.group_send)(channel_name, payload)
+    except Exception as e:
+        print(f"Error in threaded broadcast: {e}")
 
 def _broadcast_ratelimit(user, headers):
     """
@@ -93,14 +104,18 @@ def _broadcast_ratelimit(user, headers):
                     }
                 ))
             except RuntimeError:
-                # No running loop (Standard Thread), use async_to_sync
-                async_to_sync(channel_layer.group_send)(
-                    f"user_{user.id}",
-                    {
+                # No running loop (Standard Thread).
+                # To prevent crashes if the thread is managed by gevent or has a bad loop state,
+                # we offload this to a fresh thread.
+                t = threading.Thread(
+                    target=_threaded_broadcast,
+                    args=(channel_layer, f"user_{user.id}", {
                         "type": "user_notification",
                         "data": payload
-                    }
+                    })
                 )
+                t.daemon = True # Don't block app exit
+                t.start()
 
         except Exception as e:
             print(f"Error broadcasting ratelimit: {e}")
@@ -157,13 +172,9 @@ def call_esi(character, endpoint_name, url, method='GET', params=None, body=None
             return {'status': 200, 'data': response.json(), 'headers': response.headers}
             
         # Handle Token Errors
-        if response.status_code == 401:
-            print(f"  -> [{response.status_code}] Token Invalid / Expired [v2]")
-            return {'status': 401, 'data': None}
-
-        if response.status_code == 403:
-            print(f"  -> [{response.status_code}] Access Denied (Missing Scope?) [v2]")
-            return {'status': 403, 'data': None}
+        if response.status_code in [401, 403]:
+            print(f"  -> [{response.status_code}] Token Invalid/Scope Missing")
+            return {'status': response.status_code, 'data': None}
 
         # --- NEW: Handle Not Found (e.g. Closed Fleet) ---
         if response.status_code == 404:
