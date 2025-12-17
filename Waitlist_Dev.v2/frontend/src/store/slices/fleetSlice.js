@@ -484,4 +484,25 @@ export const selectFleetLoading = (state) => state.fleet.loading;
 export const selectFleetError = (state) => state.fleet.error;
 export const selectConnectionStatus = (state) => state.fleet.status;
 
+// Memoized-like selector (not using createSelector but efficient enough for this scope)
+export const selectSiblingCategories = (state, characterId, excludeEntryId) => {
+    const columns = state.fleet.columns;
+    const categories = new Set();
+    
+    Object.values(columns).forEach(list => {
+        list.forEach(entry => {
+            if (entry.character.id === characterId && entry.id !== excludeEntryId) {
+                // If the entry has a 'category' or 'real_category' field from backend
+                // or if we infer it from the column key (less reliable for pending)
+                // We use 'category' field added in serialization.
+                if (entry.category && ['logi', 'dps', 'sniper'].includes(entry.category)) {
+                    categories.add(entry.category);
+                }
+            }
+        });
+    });
+    
+    return Array.from(categories);
+};
+
 export default fleetSlice.reducer;

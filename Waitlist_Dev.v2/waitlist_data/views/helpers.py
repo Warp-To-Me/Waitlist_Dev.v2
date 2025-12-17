@@ -130,27 +130,13 @@ def broadcast_update(fleet_id, action, entry, target_col=None):
         if not target_col:
             target_col = get_entry_target_column(entry, category_map)
         
-        # 3. Indicators (Other Categories)
-        siblings = WaitlistEntry.objects.filter(
-            fleet_id=fleet_id,
-            character_id=entry.character_id
-        ).exclude(status__in=['rejected', 'left']).exclude(id=entry.id).select_related('fit')
-        
-        # Calculate my own category
+        # 3. Calculate REAL category for frontend logic
         my_real_cat = get_entry_real_category(entry, category_map)
         
-        other_cats = set()
-        for sib in siblings:
-            # Use REAL category to find what they have X-up, ignoring pending status
-            sib_cat = get_entry_real_category(sib, category_map)
-            
-            # Add to list if it's different from the current card's category
-            if sib_cat in ['logi', 'dps', 'sniper'] and sib_cat != my_real_cat:
-                other_cats.add(sib_cat)
-        
-        entry.other_categories = list(other_cats)
-        
-        # 4. Render (Legacy)
+        # 4. Render (Legacy) - Keeping legacy consistent if needed, but 'other_categories' will be empty
+        # If legacy templates rely on it, we might need to keep it, but we are moving to React.
+        # Assuming legacy support is less critical or can live without dots for now.
+        entry.other_categories = [] 
         context = {'entry': entry, 'is_fc': True}
         html = render_to_string('waitlist/entry_card.html', context)
         payload['html'] = html
@@ -159,6 +145,7 @@ def broadcast_update(fleet_id, action, entry, target_col=None):
         # 5. Serialize for React
         payload['data'] = {
             'id': entry.id,
+            'category': my_real_cat,
             'character': {
                 'id': entry.character.character_id,
                 'name': entry.character.character_name,
@@ -183,35 +170,14 @@ def broadcast_update(fleet_id, action, entry, target_col=None):
                 'hex_color': entry.tier.hex_color,
                 'badge_class': entry.tier.badge_class
             } if entry.tier else None,
-            'other_categories': entry.other_categories,
             'display_stats': entry.display_stats
         }
 
     async_to_sync(channel_layer.group_send)(group_name, payload)
 
 def trigger_sibling_updates(fleet_id, character_id, exclude_entry_id=None):
-    """
-    Refreshes other cards for this pilot to update their indicators.
-    OPTIMIZED: Pre-fetches related objects to avoid N+1 queries during broadcast.
-    """
-    siblings = WaitlistEntry.objects.filter(
-        fleet_id=fleet_id,
-        character_id=character_id
-    ).exclude(status__in=['rejected', 'left']).select_related(
-        'character',
-        'character__user',      # Needed for permission check in template
-        'character__stats',     # New Stats Model
-        'fit',
-        'fit__ship_type',       # Needed for icons
-        'fit__category',        # Needed for column logic
-        'hull'
-    )
-    
-    if exclude_entry_id:
-        siblings = siblings.exclude(id=exclude_entry_id)
-        
-    for sib in siblings:
-        broadcast_update(fleet_id, 'move', sib)
+    # Deprecated: Frontend now handles sibling updates via Redux selectors.
+    pass
 
 def _build_fit_analysis_response(raw_eft, fit_obj, hull_obj, character, is_fc):
     try:
