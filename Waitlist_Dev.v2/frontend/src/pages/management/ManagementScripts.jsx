@@ -1,21 +1,26 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Terminal, Play, Square, RefreshCw, ChevronRight, X, Maximize2 } from 'lucide-react';
-import { apiCall } from '../../utils/api';
 import useWebSocket from 'react-use-websocket';
+import { useDispatch, useSelector } from 'react-redux';
+import {
+    fetchScripts, runScript, stopScript,
+    selectAvailableScripts, selectActiveScripts, selectScriptStatus
+} from '../../store/slices/scriptSlice';
 
 // --- CONSOLE COMPONENT ---
+// Keeps its own WebSocket state as it's a transient, high-frequency stream component
 const ScriptConsole = ({ scriptId, scriptName, onClose }) => {
     const [logs, setLogs] = useState([]);
     const [status, setStatus] = useState('connecting');
     const scrollRef = useRef(null);
+    const dispatch = useDispatch();
 
     // Construct WebSocket URL
-    // Use window.location to determine protocol (ws or wss)
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host; // includes port if any
+    const host = window.location.host;
     const wsUrl = `${protocol}//${host}/ws/management/scripts/${scriptId}/`;
 
-    const { sendMessage, lastMessage, readyState } = useWebSocket(wsUrl, {
+    const { lastMessage } = useWebSocket(wsUrl, {
         shouldReconnect: () => true,
         reconnectAttempts: 10,
         reconnectInterval: 3000,
@@ -47,7 +52,7 @@ const ScriptConsole = ({ scriptId, scriptName, onClose }) => {
 
     const handleStop = async () => {
         if (!confirm('Are you sure you want to kill this process?')) return;
-        await apiCall('/api/mgmt/scripts/stop/', { method: 'POST', body: JSON.stringify({ script_id: scriptId }) });
+        await dispatch(stopScript(scriptId)).unwrap();
     };
 
     return (
@@ -97,9 +102,10 @@ const ScriptConsole = ({ scriptId, scriptName, onClose }) => {
 
 
 const ManagementScripts = () => {
-    const [scripts, setScripts] = useState([]);
-    const [activeScripts, setActiveScripts] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const dispatch = useDispatch();
+    const scripts = useSelector(selectAvailableScripts);
+    const activeScripts = useSelector(selectActiveScripts);
+    const status = useSelector(selectScriptStatus);
 
     // Modal State
     const [selectedScript, setSelectedScript] = useState(null);
@@ -108,27 +114,13 @@ const ManagementScripts = () => {
     const [activeConsoleId, setActiveConsoleId] = useState(null);
     const [activeConsoleName, setActiveConsoleName] = useState(null);
 
-    const fetchData = async () => {
-        setLoading(true);
-        try {
-            const data = await apiCall('/api/mgmt/scripts/');
-            setScripts(data.available);
-            setActiveScripts(data.active);
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setLoading(false);
-        }
-    };
-
     useEffect(() => {
-        fetchData();
-        // Poll for active status updates every 10s
+        dispatch(fetchScripts());
         const interval = setInterval(() => {
-             apiCall('/api/mgmt/scripts/').then(data => setActiveScripts(data.active)).catch(() => {});
+             dispatch(fetchScripts());
         }, 10000);
         return () => clearInterval(interval);
-    }, []);
+    }, [dispatch]);
 
     const openRunModal = (script) => {
         setSelectedScript(script);
@@ -138,26 +130,22 @@ const ManagementScripts = () => {
     const handleRun = async () => {
         if (!selectedScript) return;
         try {
-            const res = await apiCall('/api/mgmt/scripts/run/', {
-                method: 'POST',
-                body: JSON.stringify({
-                    name: selectedScript.name,
-                    args: argsInput
-                })
-            });
+            const resultAction = await dispatch(runScript({
+                name: selectedScript.name,
+                args: argsInput
+            })).unwrap();
 
-            if (res.success) {
-                // Open Console Immediately
-                setActiveConsoleId(res.script_id);
-                setActiveConsoleName(selectedScript.name);
-                setConsoleOpen(true);
+            // Open Console Immediately
+            setActiveConsoleId(resultAction.script_id);
+            setActiveConsoleName(selectedScript.name);
+            setConsoleOpen(true);
 
-                // Close Run Modal
-                setSelectedScript(null);
-                fetchData();
-            }
+            // Close Run Modal & Refresh
+            setSelectedScript(null);
+            dispatch(fetchScripts());
+
         } catch (e) {
-            alert("Failed to start: " + e.message);
+            alert("Failed to start: " + e);
         }
     };
 
@@ -174,8 +162,8 @@ const ManagementScripts = () => {
                     <h1 className="text-2xl font-bold text-white tracking-tight">System Scripts</h1>
                     <p className="text-slate-400">Run backend management commands directly from the dashboard.</p>
                 </div>
-                <button onClick={fetchData} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition">
-                    <RefreshCw size={20} />
+                <button onClick={() => dispatch(fetchScripts())} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition">
+                    <RefreshCw size={20} className={status === 'loading' ? 'animate-spin' : ''} />
                 </button>
             </div>
 
@@ -210,7 +198,7 @@ const ManagementScripts = () => {
 
             {/* Script Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {loading ? (
+                {status === 'loading' && scripts.length === 0 ? (
                     <div className="text-slate-500 col-span-full py-10 text-center">Loading scripts...</div>
                 ) : scripts.map(script => (
                     <div key={script.name} className="group bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 rounded-xl p-5 transition flex flex-col h-full">
