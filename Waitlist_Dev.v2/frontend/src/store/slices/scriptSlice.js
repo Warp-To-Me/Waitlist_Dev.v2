@@ -6,8 +6,8 @@ export const fetchScripts = createAsyncThunk(
     async (_, { rejectWithValue }) => {
         try {
             const response = await apiCall('/api/mgmt/scripts/');
-            console.log("DEBUG: fetchScripts response:", response);
-            return response;
+            const data = await response.json();
+            return data;
         } catch (error) {
             console.error("DEBUG: fetchScripts error:", error);
             return rejectWithValue(error.message);
@@ -21,12 +21,16 @@ export const runScript = createAsyncThunk(
         try {
             const response = await apiCall('/api/mgmt/scripts/run/', {
                 method: 'POST',
-                body: JSON.stringify({ name, args })
+                body: JSON.stringify({ name, args }),
+                headers: {
+                    'Content-Type': 'application/json'
+                }
             });
-            if (response.success) {
-                return response;
+            const data = await response.json();
+            if (data.success) {
+                return data;
             } else {
-                return rejectWithValue(response.error);
+                return rejectWithValue(data.error);
             }
         } catch (error) {
             return rejectWithValue(error.message);
@@ -40,12 +44,16 @@ export const stopScript = createAsyncThunk(
         try {
             const response = await apiCall('/api/mgmt/scripts/stop/', {
                 method: 'POST',
-                body: JSON.stringify({ script_id: scriptId })
+                body: JSON.stringify({ script_id: scriptId }),
+                headers: {
+                    'Content-Type': 'application/json'
+                }
             });
-            if (response.success) {
+            const data = await response.json();
+            if (data.success) {
                 return scriptId;
             } else {
-                return rejectWithValue(response.error);
+                return rejectWithValue(data.error);
             }
         } catch (error) {
             return rejectWithValue(error.message);
@@ -76,7 +84,6 @@ const scriptSlice = createSlice({
         builder.addCase(fetchScripts.fulfilled, (state, action) => {
             state.status = 'succeeded';
             // Defensive coding: ensure arrays
-            console.log("DEBUG: fetchScripts fulfilled payload:", action.payload);
             state.available = Array.isArray(action.payload?.available) ? action.payload.available : [];
             state.active = Array.isArray(action.payload?.active) ? action.payload.active : [];
         });
