@@ -124,11 +124,16 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                 
                 # UPDATE: Apply a 2-minute cooldown to this endpoint's cache
                 # This prevents the Dispatcher from picking it up again immediately
-                EsiHeaderCache.objects.update_or_create(
-                    character=character,
-                    endpoint_name=endpoint_name,
-                    defaults={'expires': timezone.now() + timedelta(minutes=2)}
-                )
+                defaults = {'expires': timezone.now() + timedelta(minutes=2)}
+
+                rows_updated = EsiHeaderCache.objects.filter(character=character, endpoint_name=endpoint_name).update(**defaults)
+
+                if rows_updated == 0:
+                    try:
+                        EsiHeaderCache.objects.create(character=character, endpoint_name=endpoint_name, **defaults)
+                    except Exception:
+                        pass
+
                 return True
             return False
 
@@ -149,11 +154,14 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                     for ep in SKIP_IF_OFFLINE:
                         if ep in target_endpoints:
                             target_endpoints.remove(ep)
-                            EsiHeaderCache.objects.update_or_create(
-                                character=character,
-                                endpoint_name=ep,
-                                defaults={'expires': timezone.now()}
-                            )
+
+                            defaults = {'expires': timezone.now()}
+                            rows_updated = EsiHeaderCache.objects.filter(character=character, endpoint_name=ep).update(**defaults)
+                            if rows_updated == 0:
+                                try:
+                                    EsiHeaderCache.objects.create(character=character, endpoint_name=ep, **defaults)
+                                except Exception:
+                                    pass
 
         # --- PUBLIC INFO (Corp/Alliance) ---
         if ENDPOINT_PUBLIC_INFO in target_endpoints:
