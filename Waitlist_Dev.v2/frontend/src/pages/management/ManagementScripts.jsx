@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Terminal, Play, Square, RefreshCw, ChevronRight, X, Maximize2, AlertTriangle } from 'lucide-react';
+import { Terminal, Play, Square, RefreshCw, ChevronRight, X, Maximize2, AlertTriangle, Info } from 'lucide-react';
 import useWebSocket from 'react-use-websocket';
 import { useDispatch, useSelector } from 'react-redux';
 import {
@@ -8,7 +8,6 @@ import {
 } from '../../store/slices/scriptSlice';
 
 // --- CONSOLE COMPONENT ---
-// Keeps its own WebSocket state as it's a transient, high-frequency stream component
 const ScriptConsole = ({ scriptId, scriptName, onClose }) => {
     const [logs, setLogs] = useState([]);
     const [status, setStatus] = useState('connecting');
@@ -43,7 +42,6 @@ const ScriptConsole = ({ scriptId, scriptName, onClose }) => {
         }
     }, [lastMessage]);
 
-    // Auto-scroll
     useEffect(() => {
         if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -215,10 +213,10 @@ const ManagementScripts = () => {
                         <span>No management scripts found in core/waitlist_data.</span>
                     </div>
                 ) : (scripts || []).map(script => (
-                    <div key={script.name} className="group bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 rounded-xl p-5 transition flex flex-col h-full">
+                    <div key={script.name} className={`group border rounded-xl p-5 transition flex flex-col h-full ${script.is_dangerous ? 'bg-red-500/5 hover:bg-red-500/10 border-red-500/10 hover:border-red-500/30' : 'bg-white/5 hover:bg-white/10 border-white/5 hover:border-white/20'}`}>
                         <div className="flex items-start justify-between mb-3">
-                            <div className="p-2 bg-slate-900 rounded-lg text-brand-400 border border-white/5">
-                                <Terminal size={20} />
+                            <div className={`p-2 rounded-lg border ${script.is_dangerous ? 'bg-red-900/20 text-red-400 border-red-500/20' : 'bg-slate-900 text-brand-400 border-white/5'}`}>
+                                {script.is_dangerous ? <AlertTriangle size={20} /> : <Terminal size={20} />}
                             </div>
                             <span className="text-[10px] font-bold bg-slate-800 text-slate-400 px-2 py-1 rounded border border-white/5">
                                 {script.app}
@@ -227,9 +225,27 @@ const ManagementScripts = () => {
                         <h3 className="text-white font-bold text-lg mb-1">{script.name}</h3>
                         <p className="text-slate-400 text-sm mb-4 flex-grow line-clamp-3">{script.help}</p>
 
+                        {/* Arguments List */}
+                        {script.arguments && script.arguments.length > 0 && (
+                            <div className="mb-4 space-y-1">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Arguments</span>
+                                <div className="flex flex-wrap gap-1">
+                                    {script.arguments.map((arg, idx) => (
+                                        <span key={idx} className="text-xs bg-black/40 px-1.5 py-0.5 rounded text-slate-300 font-mono border border-white/5" title={arg.help}>
+                                            {arg.name}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         <button
                             onClick={() => openRunModal(script)}
-                            className="w-full py-2 bg-brand-600 hover:bg-brand-500 text-white font-bold rounded-lg transition flex items-center justify-center gap-2 group-hover:shadow-lg group-hover:shadow-brand-500/20"
+                            className={`w-full py-2 font-bold rounded-lg transition flex items-center justify-center gap-2 group-hover:shadow-lg ${
+                                script.is_dangerous
+                                ? 'bg-red-600 hover:bg-red-500 text-white group-hover:shadow-red-500/20'
+                                : 'bg-brand-600 hover:bg-brand-500 text-white group-hover:shadow-brand-500/20'
+                            }`}
                         >
                             <Play size={16} /> Run Script
                         </button>
@@ -240,17 +256,34 @@ const ManagementScripts = () => {
             {/* Run Modal */}
             {selectedScript && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-                    <div className="bg-slate-900 border border-slate-700 w-full max-w-lg rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+                    <div className={`bg-slate-900 border w-full max-w-lg rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 ${selectedScript.is_dangerous ? 'border-red-500/30' : 'border-slate-700'}`}>
                         <div className="p-6">
-                            <h2 className="text-xl font-bold text-white mb-2">Run <span className="font-mono text-brand-400">{selectedScript.name}</span></h2>
-                            <p className="text-slate-400 text-sm mb-6">Configure arguments for this command.</p>
+                            <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
+                                {selectedScript.is_dangerous && <AlertTriangle className="text-red-500" size={24} />}
+                                Run <span className="font-mono text-brand-400">{selectedScript.name}</span>
+                            </h2>
+                            <p className="text-slate-400 text-sm mb-4">Configure arguments for this command.</p>
 
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Arguments (Optional)</label>
+                            {selectedScript.arguments && selectedScript.arguments.length > 0 ? (
+                                <div className="mb-6 p-3 bg-black/30 rounded-lg border border-white/5 space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
+                                    <h4 className="text-xs font-bold text-slate-500 uppercase">Available Options</h4>
+                                    {selectedScript.arguments.map((arg, idx) => (
+                                        <div key={idx} className="text-xs">
+                                            <span className="font-mono text-brand-400 font-bold mr-2">{arg.name}</span>
+                                            <span className="text-slate-400">{arg.help}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-xs text-slate-500 mb-6 italic">No arguments detected.</p>
+                            )}
+
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Arguments Input</label>
                             <input
                                 type="text"
                                 value={argsInput}
                                 onChange={(e) => setArgsInput(e.target.value)}
-                                placeholder="e.g. --days 30 --force"
+                                placeholder="e.g. --users 5 --loops 10"
                                 className="w-full bg-black/50 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition font-mono text-sm mb-6"
                             />
 
@@ -263,7 +296,11 @@ const ManagementScripts = () => {
                                 </button>
                                 <button
                                     onClick={handleRun}
-                                    className="flex-1 py-2.5 bg-brand-600 hover:bg-brand-500 text-white font-bold rounded-lg transition flex items-center justify-center gap-2"
+                                    className={`flex-1 py-2.5 font-bold rounded-lg transition flex items-center justify-center gap-2 ${
+                                        selectedScript.is_dangerous
+                                        ? 'bg-red-600 hover:bg-red-500 text-white'
+                                        : 'bg-brand-600 hover:bg-brand-500 text-white'
+                                    }`}
                                 >
                                     <Play size={16} /> Execute
                                 </button>
