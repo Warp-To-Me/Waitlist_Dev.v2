@@ -14,18 +14,6 @@ const WaitlistEntry = ({ entry, onAction, onOpenEntry, onOpenUpdate }) => {
     const otherCategories = useSelector(state => selectSiblingCategories(state, entry.character.id, entry.id));
     
     // Check ownership
-    // entry.character.user_id is the integer ID of the django User
-    // currentUser might be missing if auth failed or loading, but let's assume it has an id if logged in.
-    // The API response for /api/me/ (api_me) doesn't explicitly include 'id' in the response dictionary above!
-    // Wait, let me check api_me response again.
-
-    // The api_me in core/api_utils.py returns:
-    // { username, is_staff, is_superuser, ... }
-    // IT DOES NOT RETURN 'id'!
-
-    // If currentUser.id is undefined, isOwner is always false.
-    // I need to add 'id': request.user.id to api_me response.
-
     const isOwner = currentUser?.id === entry.character.user_id;
     
     // FC Permission Check
@@ -166,13 +154,13 @@ const WaitlistEntry = ({ entry, onAction, onOpenEntry, onOpenUpdate }) => {
                 <div className="mt-1.5 pt-1.5 border-t border-white/5 grid grid-cols-2 gap-2" onClick={e => e.stopPropagation()}>
                     <button 
                         onClick={() => onOpenUpdate(entry.id)} 
-                        className="bg-blue-600 hover:bg-blue-500 text-white text-[10px] py-1 rounded font-bold transition shadow-lg shadow-blue-500/20"
+                        className="bg-blue-600 hover:bg-blue-500 text-white text-[9px] py-0.5 rounded font-bold transition shadow-lg shadow-blue-500/20"
                     >
                         Update
                     </button>
                     <button 
                         onClick={() => onAction(entry.id, 'leave')} 
-                        className="bg-white/5 hover:bg-red-500/20 text-slate-400 hover:text-red-400 border border-white/10 hover:border-red-500/30 text-[10px] py-1 rounded font-bold transition"
+                        className="bg-white/5 hover:bg-red-500/20 text-slate-400 hover:text-red-400 border border-white/10 hover:border-red-500/30 text-[9px] py-0.5 rounded font-bold transition"
                     >
                         Leave
                     </button>
@@ -186,33 +174,30 @@ const WaitlistEntry = ({ entry, onAction, onOpenEntry, onOpenUpdate }) => {
                         <>
                             <button 
                                 onClick={() => onAction(entry.id, 'approve')} 
-                                className="flex-1 bg-green-600 hover:bg-green-500 text-white text-[10px] py-1 rounded font-bold transition shadow-lg shadow-green-500/20"
+                                className="flex-1 bg-green-600 hover:bg-green-500 text-white text-[9px] py-0.5 rounded font-bold transition shadow-lg shadow-green-500/20"
                             >
                                 Approve
                             </button>
                             <button 
                                 onClick={() => onAction(entry.id, 'deny')} 
-                                className="flex-1 bg-white/5 hover:bg-red-500/20 text-slate-400 hover:text-red-400 border border-white/10 hover:border-red-500/30 text-[10px] py-1 rounded font-bold transition"
+                                className="flex-1 bg-white/5 hover:bg-red-500/20 text-slate-400 hover:text-red-400 border border-white/10 hover:border-red-500/30 text-[9px] py-0.5 rounded font-bold transition"
                             >
                                 Reject
                             </button>
                         </>
                     ) : (
                         <>
-                            {entry.status === 'approved' && (
-                                <button 
-                                    onClick={() => onAction(entry.id, 'invite')} 
-                                    className="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-[10px] py-1 rounded font-bold transition shadow-lg shadow-blue-500/20 animate-pulse"
-                                >
-                                    Invite
-                                </button>
-                            )}
+                            <button
+                                onClick={() => onAction(entry.id, 'invite')}
+                                className="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-[9px] py-0.5 rounded font-bold transition shadow-lg shadow-blue-500/20"
+                            >
+                                Invite
+                            </button>
                             <button 
                                 onClick={() => onAction(entry.id, 'deny')} 
-                                className="w-8 flex items-center justify-center bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 border border-white/10 hover:border-red-500/30 rounded transition" 
-                                title="Remove"
+                                className="flex-1 bg-white/5 hover:bg-red-500/20 text-slate-400 hover:text-red-400 border border-white/10 hover:border-red-500/30 text-[9px] py-0.5 rounded font-bold transition"
                             >
-                                <span className="text-xs">✕</span>
+                                Kick
                             </button>
                         </>
                     )}

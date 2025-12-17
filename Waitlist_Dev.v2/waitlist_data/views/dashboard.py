@@ -27,13 +27,6 @@ from rest_framework.response import Response
 def fleet_dashboard(request, token):
     fleet = get_object_or_404(Fleet, join_token=token)
     
-    # Check ban status manually (decorator on view function won't work well with DRF api_view wrapper sometimes, 
-    # but let's assume we can port the check logic or just rely on middleware if it existed.
-    # The original had @check_ban_status. Let's replicate logic if needed or wrap it.
-    # For now, strict adherence to logic:
-    # If banned, return 403 or redirect info? original redirected to banned view.
-    # We will assume frontend handles API errors.
-    
     fc_name = EveCharacter.objects.filter(user=fleet.commander, is_main=True).values_list('character_name', flat=True).first()
     if not fc_name:
         fc_name = EveCharacter.objects.filter(user=fleet.commander).values_list('character_name', flat=True).first()
@@ -56,7 +49,7 @@ def fleet_dashboard(request, token):
     category_map = get_category_map()
 
     # --- PASS 1: Resolve Columns & Build Pilot Map ---
-    char_columns = defaultdict(set) # char_id -> set of active columns
+    # char_columns = defaultdict(set) # REMOVED: Frontend handles this now
     
     processed_entries = []
     
@@ -79,9 +72,9 @@ def fleet_dashboard(request, token):
         real_cat = get_entry_real_category(entry, category_map)
         entry.real_category = real_cat
         
-        # Track for Multi-Fit Indicators
-        if real_cat in ['logi', 'dps', 'sniper']:
-            char_columns[entry.character.character_id].add(real_cat)
+        # Track for Multi-Fit Indicators (REMOVED: Frontend handles this)
+        # if real_cat in ['logi', 'dps', 'sniper']:
+        #     char_columns[entry.character.character_id].add(real_cat)
             
         processed_entries.append(entry)
 
@@ -89,13 +82,14 @@ def fleet_dashboard(request, token):
     column_data = {'pending': [], 'logi': [], 'dps': [], 'sniper': [], 'other': []}
     
     for entry in processed_entries:
-        all_pilot_cats = char_columns.get(entry.character.character_id, set())
-        other_categories = list(all_pilot_cats - {entry.real_category})
+        # all_pilot_cats = char_columns.get(entry.character.character_id, set()) # REMOVED
+        # other_categories = list(all_pilot_cats - {entry.real_category}) # REMOVED
         
         target = entry.target_column if entry.target_column in column_data else 'other'
         
         column_data[target].append({
             'id': entry.id,
+            'category': entry.real_category, # ADDED
             'character': {
                 'id': entry.character.character_id,
                 'name': entry.character.character_name,
@@ -113,7 +107,7 @@ def fleet_dashboard(request, token):
             },
             'status': entry.status,
             'stats': entry.display_stats,
-            'other_categories': other_categories,
+            # 'other_categories': other_categories, # REMOVED
             'created_at': entry.created_at,
             'can_fly': entry.can_fly,
             'missing_skills': entry.missing_skills,
@@ -152,17 +146,6 @@ def fleet_dashboard(request, token):
     # Simplified serialization
     categories_data = []
     cats = DoctrineCategory.objects.filter(parent__isnull=True).prefetch_related('subcategories__fits')
-    # Recursive serialization helper needed if we want full tree, 
-    # but for X-up usually we just need top level or flattened list? 
-    # Let's assume the frontend fetches doctrines from /api/doctrines/ if needed for full tree,
-    # or we send a simplified list here.
-    # The original template iterated `categories`.
-    
-    # We will reuse the `serialize_category` from core views if imported, or redefine.
-    # To keep it simple, we'll return a flat list of fits grouped by category for the dropdown?
-    # Actually the X-up modal needs the tree.
-    # Let's rely on the frontend fetching `api/doctrines/` separately or include it here.
-    # Including it here reduces network calls.
     
     def serialize_cat(cat):
         return {
