@@ -2,32 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { apiCall } from '../utils/api';
 import clsx from 'clsx';
 import { useSelector } from 'react-redux';
-import { selectUser } from '../store/slices/authSlice';
+import { selectUserChars } from '../store/slices/fleetSlice';
 
 // --- X-UP MODAL ---
 
 export const XUpModal = ({ isOpen, onClose, fleetToken }) => {
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState(null);
-    const [availableChars, setAvailableChars] = useState([]);
-    const { user } = useSelector(selectUser) || {};
-
-    // Fetch available characters for the user when modal opens
-    useEffect(() => {
-        if (isOpen && user) {
-            apiCall('/api/profile/')
-                .then(r => r.json())
-                .then(data => {
-                    // Correctly map characters from the response list
-                    if (data.characters && Array.isArray(data.characters)) {
-                        setAvailableChars(data.characters);
-                    } else {
-                        setAvailableChars([]);
-                    }
-                })
-                .catch(console.error);
-        }
-    }, [isOpen, user]);
+    const availableChars = useSelector(selectUserChars);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -87,9 +69,9 @@ export const XUpModal = ({ isOpen, onClose, fleetToken }) => {
                     <div className="p-6 md:w-1/2 bg-white/5 flex flex-col overflow-y-auto custom-scrollbar">
                         <h4 className="label-text mb-4">Select Pilot(s)</h4>
                         <div className="space-y-4">
-                            {availableChars.length > 0 ? availableChars.map(char => (
+                            {availableChars && availableChars.length > 0 ? availableChars.map(char => (
                                 <div key={char.character_id} className="bg-black/20 rounded border border-white/5 p-3 hover:border-white/20 transition group">
-                                    <label className="flex items-start gap-3 cursor-pointer">
+                                    <label className="flex items-start gap-3 cursor-pointer mb-2">
                                         <input
                                             type="checkbox"
                                             name="character_id"
@@ -100,9 +82,28 @@ export const XUpModal = ({ isOpen, onClose, fleetToken }) => {
                                             <div className="flex items-center gap-2">
                                                 <img src={`https://images.evetech.net/characters/${char.character_id}/portrait?size=32`} className="w-5 h-5 rounded-full border border-white/10" alt="" />
                                                 <span className="text-sm font-bold text-slate-200 group-hover:text-white truncate">{char.character_name}</span>
-                                                {char.is_main && <span className="text-[9px] text-brand-500 bg-brand-900/20 px-1 rounded border border-brand-500/20 ml-auto">MAIN</span>}
+                                                {/* Note: 'is_main' logic isn't explicit in dashboard API response for user_chars, check if needed.
+                                                    The dashboard API response DOES NOT explicitly send is_main in user_chars list,
+                                                    but the legacy template assumed it.
+                                                    We can skip the MAIN badge if not present or rely on frontend if critical.
+                                                    For now, matching API response fields.
+                                                */}
                                             </div>
-                                            <div className="text-[10px] text-slate-500 mt-0.5 truncate">{char.corporation_name}</div>
+                                            {/* Implants Grid */}
+                                            <div className="mt-2 pl-7">
+                                                {char.active_implants && char.active_implants.length > 0 ? (
+                                                    <div className="grid grid-cols-2 gap-1">
+                                                        {char.active_implants.map(imp => (
+                                                            <div key={imp.id} className="flex items-center gap-1.5 bg-white/5 px-1.5 py-0.5 rounded border border-white/5 overflow-hidden" title={imp.name}>
+                                                                <img src={`https://images.evetech.net/types/${imp.id}/icon?size=32`} className="w-3 h-3 rounded-sm opacity-80 flex-shrink-0" alt="" />
+                                                                <span className="text-[9px] text-slate-400 truncate leading-none">{imp.name}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-[9px] text-slate-600 italic">No implants detected</span>
+                                                )}
+                                            </div>
                                         </div>
                                     </label>
                                 </div>

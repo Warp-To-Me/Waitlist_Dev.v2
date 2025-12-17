@@ -243,6 +243,9 @@ const initialState = {
   permissions: {},
   user_status: {},
   
+  // X-Up Modal data
+  user_chars: [],
+
   loading: false, // General loading state for async ops
   error: null,
 };
@@ -277,6 +280,7 @@ export const fleetSlice = createSlice({
         state.columns = action.payload.columns;
         state.permissions = action.payload.permissions;
         state.user_status = action.payload.user_status;
+        state.user_chars = action.payload.user_chars || []; // Load user characters with implants
         state.loading = false;
         state.error = null;
     },
@@ -464,6 +468,7 @@ export const selectCanViewAdmin = (state) => state.fleet.canViewAdmin;
 export const selectFleetColumns = (state) => state.fleet.columns;
 export const selectFleetOverview = (state) => state.fleet.overview;
 export const selectFleetPermissions = (state) => state.fleet.permissions;
+export const selectUserChars = (state) => state.fleet.user_chars;
 export const selectFleetLoading = (state) => state.fleet.loading;
 export const selectFleetError = (state) => state.fleet.error;
 export const selectConnectionStatus = (state) => state.fleet.status;
