@@ -46,7 +46,7 @@ const FleetDashboard = () => {
             })
             .then(data => {
                 dispatch(setFleetData(data));
-                dispatch(wsConnect(`/ws/fleet/${token}/`));
+                dispatch(wsConnect(`/ws/fleet/${token}/`, 'fleet'));
             })
             .catch(err => {
                 console.error(err);
@@ -54,7 +54,7 @@ const FleetDashboard = () => {
             });
 
         return () => {
-            dispatch(wsDisconnect());
+            dispatch(wsDisconnect('fleet'));
         };
     }, [token, dispatch]);
 

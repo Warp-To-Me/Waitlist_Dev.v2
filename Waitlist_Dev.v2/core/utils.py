@@ -387,7 +387,7 @@ def get_system_status():
             'pending_count': safety_net_count
         })
 
-    delayed_breakdown = EsiHeaderCache.objects.filter(
+    delayed_breakdown = list(EsiHeaderCache.objects.filter(
         endpoint_name__in=BACKGROUND_ENDPOINTS,
         expires__lte=now
     ).exclude(
@@ -396,7 +396,7 @@ def get_system_status():
         Q(expires__lte=grace_period)
     ).values('endpoint_name').annotate(
         pending_count=Count('id')
-    ).order_by('-pending_count')
+    ).order_by('-pending_count'))
 
     from esi_calls.token_manager import check_esi_status
     esi_status_bool = check_esi_status()

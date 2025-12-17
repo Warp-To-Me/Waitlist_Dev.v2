@@ -350,10 +350,21 @@ export const fleetSlice = createSlice({
   extraReducers: (builder) => {
       builder
         // WS Events
-        .addCase('WS_CONNECTED', (state) => { state.status = 'connected'; })
-        .addCase('WS_DISCONNECTED', (state) => { state.status = 'disconnected'; })
+        .addCase('WS_CONNECTED', (state, action) => {
+             if (action.payload.channelKey === 'fleet') {
+                 state.status = 'connected'; 
+             }
+        })
+        .addCase('WS_DISCONNECTED', (state, action) => { 
+             if (action.payload.channelKey === 'fleet') {
+                 state.status = 'disconnected'; 
+             }
+        })
         .addCase('WS_MESSAGE_RECEIVED', (state, action) => {
-             fleetSlice.caseReducers.handleWsMessage(state, action);
+             if (action.payload.channelKey === 'fleet') {
+                 // Unwrap the message from the payload
+                 fleetSlice.caseReducers.handleWsMessage(state, { payload: action.payload.msg });
+             }
         })
         
         // List Fetch
