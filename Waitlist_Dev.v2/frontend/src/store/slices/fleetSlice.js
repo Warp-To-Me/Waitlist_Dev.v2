@@ -239,11 +239,33 @@ const initialState = {
       sniper: [],
       other: []
   },
+  overview: null, // Fleet Overview (Hierarchy)
   permissions: {},
   user_status: {},
   
   loading: false, // General loading state for async ops
   error: null,
+};
+
+// Helper to remove entry from all columns
+const removeEntry = (columns, entryId) => {
+    Object.keys(columns).forEach(key => {
+        columns[key] = columns[key].filter(e => e.id !== entryId);
+    });
+};
+
+// Helper to insert entry sorted by creation time (Oldest first)
+const insertSorted = (list, entry) => {
+    const newTs = new Date(entry.created_at).getTime();
+    let index = list.length;
+    for (let i = 0; i < list.length; i++) {
+        const childTs = new Date(list[i].created_at).getTime();
+        if (newTs < childTs) {
+            index = i;
+            break;
+        }
+    }
+    list.splice(index, 0, entry);
 };
 
 export const fleetSlice = createSlice({
@@ -268,9 +290,54 @@ export const fleetSlice = createSlice({
     // Handler for generic WebSocket updates
     handleWsMessage: (state, action) => {
         const msg = action.payload;
+
+        if (msg.type === 'fleet_overview') {
+            // Update the FC Overview hierarchy
+            state.overview = {
+                member_count: msg.member_count,
+                summary: msg.summary,
+                hierarchy: msg.hierarchy
+            };
+            return;
+        }
+
+        if (msg.type === 'fleet_error') {
+            state.error = msg.error;
+            return;
+        }
+
         if (msg.type === 'fleet_update') {
-            if (msg.data) {
-                if (msg.data.fleet) state.data = msg.data.fleet;
+            // Granular updates
+            if (msg.action === 'remove') {
+                removeEntry(state.columns, msg.entry_id);
+                return;
+            }
+
+            if ((msg.action === 'add' || msg.action === 'move') && msg.data) {
+                // Remove first (in case moving between columns)
+                removeEntry(state.columns, msg.entry_id);
+
+                const targetCol = msg.target_col || 'other';
+                if (state.columns[targetCol]) {
+                    insertSorted(state.columns[targetCol], msg.data);
+                }
+                return;
+            }
+
+            if (msg.action === 'update' && msg.data) {
+                 // Find and update in place
+                 Object.keys(state.columns).forEach(key => {
+                     const idx = state.columns[key].findIndex(e => e.id === msg.entry_id);
+                     if (idx !== -1) {
+                         state.columns[key][idx] = msg.data;
+                     }
+                 });
+                 return;
+            }
+
+            // Legacy fallback (if message has full fleet object)
+            if (msg.data && msg.data.fleet) {
+                state.data = msg.data.fleet;
                 if (msg.data.columns) state.columns = msg.data.columns;
             }
         }
@@ -395,6 +462,7 @@ export const selectFleetSetup = (state) => state.fleet.setup;
 export const selectFleetHistory = (state) => state.fleet.history;
 export const selectCanViewAdmin = (state) => state.fleet.canViewAdmin;
 export const selectFleetColumns = (state) => state.fleet.columns;
+export const selectFleetOverview = (state) => state.fleet.overview;
 export const selectFleetPermissions = (state) => state.fleet.permissions;
 export const selectFleetLoading = (state) => state.fleet.loading;
 export const selectFleetError = (state) => state.fleet.error;

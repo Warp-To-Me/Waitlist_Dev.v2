@@ -114,7 +114,7 @@ def broadcast_update(fleet_id, action, entry, target_col=None):
         'entry_id': entry.id
     }
     
-    if action in ['add', 'move']:
+    if action in ['add', 'move', 'update']:
         # 1. Stats (Now uses the optimized CharacterStats table)
         stats = calculate_pilot_stats(entry.character)
         hull_name = entry.hull.type_name if entry.hull else "Unknown"
@@ -150,11 +150,42 @@ def broadcast_update(fleet_id, action, entry, target_col=None):
         
         entry.other_categories = list(other_cats)
         
-        # 4. Render
+        # 4. Render (Legacy)
         context = {'entry': entry, 'is_fc': True}
         html = render_to_string('waitlist/entry_card.html', context)
         payload['html'] = html
         payload['target_col'] = target_col
+
+        # 5. Serialize for React
+        payload['data'] = {
+            'id': entry.id,
+            'character': {
+                'id': entry.character.character_id,
+                'name': entry.character.character_name,
+                'corporation_name': entry.character.corporation_name,
+                'user_id': entry.character.user_id # Important for permission checks
+            },
+            'hull': {
+                'id': entry.hull.type_id if entry.hull else 0,
+                'name': entry.hull.type_name if entry.hull else "Unknown Ship"
+            },
+            'fit': {
+                'id': entry.fit.id if entry.fit else None,
+                'name': entry.fit.name if entry.fit else "Custom Fit"
+            },
+            'status': entry.status,
+            'created_at': entry.created_at.isoformat(),
+            'time_waiting': entry.time_waiting,
+            'can_fly': entry.can_fly,
+            'missing_skills': entry.missing_skills,
+            'tier': {
+                'name': entry.tier.name,
+                'hex_color': entry.tier.hex_color,
+                'badge_class': entry.tier.badge_class
+            } if entry.tier else None,
+            'other_categories': entry.other_categories,
+            'display_stats': entry.display_stats
+        }
 
     async_to_sync(channel_layer.group_send)(group_name, payload)
 
