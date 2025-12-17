@@ -1,13 +1,13 @@
 import requests
 import email.utils
 import asyncio
-import threading
 from django.utils import timezone
 from datetime import datetime, timezone as dt_timezone
 from pilot_data.models import EsiHeaderCache
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-from django.core.cache import cache
+from django.core.cache import cache # Import Django Cache
+import asyncio
 
 # Channels imports for broadcasting
 from asgiref.sync import async_to_sync
@@ -29,17 +29,6 @@ def get_esi_session():
     )
     session.mount('https://', HTTPAdapter(max_retries=retries))
     return session
-
-def _threaded_broadcast(channel_layer, channel_name, payload):
-    """
-    Worker function to run broadcast in a separate thread.
-    This ensures async_to_sync runs in a clean environment with its own event loop,
-    isolating it from the main request thread and any potential gevent monkey-patching issues.
-    """
-    try:
-        async_to_sync(channel_layer.group_send)(channel_name, payload)
-    except Exception as e:
-        print(f"Error in threaded broadcast: {e}")
 
 def _broadcast_ratelimit(user, headers):
     """
@@ -104,18 +93,14 @@ def _broadcast_ratelimit(user, headers):
                     }
                 ))
             except RuntimeError:
-                # No running loop (Standard Thread).
-                # To prevent crashes if the thread is managed by gevent or has a bad loop state,
-                # we offload this to a fresh thread.
-                t = threading.Thread(
-                    target=_threaded_broadcast,
-                    args=(channel_layer, f"user_{user.id}", {
+                # No running loop (Standard Thread), use async_to_sync
+                async_to_sync(channel_layer.group_send)(
+                    f"user_{user.id}",
+                    {
                         "type": "user_notification",
                         "data": payload
-                    })
+                    }
                 )
-                t.daemon = True # Don't block app exit
-                t.start()
 
         except Exception as e:
             print(f"Error broadcasting ratelimit: {e}")
@@ -221,11 +206,19 @@ def _update_cache_headers(character, endpoint_name, headers, existing_entry=None
         except ValueError:
             pass
 
-    EsiHeaderCache.objects.update_or_create(
-        character=character,
-        endpoint_name=endpoint_name,
-        defaults={
-            'etag': etag.strip('"') if etag else None,
-            'expires': expires_dt
-        }
-    )
+    defaults = {
+        'etag': etag.strip('"') if etag else None,
+        'expires': expires_dt
+    }
+
+    # FIX: Use update-then-create pattern to avoid 'select_for_update outside transaction'
+    # errors in gevent-patched environments, and to reduce lock contention.
+    rows_updated = EsiHeaderCache.objects.filter(character=character, endpoint_name=endpoint_name).update(**defaults)
+    
+    if rows_updated == 0:
+        try:
+            EsiHeaderCache.objects.create(character=character, endpoint_name=endpoint_name, **defaults)
+        except Exception: 
+            # If create fails (likely IntegrityError due to race condition), 
+            # we assume another worker created it successfully.
+            pass

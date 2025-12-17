@@ -39,6 +39,7 @@
     <Compile Include="core\models.py" />
     <Compile Include="core\permissions.py" />
     <Compile Include="core\routing.py" />
+    <Compile Include="core\script_manager.py" />
     <Compile Include="core\tasks.py" />
     <Compile Include="core\views_frontend.py" />
     <Compile Include="core\views_skills.py" />
@@ -148,6 +149,7 @@
     <Content Include="frontend\src\pages\management\ManagementHistory.jsx" />
     <Content Include="frontend\src\pages\management\ManagementPermissions.jsx" />
     <Content Include="frontend\src\pages\management\ManagementRules.jsx" />
+    <Content Include="frontend\src\pages\management\ManagementScripts.jsx" />
     <Content Include="frontend\src\pages\management\ManagementSDE.jsx" />
     <Content Include="frontend\src\pages\management\ManagementSkills.jsx" />
     <Content Include="frontend\src\pages\management\ManagementSRP.jsx" />
@@ -159,6 +161,7 @@
     <Content Include="frontend\src\store\slices\fleetSlice.js" />
     <Content Include="frontend\src\store\slices\notificationSlice.js" />
     <Content Include="frontend\src\store\slices\profileSlice.js" />
+    <Content Include="frontend\src\store\slices\scriptSlice.js" />
     <Content Include="frontend\src\store\slices\srpSlice.js" />
     <Content Include="frontend\src\store\slices\systemSlice.js" />
     <Content Include="frontend\src\store\slices\uiSlice.js" />

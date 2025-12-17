@@ -65,19 +65,20 @@ def check_esi_status():
     return is_healthy
 
 def check_token(character):
-    if not character.refresh_token:
-        print(f"[Token Manager] No refresh token for {character.character_name}")
-        return False
-        
-    # Check expiry
-    time_left = (character.token_expires - timezone.now()).total_seconds() if character.token_expires else -1
-    if not character.token_expires or time_left < 300: # 5 minutes
-        print(f"[Token Manager] Token expired (Left: {time_left:.1f}s). Refreshing {character.character_name}...")
-        return force_refresh_token(character)
+    if not character.refresh_token: return False
+    if not character.token_expires or character.token_expires <= timezone.now() + timedelta(minutes=5):
+        print(f"Refreshing token for {character.character_name}...")
+        return _refresh_access_token(character)
     return True
 
 def force_refresh_token(character):
-    print(f"[Token Manager] Forcing refresh for {character.character_name}. Current Expiry: {character.token_expires}")
+    """
+    Public wrapper to force a token refresh immediately.
+    Useful for 401 Retry logic.
+    """
+    return _refresh_access_token(character)
+
+def _refresh_access_token(character):
     url = "https://login.eveonline.com/v2/oauth/token"
     client_id = settings.EVE_CLIENT_ID
     secret_key = os.getenv('EVE_SECRET_KEY')
@@ -93,50 +94,18 @@ def force_refresh_token(character):
             auth=(client_id, secret_key),
             timeout=10 
         )
-        
-        if response.status_code != 200:
-            print(f"[Token Manager] Refresh Failed {response.status_code}: {response.text}")
-            return False
-            
+        if response.status_code != 200: return False
         response.raise_for_status()
         tokens = response.json()
-        
-        old_token_sig = character.access_token[-10:] if character.access_token else "NONE"
         
         character.access_token = tokens['access_token']
         character.refresh_token = tokens.get('refresh_token', character.refresh_token) 
         character.token_expires = timezone.now() + timedelta(seconds=tokens['expires_in'])
         character.save()
-        
-        new_token_sig = character.access_token[-10:]
-        print(f"[Token Manager] Refresh Success for {character.character_name}. New Expiry: {character.token_expires}. Sig: {old_token_sig} -> {new_token_sig}")
-        
-        # --- VERIFY TOKEN SCOPES ---
-        verify_token_metadata(character)
-
         return True
     except Exception as e:
-        print(f"[Token Manager] Exception refreshing token: {e}")
+        print(f"Exception refreshing token: {e}")
         return False
-
-def verify_token_metadata(character):
-    """
-    Debug helper to verify the token works against ESI and inspect scopes.
-    """
-    try:
-        url = "https://esi.evetech.net/verify/"
-        headers = {'Authorization': f'Bearer {character.access_token}'}
-        resp = requests.get(url, headers=headers, timeout=5)
-        
-        if resp.status_code == 200:
-            data = resp.json()
-            print(f"[Token Verification] Character: {data.get('CharacterName')} ({data.get('CharacterID')})")
-            print(f"[Token Verification] Scopes: {data.get('Scopes')}")
-            print(f"[Token Verification] Expires: {data.get('ExpiresOn')}")
-        else:
-            print(f"[Token Verification] FAILED: {resp.status_code} - {resp.text}")
-    except Exception as e:
-        print(f"[Token Verification] Exception: {e}")
 
 # UPDATED: Added force_refresh parameter
 def update_character_data(character, target_endpoints=None, force_refresh=False):
@@ -162,11 +131,16 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                 
                 # UPDATE: Apply a 2-minute cooldown to this endpoint's cache
                 # This prevents the Dispatcher from picking it up again immediately
-                EsiHeaderCache.objects.update_or_create(
-                    character=character,
-                    endpoint_name=endpoint_name,
-                    defaults={'expires': timezone.now() + timedelta(minutes=2)}
-                )
+                defaults = {'expires': timezone.now() + timedelta(minutes=2)}
+                
+                rows_updated = EsiHeaderCache.objects.filter(character=character, endpoint_name=endpoint_name).update(**defaults)
+                
+                if rows_updated == 0:
+                    try:
+                        EsiHeaderCache.objects.create(character=character, endpoint_name=endpoint_name, **defaults)
+                    except Exception:
+                        pass
+                        
                 return True
             return False
 
@@ -181,22 +155,20 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                 data = resp['data']
                 character.is_online = data.get('online', False)
                 character.last_login_at = data.get('last_login')
-
-                if character.is_online:
-                    character.last_online_at = timezone.now()
-                    character.save(update_fields=['is_online', 'last_login_at', 'last_online_at'])
-                else:
-                    character.save(update_fields=['is_online', 'last_login_at'])
+                character.save(update_fields=['is_online', 'last_login_at'])
 
                 if not character.is_online:
                     for ep in SKIP_IF_OFFLINE:
                         if ep in target_endpoints:
                             target_endpoints.remove(ep)
-                            EsiHeaderCache.objects.update_or_create(
-                                character=character,
-                                endpoint_name=ep,
-                                defaults={'expires': timezone.now()}
-                            )
+                            
+                            defaults = {'expires': timezone.now()}
+                            rows_updated = EsiHeaderCache.objects.filter(character=character, endpoint_name=ep).update(**defaults)
+                            if rows_updated == 0:
+                                try:
+                                    EsiHeaderCache.objects.create(character=character, endpoint_name=ep, **defaults)
+                                except Exception:
+                                    pass
 
         # --- PUBLIC INFO (Corp/Alliance) ---
         if ENDPOINT_PUBLIC_INFO in target_endpoints:

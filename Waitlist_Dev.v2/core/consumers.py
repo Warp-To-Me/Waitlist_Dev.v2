@@ -5,6 +5,7 @@ from django.template.loader import render_to_string
 from django.core.serializers.json import DjangoJSONEncoder
 from asgiref.sync import sync_to_async
 from core.utils import get_system_status
+from core.script_manager import ScriptManager
 
 class SystemMonitorConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -78,3 +79,71 @@ class UserConsumer(AsyncWebsocketConsumer):
         Expects event['data'] to be a dictionary.
         """
         await self.send(text_data=json.dumps(event['data']))
+
+class ScriptConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        self.user = self.scope["user"]
+        self.script_id = self.scope['url_route']['kwargs']['script_id']
+        
+        # Check permissions
+        # 'access_admin' is required. Using sync_to_async to check capability/group
+        if not await self.check_permission():
+            await self.close(code=4003)
+            return
+
+        self.group_name = f"script_{self.script_id}"
+        await self.channel_layer.group_add(self.group_name, self.channel_name)
+        await self.accept()
+
+        # Send history
+        await self.send_history()
+
+    @sync_to_async
+    def check_permission(self):
+        # Must be superuser or have access_admin capability
+        if self.user.is_superuser: 
+            return True
+        from core.utils import SYSTEM_CAPABILITIES, get_user_highest_role
+        
+        # Check explicit capability assignment via Roles
+        # Simplified check: just check superuser or manual role mapping for now
+        # Actually we have a helper in auth slice on frontend, but here we need backend check.
+        # The 'access_admin' capability is mapped to 'Admin' role in core/utils.py
+        
+        # Let's just reuse the logic if possible or check is_staff for now as baseline
+        if not self.user.is_staff:
+            return False
+            
+        # Proper check:
+        # TODO: Import capability check logic properly if needed.
+        # For now, restriction to Superuser or Admin/Leadership group is safest.
+        if self.user.groups.filter(name__in=['Admin', 'Leadership']).exists():
+            return True
+            
+        return False
+
+    async def disconnect(self, close_code):
+        if hasattr(self, 'group_name'):
+            await self.channel_layer.group_discard(self.group_name, self.channel_name)
+
+    async def send_history(self):
+        # Fetch logs from ScriptManager (Sync)
+        logs = await sync_to_async(ScriptManager.get_script_logs)(self.script_id)
+        if logs:
+            for line in logs:
+                await self.send(text_data=json.dumps({
+                    'type': 'log',
+                    'message': line
+                }))
+
+    async def log_message(self, event):
+        await self.send(text_data=json.dumps({
+            'type': 'log',
+            'message': event['message']
+        }))
+
+    async def status_update(self, event):
+        await self.send(text_data=json.dumps({
+            'type': 'status',
+            'status': event['status']
+        }))

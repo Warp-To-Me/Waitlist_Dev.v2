@@ -28,6 +28,7 @@ import ManagementRules from './pages/management/ManagementRules';
 import ManagementSDE from './pages/management/ManagementSDE';
 import ManagementCelery from './pages/management/ManagementCelery';
 import ManagementPermissions from './pages/management/ManagementPermissions';
+import ManagementScripts from './pages/management/ManagementScripts';
 
 function App() {
   return (
@@ -75,6 +76,7 @@ function App() {
               <Route path="sde" element={<ManagementSDE />} />
               <Route path="celery" element={<ManagementCelery />} />
               <Route path="permissions" element={<ManagementPermissions />} />
+              <Route path="scripts" element={<ManagementScripts />} />
               
               {/* Fallback for management sub-routes */}
               <Route path="*" element={<div className="p-10 text-slate-500">Page Not Found</div>} />
