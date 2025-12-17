@@ -1,55 +1,67 @@
 // Actions
-export const wsConnect = (url) => ({ type: 'WS_CONNECT', payload: url });
-export const wsDisconnect = () => ({ type: 'WS_DISCONNECT' });
-export const wsConnected = () => ({ type: 'WS_CONNECTED' });
-export const wsDisconnected = () => ({ type: 'WS_DISCONNECTED' });
-export const wsMessageReceived = (msg) => ({ type: 'WS_MESSAGE_RECEIVED', payload: msg });
+export const wsConnect = (url, channelKey) => ({ type: 'WS_CONNECT', payload: { url, channelKey } });
+export const wsDisconnect = (channelKey) => ({ type: 'WS_DISCONNECT', payload: { channelKey } });
+export const wsConnected = (channelKey) => ({ type: 'WS_CONNECTED', payload: { channelKey } });
+export const wsDisconnected = (channelKey) => ({ type: 'WS_DISCONNECTED', payload: { channelKey } });
+export const wsMessageReceived = (msg, channelKey) => ({ type: 'WS_MESSAGE_RECEIVED', payload: { msg, channelKey } });
 
 const socketMiddleware = () => {
-  let socket = null;
+  // Map<channelKey, WebSocket>
+  const sockets = new Map();
 
   return store => next => action => {
     switch (action.type) {
-      case 'WS_CONNECT':
-        if (socket !== null) {
-          socket.close();
+      case 'WS_CONNECT': {
+        const { url, channelKey } = action.payload;
+
+        if (sockets.has(channelKey)) {
+          sockets.get(channelKey).close();
+          sockets.delete(channelKey);
         }
 
         // Determine protocol
         const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
         // The payload is the path, e.g. '/ws/fleet/123/'
         // If the path already includes protocol, use it as is
-        const url = action.payload.startsWith('ws') 
-            ? action.payload 
-            : `${protocol}${window.location.host}${action.payload}`;
+        const fullUrl = url.startsWith('ws')
+            ? url
+            : `${protocol}${window.location.host}${url}`;
 
-        socket = new WebSocket(url);
+        const socket = new WebSocket(fullUrl);
+        sockets.set(channelKey, socket);
 
         socket.onopen = () => {
-          store.dispatch(wsConnected());
+          store.dispatch(wsConnected(channelKey));
         };
 
         socket.onclose = () => {
-          store.dispatch(wsDisconnected());
+          store.dispatch(wsDisconnected(channelKey));
+          // Clean up map if it was this specific socket instance closing
+          if (sockets.get(channelKey) === socket) {
+              sockets.delete(channelKey);
+          }
         };
 
         socket.onmessage = (event) => {
           try {
              const data = JSON.parse(event.data);
-             store.dispatch(wsMessageReceived(data));
+             store.dispatch(wsMessageReceived(data, channelKey));
           } catch (e) {
              console.error("WS Parse Error", e);
           }
         };
         
         break;
+      }
 
-      case 'WS_DISCONNECT':
-        if (socket !== null) {
-          socket.close();
+      case 'WS_DISCONNECT': {
+        const { channelKey } = action.payload;
+        if (sockets.has(channelKey)) {
+          sockets.get(channelKey).close();
+          sockets.delete(channelKey);
         }
-        socket = null;
         break;
+      }
 
       default:
         return next(action);
