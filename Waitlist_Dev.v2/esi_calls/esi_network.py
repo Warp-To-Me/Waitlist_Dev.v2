@@ -105,10 +105,11 @@ def _broadcast_ratelimit(user, headers):
         except Exception as e:
             print(f"Error broadcasting ratelimit: {e}")
 
-def call_esi(character, endpoint_name, url, method='GET', params=None, body=None, force_refresh=False):
+def call_esi(character, endpoint_name, url, method='GET', params=None, body=None, force_refresh=False, quiet=False):
     """
     Smart ESI Caller.
     :param force_refresh: If True, ignores local DB cache and ETags to ensure data is returned.
+    :param quiet: If True, suppresses "Token Invalid" console logs (useful for retry loops).
     """
     # 1. Check Cache Validity (Unless forced)
     cache_entry = None
@@ -158,7 +159,8 @@ def call_esi(character, endpoint_name, url, method='GET', params=None, body=None
             
         # Handle Token Errors
         if response.status_code in [401, 403]:
-            print(f"  -> [{response.status_code}] Token Invalid/Scope Missing")
+            if not quiet:
+                print(f"  -> [{response.status_code}] Token Invalid/Scope Missing")
             return {'status': response.status_code, 'data': None}
 
         # --- NEW: Handle Not Found (e.g. Closed Fleet) ---

@@ -89,7 +89,8 @@ def sync_corp_wallet(srp_config):
                 resp = {'status': 0}
 
                 while retry_count <= max_retries:
-                    resp = call_esi(character, f'corp_wallet_{corp_id}_{division}_{page}', url, params={'page': page}, force_refresh=True)
+                    # Pass quiet=True to suppress spammy logs on initial 401
+                    resp = call_esi(character, f'corp_wallet_{corp_id}_{division}_{page}', url, params={'page': page}, force_refresh=True, quiet=True)
                     
                     if resp['status'] == 401:
                         print(f"[SRP Sync] 401 on Div {division}. Forcing Token Refresh...")
@@ -299,7 +300,8 @@ def get_corp_divisions(character):
     
     while retry_count <= max_retries:
         # Use force_refresh=True to ensure we get body (ignore EsiHeaderCache returning 304)
-        resp = call_esi(character, f'corp_divisions_{corp_id}', url, force_refresh=True)
+        # Pass quiet=True to suppress spammy logs on initial 401
+        resp = call_esi(character, f'corp_divisions_{corp_id}', url, force_refresh=True, quiet=True)
         
         if resp['status'] == 401:
             if force_refresh_token(character):
@@ -351,7 +353,8 @@ def get_corp_balances(character):
     
     while retry_count <= max_retries:
         # Use force_refresh=True to ensure we get body
-        resp = call_esi(character, f'corp_balances_{corp_id}', url, force_refresh=True)
+        # Pass quiet=True to suppress spammy logs on initial 401
+        resp = call_esi(character, f'corp_balances_{corp_id}', url, force_refresh=True, quiet=True)
         
         if resp['status'] == 401:
             if force_refresh_token(character):
