@@ -99,7 +99,9 @@ def fleet_dashboard(request, token):
             'character': {
                 'id': entry.character.character_id,
                 'name': entry.character.character_name,
-                'is_main': entry.character.is_main
+                'is_main': entry.character.is_main,
+                'user_id': entry.character.user_id,
+                'corporation_name': entry.character.corporation_name
             },
             'hull': {
                 'name': entry.hull.type_name if entry.hull else "Unknown",
