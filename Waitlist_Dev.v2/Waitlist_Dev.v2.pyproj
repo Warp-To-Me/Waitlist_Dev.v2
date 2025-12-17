@@ -122,8 +122,12 @@
     <Content Include="frontend\postcss.config.js" />
     <Content Include="frontend\src\App.jsx" />
     <Content Include="frontend\src\components\BanEnforcer.jsx" />
+    <Content Include="frontend\src\components\EntryModal.jsx" />
+    <Content Include="frontend\src\components\FleetModals.jsx" />
+    <Content Include="frontend\src\components\FleetOverview.jsx" />
     <Content Include="frontend\src\components\Layout.jsx" />
     <Content Include="frontend\src\components\SmartPagination.jsx" />
+    <Content Include="frontend\src\components\WaitlistEntry.jsx" />
     <Content Include="frontend\src\context\AuthContext.jsx" />
     <Content Include="frontend\src\index.css" />
     <Content Include="frontend\src\main.jsx" />
@@ -153,6 +157,7 @@
     <Content Include="frontend\src\store\middleware\socketMiddleware.js" />
     <Content Include="frontend\src\store\slices\authSlice.js" />
     <Content Include="frontend\src\store\slices\fleetSlice.js" />
+    <Content Include="frontend\src\store\slices\notificationSlice.js" />
     <Content Include="frontend\src\store\slices\profileSlice.js" />
     <Content Include="frontend\src\store\slices\srpSlice.js" />
     <Content Include="frontend\src\store\slices\systemSlice.js" />
