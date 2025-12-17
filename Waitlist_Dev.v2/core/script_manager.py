@@ -24,7 +24,7 @@ class ScriptManager:
     def get_available_scripts():
         """
         Scans installed local apps for management commands.
-        Restricts to 'core' and 'waitlist_data' for safety/relevance.
+        Restricts to 'core', 'esi_calls', 'pilot_data' and 'waitlist_data' for safety/relevance.
         """
         target_apps = ['core', 'esi_calls', 'pilot_data', 'waitlist_data']
         scripts = []
