@@ -73,8 +73,9 @@ const scriptSlice = createSlice({
         });
         builder.addCase(fetchScripts.fulfilled, (state, action) => {
             state.status = 'succeeded';
-            state.available = action.payload.available;
-            state.active = action.payload.active;
+            // Defensive coding: ensure arrays
+            state.available = Array.isArray(action.payload?.available) ? action.payload.available : [];
+            state.active = Array.isArray(action.payload?.active) ? action.payload.active : [];
         });
         builder.addCase(fetchScripts.rejected, (state, action) => {
             state.status = 'failed';
@@ -111,8 +112,8 @@ const scriptSlice = createSlice({
 
 export const { clearScriptError } = scriptSlice.actions;
 
-export const selectAvailableScripts = (state) => state.scripts.available;
-export const selectActiveScripts = (state) => state.scripts.active;
+export const selectAvailableScripts = (state) => state.scripts.available || [];
+export const selectActiveScripts = (state) => state.scripts.active || [];
 export const selectScriptStatus = (state) => state.scripts.status;
 
 export default scriptSlice.reducer;

@@ -103,8 +103,8 @@ const ScriptConsole = ({ scriptId, scriptName, onClose }) => {
 
 const ManagementScripts = () => {
     const dispatch = useDispatch();
-    const scripts = useSelector(selectAvailableScripts);
-    const activeScripts = useSelector(selectActiveScripts);
+    const scripts = useSelector(selectAvailableScripts) || [];
+    const activeScripts = useSelector(selectActiveScripts) || [];
     const status = useSelector(selectScriptStatus);
 
     // Modal State
@@ -168,7 +168,7 @@ const ManagementScripts = () => {
             </div>
 
             {/* Active Scripts Banner */}
-            {activeScripts.length > 0 && (
+            {activeScripts && activeScripts.length > 0 && (
                 <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
                     <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Currently Running</h3>
                     <div className="space-y-2">
@@ -198,9 +198,9 @@ const ManagementScripts = () => {
 
             {/* Script Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {status === 'loading' && scripts.length === 0 ? (
+                {status === 'loading' && (!scripts || scripts.length === 0) ? (
                     <div className="text-slate-500 col-span-full py-10 text-center">Loading scripts...</div>
-                ) : scripts.map(script => (
+                ) : (scripts || []).map(script => (
                     <div key={script.name} className="group bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/20 rounded-xl p-5 transition flex flex-col h-full">
                         <div className="flex items-start justify-between mb-3">
                             <div className="p-2 bg-slate-900 rounded-lg text-brand-400 border border-white/5">
