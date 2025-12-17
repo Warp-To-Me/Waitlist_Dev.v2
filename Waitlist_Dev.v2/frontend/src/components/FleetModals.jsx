@@ -15,15 +15,15 @@ export const XUpModal = ({ isOpen, onClose, fleetToken }) => {
     // Fetch available characters for the user when modal opens
     useEffect(() => {
         if (isOpen && user) {
-            // In a real app we might fetch from API or use Redux profile data
-            // Assuming we can get them from profile or a specific endpoint
-            // For now, let's assume we fetch them
             apiCall('/api/profile/')
                 .then(r => r.json())
                 .then(data => {
-                    // Combine main + alts
-                    const chars = [data.main_character, ...(data.alts || [])].filter(Boolean);
-                    setAvailableChars(chars);
+                    // Correctly map characters from the response list
+                    if (data.characters && Array.isArray(data.characters)) {
+                        setAvailableChars(data.characters);
+                    } else {
+                        setAvailableChars([]);
+                    }
                 })
                 .catch(console.error);
         }
@@ -37,13 +37,11 @@ export const XUpModal = ({ isOpen, onClose, fleetToken }) => {
 
         try {
             const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-            // The legacy form sends 'character_id' as a list if multiple selected
-            // We need to handle that.
 
             const res = await apiCall(`/fleet/${fleetToken}/join/`, {
                 method: 'POST',
                 headers: { 'X-CSRFToken': csrf },
-                body: formData // Send as FormData to handle multiple checkboxes
+                body: formData
             });
 
             const data = await res.json();
@@ -63,39 +61,65 @@ export const XUpModal = ({ isOpen, onClose, fleetToken }) => {
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-dark-950/80 backdrop-blur-sm" onClick={onClose}>
-            <div className="bg-slate-900 border border-white/10 rounded-xl shadow-2xl p-6 max-w-md w-full" onClick={e => e.stopPropagation()}>
-                <h2 className="heading-2 mb-4 flex items-center gap-2">
-                    <span>🚀</span> Join Waitlist
-                </h2>
+            <div className="bg-slate-900 border border-white/10 rounded-xl shadow-2xl flex flex-col max-h-[85vh] w-full max-w-4xl" onClick={e => e.stopPropagation()}>
+                {/* Header */}
+                <div className="glass-header px-6 py-4 flex justify-between items-center shrink-0">
+                    <h3 className="font-bold text-white text-lg">Join Waitlist</h3>
+                    <button onClick={onClose} className="text-slate-400 hover:text-white">✕</button>
+                </div>
 
-                <form onSubmit={handleSubmit} id="xup-form">
-                    <div className="mb-4">
-                        <label className="label-text mb-2">Select Pilot(s)</label>
-                        <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar p-1">
+                <form onSubmit={handleSubmit} id="xup-form" className="flex flex-col md:flex-row flex-grow overflow-hidden">
+                    {/* LEFT: Fitting Paste */}
+                    <div className="p-6 md:w-1/2 flex flex-col border-b md:border-b-0 md:border-r border-white/5">
+                        <label className="label-text mb-2">Paste Fit(s)</label>
+                        <div className="flex-grow relative h-48 md:h-auto">
+                            <textarea
+                                name="eft_paste"
+                                className="w-full h-full bg-black/30 border border-white/10 rounded-lg p-3 text-[10px] font-mono text-slate-300 focus:border-brand-500 focus:ring-1 focus:ring-brand-500/50 outline-none resize-none leading-tight"
+                                placeholder={`[Hull, Fit Name]...\n\nPaste multiple fits to submit multiple entries at once.`}
+                                autoFocus
+                            ></textarea>
+                        </div>
+                        {error && <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded">{error}</div>}
+                    </div>
+
+                    {/* RIGHT: Pilot Selection */}
+                    <div className="p-6 md:w-1/2 bg-white/5 flex flex-col overflow-y-auto custom-scrollbar">
+                        <h4 className="label-text mb-4">Select Pilot(s)</h4>
+                        <div className="space-y-4">
                             {availableChars.length > 0 ? availableChars.map(char => (
-                                <label key={char.character_id} className="flex items-center gap-3 p-2 bg-white/5 hover:bg-white/10 rounded border border-white/5 cursor-pointer transition group">
-                                    <input type="checkbox" name="character_id" value={char.character_id} className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-brand-500 focus:ring-brand-500/50" />
-                                    <img src={`https://images.evetech.net/characters/${char.character_id}/portrait?size=64`} className="w-8 h-8 rounded border border-white/10" alt="" />
-                                    <div>
-                                        <div className="font-bold text-sm text-slate-200 group-hover:text-white">{char.character_name}</div>
-                                        <div className="text-[10px] text-slate-500">{char.corporation_name}</div>
-                                    </div>
-                                </label>
+                                <div key={char.character_id} className="bg-black/20 rounded border border-white/5 p-3 hover:border-white/20 transition group">
+                                    <label className="flex items-start gap-3 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            name="character_id"
+                                            value={char.character_id}
+                                            className="mt-1 w-4 h-4 rounded border-slate-600 bg-slate-800 text-brand-500 focus:ring-brand-500/50 shrink-0"
+                                        />
+                                        <div className="flex-grow min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <img src={`https://images.evetech.net/characters/${char.character_id}/portrait?size=32`} className="w-5 h-5 rounded-full border border-white/10" alt="" />
+                                                <span className="text-sm font-bold text-slate-200 group-hover:text-white truncate">{char.character_name}</span>
+                                                {char.is_main && <span className="text-[9px] text-brand-500 bg-brand-900/20 px-1 rounded border border-brand-500/20 ml-auto">MAIN</span>}
+                                            </div>
+                                            <div className="text-[10px] text-slate-500 mt-0.5 truncate">{char.corporation_name}</div>
+                                        </div>
+                                    </label>
+                                </div>
                             )) : (
                                 <div className="text-slate-500 text-sm italic">Loading pilots...</div>
                             )}
                         </div>
                     </div>
-
-                    {error && <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded">{error}</div>}
-
-                    <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
-                        <button type="button" onClick={onClose} className="btn-ghost text-sm">Cancel</button>
-                        <button type="submit" disabled={submitting} className="btn-primary px-6 py-2 shadow-lg shadow-brand-500/20">
-                            {submitting ? "Submitting..." : "Submit Fit(s)"}
-                        </button>
-                    </div>
                 </form>
+
+                {/* Footer */}
+                <div className="p-4 border-t border-white/5 bg-slate-900 flex justify-end shrink-0 gap-3">
+                    <button type="button" onClick={onClose} className="btn-ghost text-sm">Cancel</button>
+                    <button type="submit" form="xup-form" disabled={submitting} className="btn-primary py-2 px-8 shadow-lg shadow-brand-500/20">
+                        {submitting ? "Submitting..." : "Submit Fit(s)"}
+                    </button>
+                </div>
             </div>
         </div>
     );
