@@ -1,7 +1,7 @@
 import React from 'react';
 import { useSelector } from 'react-redux';
 import clsx from 'clsx';
-import { selectFleetPermissions } from '../store/slices/fleetSlice';
+import { selectFleetPermissions, selectSiblingCategories } from '../store/slices/fleetSlice';
 import { useAuth } from '../context/AuthContext';
 import { selectUser } from '../store/slices/authSlice';
 
@@ -9,10 +9,23 @@ import { selectUser } from '../store/slices/authSlice';
 // For multi-fit indicators (Logi/DPS/Sniper dots)
 
 const WaitlistEntry = ({ entry, onAction, onOpenEntry, onOpenUpdate }) => {
-    const { user: currentUser } = useSelector(selectUser) || {};
+    const { user: currentUser } = useAuth();
     const permissions = useSelector(selectFleetPermissions);
+    const otherCategories = useSelector(state => selectSiblingCategories(state, entry.character.id, entry.id));
     
     // Check ownership
+    // entry.character.user_id is the integer ID of the django User
+    // currentUser might be missing if auth failed or loading, but let's assume it has an id if logged in.
+    // The API response for /api/me/ (api_me) doesn't explicitly include 'id' in the response dictionary above!
+    // Wait, let me check api_me response again.
+
+    // The api_me in core/api_utils.py returns:
+    // { username, is_staff, is_superuser, ... }
+    // IT DOES NOT RETURN 'id'!
+
+    // If currentUser.id is undefined, isOwner is always false.
+    // I need to add 'id': request.user.id to api_me response.
+
     const isOwner = currentUser?.id === entry.character.user_id;
     
     // FC Permission Check
@@ -120,15 +133,15 @@ const WaitlistEntry = ({ entry, onAction, onOpenEntry, onOpenUpdate }) => {
                 </div>
 
                 {/* Multi-Fit Indicators (Anchored Right Center) */}
-                {entry.other_categories && entry.other_categories.length > 0 && (
+                {otherCategories && otherCategories.length > 0 && (
                     <div className="flex flex-col gap-1 absolute right-2 top-1/2 -translate-y-1/2 justify-center items-center h-full py-1">
-                        {entry.other_categories.includes('logi') && (
+                        {otherCategories.includes('logi') && (
                              <IndicatorDot color="blue" label="Logistics" />
                         )}
-                        {entry.other_categories.includes('dps') && (
+                        {otherCategories.includes('dps') && (
                              <IndicatorDot color="red" label="DPS" />
                         )}
-                        {entry.other_categories.includes('sniper') && (
+                        {otherCategories.includes('sniper') && (
                              <IndicatorDot color="green" label="Sniper" />
                         )}
                     </div>
