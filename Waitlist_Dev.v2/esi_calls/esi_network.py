@@ -13,22 +13,11 @@ import asyncio
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 
+# ESI Library
+from esi.models import Token
+
 # Standard HTTP Date Format for ESI
 DATE_FORMAT = '%a, %d %b %Y %H:%M:%S GMT'
-
-def get_esi_session():
-    """
-    Creates a requests session with automatic retries for server errors.
-    """
-    session = requests.Session()
-    retries = Retry(
-        total=3,
-        backoff_factor=0.3,
-        status_forcelist=[502, 503, 504],
-        allowed_methods=frozenset(['GET', 'POST'])
-    )
-    session.mount('https://', HTTPAdapter(max_retries=retries))
-    return session
 
 def _broadcast_ratelimit(user, headers):
     """
@@ -107,7 +96,7 @@ def _broadcast_ratelimit(user, headers):
 
 def call_esi(character, endpoint_name, url, method='GET', params=None, body=None, force_refresh=False):
     """
-    Smart ESI Caller.
+    Smart ESI Caller using django-esi Token.
     :param force_refresh: If True, ignores local DB cache and ETags to ensure data is returned.
     """
     # 1. Check Cache Validity (Unless forced)
@@ -119,19 +108,33 @@ def call_esi(character, endpoint_name, url, method='GET', params=None, body=None
             if timezone.now() < cache_entry.expires:
                 return {'status': 304, 'data': None}
 
-    # 2. Prepare Request
-    headers = {
-        'Authorization': f'Bearer {character.access_token}',
-        'User-Agent': 'Waitlist-Project-v1 (contact: admin@example.com)', 
-        'Accept': 'application/json'
-    }
+    # 2. Get Valid Token (Refresh handled by library)
+    # We fetch the most recent token for this character.
+    # We avoid get_token(..., scopes=[]) because it filters for tokens with *exactly* no scopes.
+    esi_token = Token.objects.filter(character_id=character.character_id).order_by('-created').first()
     
-    # Only send ETag if we are NOT forcing a refresh
-    if not force_refresh and cache_entry and cache_entry.etag:
-        headers['If-None-Match'] = cache_entry.etag
+    if not esi_token:
+        print(f"  -> No ESI Token found for {character.character_name}")
+        return {'status': 403, 'error': 'No Token'}
 
     try:
-        session = get_esi_session()
+        # We use the raw access token with `requests` to maintain compatibility with our
+        # existing parsing logic (which expects raw JSON responses, not Bravado objects).
+
+        # valid_access_token() checks expiry and refreshes if needed.
+        access_token = esi_token.valid_access_token()
+
+        headers = {
+            'Authorization': f'Bearer {access_token}',
+            'User-Agent': 'Waitlist-Project-v1 (contact: admin@example.com)',
+            'Accept': 'application/json'
+        }
+
+        # Only send ETag if we are NOT forcing a refresh
+        if not force_refresh and cache_entry and cache_entry.etag:
+            headers['If-None-Match'] = cache_entry.etag
+
+        session = requests.Session() # We could cache this session but strict isolation is safer
         
         if method == 'GET':
             response = session.get(url, headers=headers, params=params, timeout=10)
@@ -159,21 +162,22 @@ def call_esi(character, endpoint_name, url, method='GET', params=None, body=None
         # Handle Token Errors
         if response.status_code in [401, 403]:
             print(f"  -> [{response.status_code}] Token Invalid/Scope Missing")
+            # If 401, the library's `valid_access_token` should have caught it,
+            # unless it expired *during* the request or was revoked.
+            # We can force a refresh on the token object if we wanted to retry,
+            # but usually valid_access_token handles the expiry check.
             return {'status': response.status_code, 'data': None}
 
         # --- NEW: Handle Not Found (e.g. Closed Fleet) ---
         if response.status_code == 404:
-            # Don't print an error here, simply return 404 so consumers can handle it logic-side
             return {'status': 404, 'error': 'Not Found'}
 
         # Handle Server Errors
         if response.status_code >= 500:
             error_body = "No content"
             try:
-                # Attempt to parse JSON error message if available
                 error_body = response.json()
             except:
-                # Fallback to raw text if JSON parse fails
                 error_body = response.text or "Empty Body"
 
             print(f"  -> [{response.status_code}] ESI Server Error")
@@ -212,13 +216,10 @@ def _update_cache_headers(character, endpoint_name, headers, existing_entry=None
     }
 
     # FIX: Use update-then-create pattern to avoid 'select_for_update outside transaction'
-    # errors in gevent-patched environments, and to reduce lock contention.
     rows_updated = EsiHeaderCache.objects.filter(character=character, endpoint_name=endpoint_name).update(**defaults)
     
     if rows_updated == 0:
         try:
             EsiHeaderCache.objects.create(character=character, endpoint_name=endpoint_name, **defaults)
         except Exception: 
-            # If create fails (likely IntegrityError due to race condition), 
-            # we assume another worker created it successfully.
             pass
