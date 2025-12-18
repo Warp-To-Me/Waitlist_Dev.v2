@@ -13,15 +13,101 @@ from datetime import timedelta
 
 # Import InvalidToken to catch decryption errors
 from cryptography.fernet import InvalidToken
+import json
+import base64
 
 from pilot_data.models import EveCharacter
 from scheduler.tasks import refresh_character_task
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
 
 # --- PERMISSION HELPER ---
 def can_manage_srp(user):
     # Matches logic in core.views_srp
     if user.is_superuser: return True
     return user.groups.filter(capabilities__slug='manage_srp_source').exists()
+
+@api_view(['GET', 'POST'])
+@permission_classes([AllowAny])
+def auth_login_options(request):
+    """
+    API Endpoint for Custom Scope Selection Login.
+    GET: Returns available scopes and descriptions.
+    POST: Accepts list of requested scopes, validates them, and returns SSO URL.
+    """
+    
+    # Define Available Scopes
+    base_scopes = settings.EVE_SCOPES_BASE.split()
+    optional_scopes = settings.EVE_SCOPES_OPTIONAL.split()
+    fc_scopes = settings.EVE_SCOPES_FC.split()
+    srp_scopes = settings.EVE_SCOPES_SRP.split()
+    
+    # Only show FC/SRP scopes if user is authenticated and has permission?
+    # But for initial login, we might want to just show Base + Optional.
+    # If they are adding an alt, we might show more.
+    # For simplicity, we expose Base + Optional to everyone.
+    # Advanced scopes (FC/SRP) are usually handled by specific internal flows or can be added here if needed.
+    
+    # We will combine Optional + FC into the "Optional" list for the UI, 
+    # but maybe we should flag them. For now, let's just use Base + Optional.
+    # If a user IS an FC, they should probably use the "Login as FC" button or we add FC scopes to optional list.
+    
+    all_optional = optional_scopes + fc_scopes # Allow users to opt-in to FC scopes if they want
+    
+    if request.method == 'GET':
+        scope_options = []
+        for scope in all_optional:
+            meta = settings.SCOPE_DESCRIPTIONS.get(scope, {'label': scope, 'description': ''})
+            scope_options.append({
+                'scope': scope,
+                'label': meta['label'],
+                'description': meta['description']
+            })
+            
+        base_options = []
+        for scope in base_scopes:
+             meta = settings.SCOPE_DESCRIPTIONS.get(scope, {'label': scope, 'description': ''})
+             base_options.append({
+                'scope': scope,
+                'label': meta['label'],
+                'description': meta['description']
+            })
+
+        return JsonResponse({
+            'base_scopes': base_options,
+            'optional_scopes': scope_options
+        })
+
+    if request.method == 'POST':
+        data = request.data
+        requested_custom = data.get('scopes', [])
+        
+        # Always include Base Scopes
+        final_scopes = set(base_scopes)
+        
+        # Add valid custom scopes
+        allowed_optional = set(all_optional)
+        for s in requested_custom:
+            if s in allowed_optional:
+                final_scopes.add(s)
+                
+        # Generate State
+        state_token = secrets.token_urlsafe(32)
+        request.session['sso_state'] = state_token
+        
+        # Build URL
+        scope_str = " ".join(final_scopes)
+        params = {
+            'response_type': 'code',
+            'redirect_uri': settings.EVE_CALLBACK_URL,
+            'client_id': settings.EVE_CLIENT_ID,
+            'scope': scope_str,
+            'state': state_token 
+        }
+        base_url = "https://login.eveonline.com/v2/oauth/authorize/"
+        url = f"{base_url}?{urllib.parse.urlencode(params)}"
+        
+        return JsonResponse({'redirect_url': url})
 
 def sso_login(request):
     _clear_session_flags(request)
@@ -131,6 +217,26 @@ def sso_callback(request):
     char_id = char_data['CharacterID']
     char_name = char_data['CharacterName']
 
+    # --- SCOPE EXTRACTION ---
+    # Parse JWT to get actual granted scopes
+    granted_scopes_str = ""
+    try:
+        parts = access_token.split('.')
+        if len(parts) == 3:
+            payload_part = parts[1]
+            padding = '=' * (4 - len(payload_part) % 4)
+            payload_str = base64.urlsafe_b64decode(payload_part + padding).decode('utf-8')
+            payload = json.loads(payload_str)
+            
+            token_scopes = payload.get('scp', [])
+            if isinstance(token_scopes, str):
+                token_scopes = [token_scopes]
+            
+            granted_scopes_str = " ".join(token_scopes)
+    except Exception as e:
+        print(f"Error parsing token scopes: {e}")
+    # ------------------------
+
     # 3. Handle Linking vs Login
     target_char = None
     
@@ -143,7 +249,8 @@ def sso_callback(request):
             'character_name': char_name,
             'access_token': access_token,
             'refresh_token': refresh_token,
-            'token_expires': token_expiry
+            'token_expires': token_expiry,
+            'granted_scopes': granted_scopes_str
         }
 
         if user.characters.filter(is_main=True).exclude(character_id=char_id).exists():
@@ -182,6 +289,7 @@ def sso_callback(request):
             target_char.access_token = access_token
             target_char.refresh_token = refresh_token
             target_char.token_expires = token_expiry
+            target_char.granted_scopes = granted_scopes_str
             target_char.save()
         else:
             is_first_user = User.objects.count() == 0
@@ -202,7 +310,8 @@ def sso_callback(request):
                 is_main=True,
                 access_token=access_token,
                 refresh_token=refresh_token,
-                token_expires=token_expiry
+                token_expires=token_expiry,
+                granted_scopes=granted_scopes_str
             )
             refresh_character_task.delay(target_char.character_id)
 

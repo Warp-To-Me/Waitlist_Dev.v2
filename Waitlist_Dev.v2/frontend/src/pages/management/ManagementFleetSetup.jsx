@@ -16,6 +16,7 @@ const ManagementFleetSetup = () => {
     const { fc_chars: fcChars } = useSelector(selectFleetSetup);
 
     const [fleetName, setFleetName] = useState("New Fleet");
+    const [status, setStatus] = useState("");
     const [selectedFc, setSelectedFc] = useState('');
     const [offlineMode, setOfflineMode] = useState(false);
     const [motd, setMotd] = useState('');
@@ -247,6 +248,10 @@ const ManagementFleetSetup = () => {
                             <div>
                                 <label className="text-xs text-slate-500 block mb-1">Fleet Name</label>
                                 <input type="text" value={fleetName} onChange={(e) => setFleetName(e.target.value)} className="input-field" placeholder="e.g. Saturday Roam" />
+                            </div>
+                            <div>
+                                <label className="text-xs text-slate-500 block mb-1">Status (Optional)</label>
+                                <input type="text" value={status} onChange={(e) => setStatus(e.target.value)} className="input-field" placeholder="e.g. Forming up..." maxLength={100} />
                             </div>
                             <div>
                                 <label className="text-xs text-slate-500 block mb-1">Fleet Commander</label>

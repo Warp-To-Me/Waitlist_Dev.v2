@@ -119,18 +119,37 @@ def profile_view(request):
 
     active_char_data = None
     if active_char:
+        # Check scopes for data visibility
+        granted = set(active_char.granted_scopes.split()) if active_char.granted_scopes else None
+        
+        wallet_val = active_char.wallet_balance
+        lp_val = active_char.concord_lp
+        ship_name_val = active_char.current_ship_name
+        ship_type_val = getattr(active_char, 'ship_type_name', 'Unknown Hull')
+        ship_id_val = active_char.current_ship_type_id
+
+        if granted is not None:
+             if 'esi-wallet.read_character_wallet.v1' not in granted:
+                 wallet_val = None
+             if 'esi-characters.read_loyalty.v1' not in granted:
+                 lp_val = None
+             if 'esi-location.read_ship_type.v1' not in granted:
+                 ship_name_val = None
+                 ship_type_val = None
+                 ship_id_val = None
+
         active_char_data = {
             'character_id': active_char.character_id,
             'character_name': active_char.character_name,
             'corporation_name': active_char.corporation_name,
             'alliance_name': active_char.alliance_name,
             'is_main': active_char.is_main,
-            'wallet_balance': active_char.wallet_balance,
-            'concord_lp': active_char.concord_lp,
+            'wallet_balance': wallet_val,
+            'concord_lp': lp_val,
             'total_sp': active_char.total_sp,
-            'current_ship_name': active_char.current_ship_name,
-            'ship_type_name': getattr(active_char, 'ship_type_name', 'Unknown Hull'),
-            'current_ship_type_id': active_char.current_ship_type_id,
+            'current_ship_name': ship_name_val,
+            'ship_type_name': ship_type_val,
+            'current_ship_type_id': ship_id_val,
             'last_updated': active_char.last_updated
         }
 

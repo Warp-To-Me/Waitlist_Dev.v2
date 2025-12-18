@@ -9,6 +9,7 @@ class Fleet(models.Model):
     esi_fleet_id = models.BigIntegerField(null=True, blank=True)
     join_token = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     motd = models.TextField(blank=True, default="")
+    status = models.CharField(max_length=100, blank=True, default="")
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     end_time = models.DateTimeField(null=True, blank=True)

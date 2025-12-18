@@ -87,33 +87,119 @@ def management_users(request):
     direction = request.GET.get('dir', 'asc')
     page_number = request.GET.get('page', 1)
     
-    main_name_sq = EveCharacter.objects.filter(user=OuterRef('user'), is_main=True).values('character_name')[:1]
-    char_qs = EveCharacter.objects.select_related('user').annotate(
-        linked_count=Count('user__characters', distinct=True), main_char_name=Subquery(main_name_sq)
-    )
-    if query: char_qs = char_qs.filter(character_name__icontains=query)
-    valid_sorts = {
-        'character': 'character_name', 'main': 'main_char_name', 'linked': 'linked_count',
-        'corporation': 'corporation_name', 'alliance': 'alliance_name', 'status': 'last_updated'
-    }
-    db_sort_field = valid_sorts.get(sort_by, 'character_name')
-    if direction == 'desc': db_sort_field = '-' + db_sort_field
-    char_qs = char_qs.order_by(db_sort_field)
+    # Subqueries for Main Character details
+    main_char_sq = EveCharacter.objects.filter(user=OuterRef('pk'), is_main=True).values('character_name')[:1]
+    main_char_id_sq = EveCharacter.objects.filter(user=OuterRef('pk'), is_main=True).values('character_id')[:1]
+    corp_sq = EveCharacter.objects.filter(user=OuterRef('pk'), is_main=True).values('corporation_name')[:1]
+    alliance_sq = EveCharacter.objects.filter(user=OuterRef('pk'), is_main=True).values('alliance_name')[:1]
     
-    paginator = Paginator(char_qs, 10) 
+    # Query Users instead of Characters
+    users_qs = User.objects.annotate(
+        main_character_name=Subquery(main_char_sq),
+        main_character_id=Subquery(main_char_id_sq),
+        corporation_name=Subquery(corp_sq),
+        alliance_name=Subquery(alliance_sq),
+        linked_count=Count('characters', distinct=True)
+    )
+    
+    # Filter
+    if query:
+        users_qs = users_qs.filter(
+            Q(username__icontains=query) |
+            Q(characters__character_name__icontains=query)
+        ).distinct()
+
+    # Sort
+    valid_sorts = {
+        'character': 'main_character_name',
+        'corporation': 'corporation_name',
+        'linked': 'linked_count',
+        'status': 'last_login' # Default User field
+    }
+    db_sort_field = valid_sorts.get(sort_by, 'main_character_name')
+    if direction == 'desc':
+        ordering = [f'-{db_sort_field}', '-id']
+    else:
+        ordering = [db_sort_field, 'id']
+        
+    users_qs = users_qs.order_by(*ordering)
+    
+    # Pagination
+    paginator = Paginator(users_qs, 10) 
     page_obj = paginator.get_page(page_number)
     
     results = []
-    for char in page_obj:
+    for user in page_obj:
+        # Determine Main Character (Fallback to first if no main set)
+        main_char_name = user.main_character_name
+        main_char_id = user.main_character_id
+        corp_name = user.corporation_name
+        
+        # Fallback logic if annotations are empty (e.g. no is_main=True)
+        if not main_char_id:
+            first_char = user.characters.first()
+            if first_char:
+                main_char_name = first_char.character_name
+                main_char_id = first_char.character_id
+                corp_name = first_char.corporation_name
+            else:
+                main_char_name = user.username
+                main_char_id = 0
+                corp_name = "N/A"
+
+        # Fetch Alts Logic
+        alts_list = []
+        if user.linked_count > 1:
+            # 1. Get all chars excluding the specific main ID we just identified
+            other_chars = user.characters.exclude(character_id=main_char_id)
+            
+            # 2. Find recent activity for these specific alts
+            # Note: We fetch more than 3 activities to ensure we find unique characters
+            recent_activities = FleetActivity.objects.filter(character__in=other_chars)\
+                .order_by('-timestamp').values_list('character__character_id', flat=True)[:20]
+            
+            recent_ids_ordered = []
+            seen_ids = set()
+            for rid in recent_activities:
+                if rid not in seen_ids:
+                    recent_ids_ordered.append(rid)
+                    seen_ids.add(rid)
+                if len(recent_ids_ordered) >= 3:
+                    break
+
+            # 3. Separate into "Recent" and "Others" lists
+            recent_chars = []
+            remaining_chars = []
+            
+            # We fetch all objects to sort in python (small list usually < 10)
+            all_other_chars = list(other_chars)
+            
+            for c in all_other_chars:
+                if c.character_id in seen_ids:
+                    recent_chars.append(c)
+                else:
+                    remaining_chars.append(c)
+            
+            # Sort: Recent by activity order (matching recent_ids_ordered), Others by Alpha
+            recent_chars.sort(key=lambda x: recent_ids_ordered.index(x.character_id))
+            remaining_chars.sort(key=lambda x: x.character_name)
+            
+            # Combine and slice top 3
+            final_alts = (recent_chars + remaining_chars)[:3]
+            
+            for alt in final_alts:
+                alts_list.append({
+                    'character_name': alt.character_name,
+                    'character_id': alt.character_id
+                })
+
         results.append({
-            'id': char.user.id,
-            'character_name': char.character_name,
-            'character_id': char.character_id,
-            'main_character_name': char.main_char_name or "N/A",
-            'corporation_name': char.corporation_name,
-            'alliance_name': char.alliance_name,
-            'linked_count': char.linked_count,
-            'last_updated': char.last_updated
+            'id': user.id,
+            'character_name': main_char_name,
+            'character_id': main_char_id,
+            'corporation_name': corp_name,
+            'linked_count': user.linked_count,
+            'alts': alts_list
         })
 
     return Response({

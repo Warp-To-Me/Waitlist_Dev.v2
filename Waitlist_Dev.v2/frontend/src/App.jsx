@@ -4,6 +4,7 @@ import { AuthProvider } from './context/AuthContext';
 import Layout from './components/Layout';
 import BanEnforcer from './components/BanEnforcer';
 import Landing from './pages/Landing';
+import LoginPage from './pages/auth/LoginPage';
 import Doctrines from './pages/Doctrines';
 import Profile from './pages/Profile';
 import FleetDashboard from './pages/FleetDashboard';
@@ -40,6 +41,7 @@ function App() {
               {/* Public / User Pages */}
               <Route path="/" element={<Landing />} />
             <Route path="/landing/" element={<Landing />} />
+            <Route path="/auth/login" element={<LoginPage />} />
             <Route path="/doctrines" element={<Doctrines />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/fleet/:token" element={<FleetDashboard />} />

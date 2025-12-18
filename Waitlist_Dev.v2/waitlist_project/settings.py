@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 import pymysql
+from .scopes import SCOPE_DESCRIPTIONS
 
 # Load environment variables from .env file
 load_dotenv()
@@ -137,8 +138,6 @@ EVE_SCOPES_BASE = (
 
 # 2. Optional Scopes (Required for certain features)
 EVE_SCOPES_OPTIONAL = (
-    "esi-location.read_ship_type.v1 "
-    "esi-location.read_online.v1 "
     "esi-wallet.read_character_wallet.v1 "
     "esi-characters.read_loyalty.v1 "
     "esi-characters.read_assets.v1"

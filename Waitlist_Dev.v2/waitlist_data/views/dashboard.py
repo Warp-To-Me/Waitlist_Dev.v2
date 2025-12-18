@@ -161,6 +161,7 @@ def fleet_dashboard(request, token):
             'id': fleet.id,
             'token': fleet.join_token,
             'name': fleet.name,
+            'status': fleet.status,
             'description': fleet.motd,
             'is_active': fleet.is_active,
             'commander_name': fc_name,

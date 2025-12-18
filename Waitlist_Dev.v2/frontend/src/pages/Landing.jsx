@@ -89,10 +89,10 @@ const Landing = () => {
                                 Authentication is required to access fleet services. <br/>Please log in using your primary EVE Online character.
                             </p>
                             <div className="flex justify-center">
-                                <a href="/auth/login" data-no-spa className="btn-primary py-4 px-12 text-lg rounded-xl flex items-center gap-2">
+                                <Link to="/auth/login" className="btn-primary py-4 px-12 text-lg rounded-xl flex items-center gap-2">
                                     <LogIn size={24} />
                                     Log In with SSO
-                                </a>
+                                </Link>
                             </div>
                         </div>
                     </div>

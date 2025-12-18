@@ -30,9 +30,9 @@
     <Compile Include="core\decorators.py" />
     <Compile Include="core\eft_parser.py" />
     <Compile Include="core\management\commands\cleanup_sim_users.py" />
-    <Compile Include="core\management\commands\migrate_capabilities.py" />
-    <Compile Include="core\management\commands\setup_roles.py" />
-    <Compile Include="core\management\commands\setup_role_priorities.py" />
+    <Compile Include="scriptsbackup\core\migrate_capabilities.py" />
+    <Compile Include="scriptsbackup\core\setup_roles.py" />
+    <Compile Include="scriptsbackup\core\setup_role_priorities.py" />
     <Compile Include="core\management\commands\simulate_load.py" />
     <Compile Include="core\management\commands\__init__.py" />
     <Compile Include="core\management\__init__.py" />
@@ -64,7 +64,7 @@
     <Compile Include="scriptsbackup\pilot_data\backfill_wallet_categories.py" />
     <Compile Include="scriptsbackup\pilot_data\import_legacy_wallet.py" />
     <Compile Include="pilot_data\management\commands\refresh_all_characters.py" />
-    <Compile Include="pilot_data\management\commands\wipe_all_characters.py" />
+    <Compile Include="scriptsbackup\pilot_data\wipe_all_characters.py" />
     <Compile Include="pilot_data\management\commands\__init__.py" />
     <Compile Include="pilot_data\management\__init__.py" />
     <Compile Include="scheduler\apps.py" />
@@ -103,6 +103,7 @@
     <Compile Include="esi_calls\management\commands\sde_import.py" />
     <Compile Include="pilot_data\models.py" />
     <Compile Include="waitlist_project\celery.py" />
+    <Compile Include="waitlist_project\scopes.py" />
     <Compile Include="waitlist_project\settings.py" />
     <Compile Include="waitlist_data\models.py" />
     <Compile Include="waitlist_project\urls.py" />
@@ -133,6 +134,7 @@
     <Content Include="frontend\src\index.css" />
     <Content Include="frontend\src\main.jsx" />
     <Content Include="frontend\src\pages\AccessDenied.jsx" />
+    <Content Include="frontend\src\pages\auth\LoginPage.jsx" />
     <Content Include="frontend\src\pages\Banned.jsx" />
     <Content Include="frontend\src\pages\Doctrines.jsx" />
     <Content Include="frontend\src\pages\FleetDashboard.jsx" />
@@ -225,13 +227,16 @@
     <Folder Include="frontend\src\components\" />
     <Folder Include="frontend\src\context\" />
     <Folder Include="frontend\src\pages\" />
+    <Folder Include="frontend\src\pages\auth\" />
     <Folder Include="frontend\src\pages\management\" />
     <Folder Include="frontend\src\store\" />
     <Folder Include="frontend\src\store\middleware\" />
     <Folder Include="frontend\src\store\slices\" />
     <Folder Include="frontend\src\utils\" />
     <Folder Include="scriptsbackup\" />
+    <Folder Include="scriptsbackup\core\" />
     <Folder Include="scriptsbackup\pilot_data\" />
+    <Folder Include="scriptsbackup\waitlist_data\" />
     <Folder Include="static\" />
     <Folder Include="pilot_data\management\" />
     <Folder Include="pilot_data\management\commands\" />

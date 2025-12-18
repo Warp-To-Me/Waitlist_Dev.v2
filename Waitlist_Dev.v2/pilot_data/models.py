@@ -36,6 +36,9 @@ class EveCharacter(models.Model):
     token_expires = models.DateTimeField(null=True, blank=True)
     last_updated = models.DateTimeField(auto_now=True)
 
+    # Scopes
+    granted_scopes = models.TextField(blank=True, default="")
+
     def __str__(self):
         return f"{self.character_name} ({self.character_id})"
 
