@@ -8,6 +8,7 @@ import {
     selectFleetPermissions, selectFleetLoading, selectFleetError, selectConnectionStatus,
     takeOverFleet
 } from '../store/slices/fleetSlice';
+import { selectUser } from '../store/slices/authSlice';
 import { wsConnect, wsDisconnect } from '../store/middleware/socketMiddleware';
 import { apiCall } from '../utils/api';
 
@@ -29,6 +30,7 @@ const FleetDashboard = () => {
     const loading = useSelector(selectFleetLoading);
     const error = useSelector(selectFleetError);
     const connectionStatus = useSelector(selectConnectionStatus);
+    const currentUser = useSelector(selectUser);
 
     // Local Modal State
     const [xupModalOpen, setXupModalOpen] = useState(false);
@@ -103,6 +105,7 @@ const FleetDashboard = () => {
     if (!fleet) return null;
 
     const isFC = permissions.is_fc;
+    const isCurrentCommander = currentUser && fleet.commander_name === currentUser.username; // Fallback check if ID missing in fleet data
 
     return (
         <div className="absolute inset-0 flex flex-col overflow-hidden bg-dark-950 opacity-100"> 
@@ -157,7 +160,7 @@ const FleetDashboard = () => {
                             ></span>
 
                             {/* Take Over Button */}
-                            {isFC && (
+                            {isFC && !isCurrentCommander && (
                                 <button
                                     onClick={handleTakeOver}
                                     className={clsx(

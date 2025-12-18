@@ -320,6 +320,12 @@ export const fleetSlice = createSlice({
                 summary: msg.summary,
                 hierarchy: msg.hierarchy
             };
+            state.error = null; // Clear error on success
+            return;
+        }
+
+        if (msg.type === 'fleet_success') {
+            state.error = null;
             return;
         }
 

@@ -123,6 +123,11 @@ class FleetConsumer(AsyncWebsocketConsumer):
                             'summary': summary,
                             'hierarchy': hierarchy
                         }))
+                    elif composite_data == 'unchanged':
+                        # Send heartbeat/success to clear any previous errors
+                        await self.send(text_data=json.dumps({
+                            'type': 'fleet_success'
+                        }))
                     elif error:
                         if "404" in str(error):
                             await self.invalidate_fleet_id(self.token)
