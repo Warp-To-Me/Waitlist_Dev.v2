@@ -432,31 +432,42 @@ def get_character_data(active_char):
     esi_data = {'implants': [], 'queue': [], 'history': [], 'skill_history': []}
     grouped_skills = {}
     if not active_char: return esi_data, grouped_skills
-    implants = active_char.implants.all()
-    if implants.exists():
-        imp_ids = [i.type_id for i in implants]
-        known_items = ItemType.objects.filter(type_id__in=imp_ids).in_bulk(field_name='type_id')
-        for imp in implants:
-            item = known_items.get(imp.type_id)
-            esi_data['implants'].append({
-                'id': imp.type_id,
-                'name': item.type_name if item else f"Unknown ({imp.type_id})",
-                'icon_url': f"https://images.evetech.net/types/{imp.type_id}/icon?size=32"
-            })
-    queue = active_char.skill_queue.all().order_by('queue_position')
-    q_ids = [q.skill_id for q in queue]
-    q_types = ItemType.objects.filter(type_id__in=q_ids).in_bulk(field_name='type_id')
-    for q in queue:
-            item = q_types.get(q.skill_id)
-            esi_data['queue'].append({
-                'skill_id': q.skill_id,
-                'name': item.type_name if item else str(q.skill_id),
-                'finished_level': q.finished_level,
-                'finish_date': q.finish_date
-            })
+
+    granted = set(active_char.granted_scopes.split()) if active_char.granted_scopes else set()
+    # Backwards compatibility: If empty, assume all Base are present?
+    # Or just check emptiness. If empty and token exists, it might be old legacy.
+    # But for now, we trust the set.
+
+    # 1. IMPLANTS (Scope: esi-clones.read_implants.v1 - BASE)
+    # Base scopes should always be there, but good to check.
+    if 'esi-clones.read_implants.v1' in granted or not active_char.granted_scopes:
+        implants = active_char.implants.all()
+        if implants.exists():
+            imp_ids = [i.type_id for i in implants]
+            known_items = ItemType.objects.filter(type_id__in=imp_ids).in_bulk(field_name='type_id')
+            for imp in implants:
+                item = known_items.get(imp.type_id)
+                esi_data['implants'].append({
+                    'id': imp.type_id,
+                    'name': item.type_name if item else f"Unknown ({imp.type_id})",
+                    'icon_url': f"https://images.evetech.net/types/{imp.type_id}/icon?size=32"
+                })
+
+    # 2. SKILL QUEUE (Scope: esi-skills.read_skillqueue.v1 - BASE)
+    if 'esi-skills.read_skillqueue.v1' in granted or not active_char.granted_scopes:
+        queue = active_char.skill_queue.all().order_by('queue_position')
+        q_ids = [q.skill_id for q in queue]
+        q_types = ItemType.objects.filter(type_id__in=q_ids).in_bulk(field_name='type_id')
+        for q in queue:
+                item = q_types.get(q.skill_id)
+                esi_data['queue'].append({
+                    'skill_id': q.skill_id,
+                    'name': item.type_name if item else str(q.skill_id),
+                    'finished_level': q.finished_level,
+                    'finish_date': q.finish_date
+                })
     
-    # --- FIX: Serialize CharacterHistory objects manually ---
-    # OLD: esi_data['history'] = active_char.corp_history.all().order_by('-start_date')
+    # 3. CORP HISTORY (Public Data - Always Available if we have the char)
     history_entries = active_char.corp_history.all().order_by('-start_date')
     esi_data['history'] = [
         {
@@ -465,8 +476,8 @@ def get_character_data(active_char):
             'start_date': h.start_date
         } for h in history_entries
     ]
-    # --------------------------------------------------------
 
+    # 4. SKILL HISTORY (Derived from Skills + Internal Logging - Effectively Base/Public)
     try:
         raw_history = active_char.skill_history.all().order_by('-logged_at')[:30]
         if raw_history.exists():
@@ -480,27 +491,36 @@ def get_character_data(active_char):
                     'sp_diff': h.new_sp - h.old_sp, 'logged_at': h.logged_at
                 })
     except Exception: pass
-    skills = active_char.skills.select_related().all()
-    if skills.exists():
-        s_ids = [s.skill_id for s in skills]
-        s_types = ItemType.objects.filter(type_id__in=s_ids).in_bulk(field_name='type_id')
-        group_ids = set(st.group_id for st in s_types.values())
-        skill_groups = ItemGroup.objects.filter(group_id__in=group_ids).in_bulk(field_name='group_id')
-        for s in skills:
-            item = s_types.get(s.skill_id)
-            if item:
-                group = skill_groups.get(item.group_id)
-                group_name = group.group_name if group else "Unknown"
-                if group_name not in grouped_skills: grouped_skills[group_name] = []
-                grouped_skills[group_name].append({
-                    'name': item.type_name, 'level': s.active_skill_level, 'sp': s.skillpoints_in_skill
-                })
-        for g in grouped_skills: grouped_skills[g].sort(key=lambda x: x['name'])
-        grouped_skills = dict(sorted(grouped_skills.items()))
+
+    # 5. SKILLS (Scope: esi-skills.read_skills.v1 - BASE)
+    if 'esi-skills.read_skills.v1' in granted or not active_char.granted_scopes:
+        skills = active_char.skills.select_related().all()
+        if skills.exists():
+            s_ids = [s.skill_id for s in skills]
+            s_types = ItemType.objects.filter(type_id__in=s_ids).in_bulk(field_name='type_id')
+            group_ids = set(st.group_id for st in s_types.values())
+            skill_groups = ItemGroup.objects.filter(group_id__in=group_ids).in_bulk(field_name='group_id')
+            for s in skills:
+                item = s_types.get(s.skill_id)
+                if item:
+                    group = skill_groups.get(item.group_id)
+                    group_name = group.group_name if group else "Unknown"
+                    if group_name not in grouped_skills: grouped_skills[group_name] = []
+                    grouped_skills[group_name].append({
+                        'name': item.type_name, 'level': s.active_skill_level, 'sp': s.skillpoints_in_skill
+                    })
+            for g in grouped_skills: grouped_skills[g].sort(key=lambda x: x['name'])
+            grouped_skills = dict(sorted(grouped_skills.items()))
+
+    # 6. SHIP TYPE (Scope: esi-location.read_ship_type.v1 - OPTIONAL)
+    # We resolve the name if we have the ID, but the ID comes from ESI.
+    # If we don't have the scope, the background task won't update the ID, so it might be stale or None.
+    # We just resolve whatever ID is in the DB.
     if active_char.current_ship_type_id:
             try:
                 ship_item = ItemType.objects.get(type_id=active_char.current_ship_type_id)
                 active_char.ship_type_name = ship_item.type_name
             except ItemType.DoesNotExist:
                 active_char.ship_type_name = "Unknown Hull"
+
     return esi_data, grouped_skills
