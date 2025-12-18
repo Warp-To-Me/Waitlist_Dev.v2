@@ -105,7 +105,7 @@ const FleetDashboard = () => {
     if (!fleet) return null;
 
     const isFC = permissions.is_fc;
-    const isCurrentCommander = currentUser && fleet.commander_name === currentUser.username; // Fallback check if ID missing in fleet data
+    const isCurrentCommander = currentUser && fleet.commander_user_id === currentUser.id;
 
     return (
         <div className="absolute inset-0 flex flex-col overflow-hidden bg-dark-950 opacity-100"> 
