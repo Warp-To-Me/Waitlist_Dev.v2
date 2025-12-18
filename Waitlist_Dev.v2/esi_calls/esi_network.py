@@ -19,6 +19,20 @@ from esi.models import Token
 # Standard HTTP Date Format for ESI
 DATE_FORMAT = '%a, %d %b %Y %H:%M:%S GMT'
 
+def get_esi_session():
+    """
+    Creates a requests session with automatic retries for server errors.
+    """
+    session = requests.Session()
+    retries = Retry(
+        total=3,
+        backoff_factor=0.3,
+        status_forcelist=[502, 503, 504],
+        allowed_methods=frozenset(['GET', 'POST'])
+    )
+    session.mount('https://', HTTPAdapter(max_retries=retries))
+    return session
+
 def _broadcast_ratelimit(user, headers):
     """
     Helper to parse Rate Limit headers and push to the user's websocket.
