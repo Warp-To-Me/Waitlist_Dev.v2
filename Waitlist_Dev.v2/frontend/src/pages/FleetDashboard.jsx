@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
-import { Shield, Crosshair, Zap, Anchor, Clock, Settings, Scroll, Plus } from 'lucide-react';
+import { Shield, Crosshair, Zap, Anchor, Clock, Settings, Scroll, Plus, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
 import { 
     setFleetData, setFleetError, selectFleetData, selectFleetColumns, selectFleetOverview,
-    selectFleetPermissions, selectFleetLoading, selectFleetError, selectConnectionStatus 
+    selectFleetPermissions, selectFleetLoading, selectFleetError, selectConnectionStatus,
+    takeOverFleet
 } from '../store/slices/fleetSlice';
 import { wsConnect, wsDisconnect } from '../store/middleware/socketMiddleware';
 import { apiCall } from '../utils/api';
@@ -72,6 +73,12 @@ const FleetDashboard = () => {
         .catch(err => alert("Network Error"));
     };
 
+    const handleTakeOver = () => {
+        if (confirm("Are you sure you want to take over this fleet? This will set you as the FC and attempt to link your current in-game fleet.")) {
+            dispatch(takeOverFleet(token));
+        }
+    };
+
     if (loading && !fleet) return (
         <div className="absolute inset-0 flex items-center justify-center bg-dark-950">
             <div className="text-center animate-pulse">
@@ -81,7 +88,8 @@ const FleetDashboard = () => {
         </div>
     );
 
-    if (error) return (
+    // Only block on error if we have NO fleet data
+    if (error && !fleet) return (
         <div className="absolute inset-0 flex items-center justify-center bg-dark-950">
             <div className="text-center">
                 <div className="text-4xl mb-4 text-red-500">⚠</div>
@@ -143,10 +151,21 @@ const FleetDashboard = () => {
                             <span 
                                 className={clsx(
                                     "w-2.5 h-2.5 rounded-full transition-all duration-500",
-                                    connectionStatus === 'connected' ? "bg-green-500 shadow-green-500/50" : "bg-red-500 animate-pulse"
+                                    (connectionStatus === 'connected' && !error) ? "bg-green-500 shadow-green-500/50" : "bg-red-500 animate-pulse"
                                 )}
-                                title={connectionStatus === 'connected' ? "Live" : "Disconnected"}
+                                title={error ? error : "Live"}
                             ></span>
+
+                            {/* Take Over Button */}
+                            {isFC && error && (
+                                <button
+                                    onClick={handleTakeOver}
+                                    className="ml-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 text-[10px] px-2 py-0.5 rounded border border-red-500/30 flex items-center gap-1 transition-colors"
+                                    title="Take Over Command"
+                                >
+                                    <RefreshCw size={10} /> Take Over
+                                </button>
+                            )}
                         </p>
                     </div>
                 </div>
