@@ -274,6 +274,7 @@ def api_get_fleet_settings(request, token):
             'id': fleet.id,
             'name': fleet.name,
             'motd': fleet.motd,
+            'status': fleet.status,
             'esi_fleet_id': fleet.esi_fleet_id,
             'commander_id': fc_char.character_id if fc_char else None,
             'join_token': str(fleet.join_token)
