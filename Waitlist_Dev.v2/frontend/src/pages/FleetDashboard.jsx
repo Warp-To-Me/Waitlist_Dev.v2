@@ -132,6 +132,9 @@ const FleetDashboard = () => {
                     </div>
                     <div className="text-center">
                         <h1 className="heading-1 leading-none text-2xl md:text-3xl">{fleet.name}</h1>
+                        {fleet.status && (
+                            <div className="text-lg text-slate-300 font-medium my-1">{fleet.status}</div>
+                        )}
                         <p className="text-xs text-slate-400 mt-2 flex justify-center items-center gap-3 font-mono">
                             <span className="label-text mb-0 text-[10px]">FC</span>
                             <span className="text-white font-bold">{fleet.commander_name}</span>
