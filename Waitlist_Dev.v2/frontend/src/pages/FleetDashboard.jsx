@@ -157,10 +157,15 @@ const FleetDashboard = () => {
                             ></span>
 
                             {/* Take Over Button */}
-                            {isFC && error && (
+                            {isFC && (
                                 <button
                                     onClick={handleTakeOver}
-                                    className="ml-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 text-[10px] px-2 py-0.5 rounded border border-red-500/30 flex items-center gap-1 transition-colors"
+                                    className={clsx(
+                                        "ml-2 text-[10px] px-2 py-0.5 rounded border flex items-center gap-1 transition-colors",
+                                        error
+                                            ? "bg-red-500/20 hover:bg-red-500/30 text-red-400 border-red-500/30"
+                                            : "bg-slate-700/50 hover:bg-slate-700 text-slate-300 border-slate-600"
+                                    )}
                                     title="Take Over Command"
                                 >
                                     <RefreshCw size={10} /> Take Over
