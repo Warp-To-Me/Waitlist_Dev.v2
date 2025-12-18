@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { RefreshCw, Key, LogIn, AlertTriangle } from 'lucide-react';
 import { apiCall } from '../../utils/api';
 
@@ -108,18 +107,18 @@ const ManagementSRPConfig = () => {
                             <button onClick={syncWallet} disabled={loading} className="btn-primary text-xs py-2 px-4 shadow-brand-500/20">
                                 {loading ? "Syncing..." : "🔄 Force Sync Now"}
                             </button>
-                            <Link to="/auth/login?mode=srp" className="btn-secondary text-xs py-2 px-4 border-amber-500/30 text-amber-400 hover:bg-amber-500/10 flex items-center gap-2">
+                            <a href="/auth/login?mode=srp_auth" className="btn-secondary text-xs py-2 px-4 border-amber-500/30 text-amber-400 hover:bg-amber-500/10">
                                 <Key size={14} /> Update Token (Re-Auth)
-                            </Link>
+                            </a>
                         </div>
                     </>
                 ) : (
                     <>
                         <p className="text-slate-500 italic mb-4">No character selected.</p>
                         <div>
-                            <Link to="/auth/login?mode=srp" className="btn-primary text-xs py-2 px-6 inline-flex gap-2 items-center">
+                            <a href="/auth/login?mode=srp_auth" className="btn-primary text-xs py-2 px-6 inline-flex gap-2">
                                 <LogIn size={14} /> Log In New Character with Wallet Scopes
-                            </Link>
+                            </a>
                         </div>
                     </>
                 )}

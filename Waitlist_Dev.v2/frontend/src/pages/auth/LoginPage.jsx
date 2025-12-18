@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Shield, Info, LogIn, CheckCircle } from 'lucide-react';
 
 const LoginPage = () => {
@@ -10,6 +10,24 @@ const LoginPage = () => {
     const [redirecting, setRedirecting] = useState(false);
     
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const mode = searchParams.get('mode');
+
+    // Helper to get cookie for CSRF
+    const getCookie = (name) => {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    };
 
     useEffect(() => {
         fetch('/auth/login-options/')
@@ -36,9 +54,13 @@ const LoginPage = () => {
         fetch('/auth/login-options/', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
             },
-            body: JSON.stringify({ scopes: scopesToSend })
+            body: JSON.stringify({ 
+                scopes: scopesToSend,
+                mode: mode // Pass mode to backend
+            })
         })
         .then(res => res.json())
         .then(data => {
