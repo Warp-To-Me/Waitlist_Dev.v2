@@ -175,7 +175,7 @@ const Profile = () => {
                                 👥 Pilots <span className="badge badge-slate">{characters.length}</span>
                             </h2>
                             {!is_inspection_mode && (
-                                <a href="/auth/add_alt/" className="btn-primary text-xs px-3 py-1.5 shadow-lg shadow-brand-500/20 inline-flex items-center gap-2">
+                                <a href="/auth/login?mode=add_alt" className="btn-primary text-xs px-3 py-1.5 shadow-lg shadow-brand-500/20 inline-flex items-center gap-2">
                                     <Plus size={14} /> Link Alt
                                 </a>
                             )}
@@ -250,7 +250,7 @@ const Profile = () => {
                         <p className="text-slate-400 max-w-lg mx-auto mb-8 text-lg">
                             The EVE Online authorization token for <strong className="text-white">{active_char.character_name}</strong> has expired or is missing.
                         </p>
-                        <a href="/auth/add_alt/" className="btn-primary bg-red-600 hover:bg-red-500 border-red-500 shadow-red-900/20 inline-flex items-center gap-2">
+                        <a href="/auth/login?mode=add_alt" className="btn-primary bg-red-600 hover:bg-red-500 border-red-500 shadow-red-900/20 inline-flex items-center gap-2">
                             <Lock size={16} /> Re-Authorize Character
                         </a>
                     </div>
@@ -276,7 +276,7 @@ const Profile = () => {
                                     )}
 
                                     {scopes_missing && !is_inspection_mode && (
-                                         <a href="/auth/add_alt/" className="flex items-center gap-1 text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-1 rounded hover:bg-amber-500/20 transition cursor-pointer font-bold mt-2" title="Fleet Command scopes are missing. Click to add them.">
+                                         <a href="/auth/login?mode=add_alt" className="flex items-center gap-1 text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-1 rounded hover:bg-amber-500/20 transition cursor-pointer font-bold mt-2" title="Fleet Command scopes are missing. Click to add them.">
                                             <span>⚠️</span> Add FC Scopes
                                         </a>
                                     )}

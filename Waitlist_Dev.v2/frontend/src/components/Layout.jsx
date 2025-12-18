@@ -113,7 +113,7 @@ const Layout = ({ children }) => {
                     </div>
                    </>
                 ) : (
-                    <a href="/auth/login/" className="btn-primary py-1.5 text-sm">
+                    <a href="/auth/login" className="btn-primary py-1.5 text-sm">
                         <span>Log In</span>
                     </a>
                 )}

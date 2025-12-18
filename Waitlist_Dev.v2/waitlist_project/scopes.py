@@ -6,37 +6,29 @@ SCOPE_DESCRIPTIONS = {
     },
     "esi-skills.read_skills.v1": {
         "label": "Read Skills",
-        "description": "View your character's trained skills."
+        "description": "View your character's trained skills. We use this to make sure you can use all items on your fit, and show skill milestones."
     },
     "esi-skills.read_skillqueue.v1": {
         "label": "Read Skill Queue",
-        "description": "View your currently training skill queue."
+        "description": "View your currently training skill queue. We use this to verify you are training required skills as necessary."
     },
     "esi-clones.read_implants.v1": {
         "label": "Read Implants",
-        "description": "View your active clone's implants."
+        "description": "View your active clone's implants. We use this to check and show your implants on your profile and X Up"
     },
 
     # OPTIONAL SCOPES
-    "esi-location.read_ship_type.v1": {
-        "label": "Read Ship Type",
-        "description": "Detect which ship you are currently flying."
-    },
-    "esi-location.read_online.v1": {
-        "label": "Read Online Status",
-        "description": "Check if your character is online."
-    },
     "esi-wallet.read_character_wallet.v1": {
         "label": "Read Wallet Balance",
-        "description": "View your wallet balance (used for SRP analytics)."
+        "description": "View your wallet balance on your profile page."
     },
     "esi-characters.read_loyalty.v1": {
         "label": "Read Loyalty Points",
-        "description": "View your LP Store balances."
+        "description": "View your Concord LP balance on your profile page. "
     },
     "esi-characters.read_assets.v1": {
         "label": "Read Assets",
-        "description": "View your personal assets (ships, items)."
+        "description": "To be used to read abyssal module stats. (Coming soon)."
     },
 
     # FC SCOPES

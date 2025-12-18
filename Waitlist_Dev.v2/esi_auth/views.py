@@ -6,7 +6,7 @@ from django.shortcuts import redirect
 from django.conf import settings
 from django.contrib.auth import login, logout
 from django.contrib.auth.models import User, Group
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.contrib.auth.decorators import login_required, user_passes_test  # Added user_passes_test
 from django.utils import timezone
 from datetime import timedelta
@@ -42,17 +42,21 @@ def auth_login_options(request):
     fc_scopes = settings.EVE_SCOPES_FC.split()
     srp_scopes = settings.EVE_SCOPES_SRP.split()
     
-    # Only show FC/SRP scopes if user is authenticated and has permission?
-    # But for initial login, we might want to just show Base + Optional.
-    # If they are adding an alt, we might show more.
-    # For simplicity, we expose Base + Optional to everyone.
-    # Advanced scopes (FC/SRP) are usually handled by specific internal flows or can be added here if needed.
+    # Determine Mode
+    mode = request.GET.get('mode') if request.method == 'GET' else request.data.get('mode')
+
+    # Logic Adjustments based on Mode
+    if mode == 'srp':
+        # For SRP Auth, the SRP scopes are REQUIRED (Base)
+        # We assume ONLY Admins/Leadership access this, but we don't block listing options.
+        base_scopes.extend(srp_scopes)
     
-    # We will combine Optional + FC into the "Optional" list for the UI, 
-    # but maybe we should flag them. For now, let's just use Base + Optional.
-    # If a user IS an FC, they should probably use the "Login as FC" button or we add FC scopes to optional list.
+    # We will combine Optional + FC into the "Optional" list for the UI
+    all_optional = optional_scopes + fc_scopes
     
-    all_optional = optional_scopes + fc_scopes # Allow users to opt-in to FC scopes if they want
+    # Filter out any optional scopes that are now in base (to avoid duplicates)
+    base_set = set(base_scopes)
+    all_optional = [s for s in all_optional if s not in base_set]
     
     if request.method == 'GET':
         scope_options = []
@@ -82,7 +86,16 @@ def auth_login_options(request):
         data = request.data
         requested_custom = data.get('scopes', [])
         
-        # Always include Base Scopes
+        # Setup Session Flags based on Mode
+        _clear_session_flags(request) # Start fresh
+        
+        if mode == 'add_alt':
+            request.session['is_adding_alt'] = True
+        elif mode == 'srp':
+            request.session['is_adding_alt'] = True
+            request.session['is_srp_auth'] = True
+
+        # Always include Base Scopes (Dynamic based on logic above)
         final_scopes = set(base_scopes)
         
         # Add valid custom scopes

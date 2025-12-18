@@ -30,7 +30,7 @@ def dispatch_stale_characters():
     creation_grace = now - timedelta(minutes=5)
     
     # 2. Define "Stale" (Hasn't updated in 48h - fallback)
-    stale_threshold = now - timedelta(hours=48)
+    stale_threshold = now - timedelta(hours=1)
     
     broken_chars = EveCharacter.objects.filter(
         # Condition A: It's old enough to have data, but doesn't

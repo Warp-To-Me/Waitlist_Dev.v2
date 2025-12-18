@@ -35,7 +35,7 @@ const AccessDenied = () => {
 
                     <div className="flex flex-col gap-3">
                         {!user && (
-                            <a href="/auth/login/" className="btn-primary w-full py-3 justify-center text-base shadow-brand-500/20 group">
+                            <a href="/auth/login" className="btn-primary w-full py-3 justify-center text-base shadow-brand-500/20 group">
                                 <span className="group-hover:scale-110 transition mr-2">🚀</span>
                                 Log In via EVE Online
                             </a>

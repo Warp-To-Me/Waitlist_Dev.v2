@@ -69,9 +69,9 @@ const LoginPage = () => {
 
     return (
         <div className="min-h-screen flex items-center justify-center p-4">
-            <div className="glass-panel w-full max-w-2xl p-0 overflow-hidden relative">
+            <div className="glass-panel w-full max-w-2xl p-0 overflow-hidden relative flex flex-col max-h-[85vh]">
                 {/* Header */}
-                <div className="p-8 bg-gradient-to-br from-brand-900/50 to-transparent border-b border-white/5">
+                <div className="p-8 bg-gradient-to-br from-brand-900/50 to-transparent border-b border-white/5 shrink-0">
                     <h1 className="text-3xl font-bold text-white flex items-center gap-3">
                         <Shield className="text-brand-500" size={32} />
                         Login Configuration
@@ -81,7 +81,7 @@ const LoginPage = () => {
                     </p>
                 </div>
 
-                <div className="p-8 space-y-8">
+                <div className="p-8 space-y-8 overflow-y-auto custom-scrollbar flex-1">
                     {/* Base Scopes */}
                     <div>
                         <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider mb-4 flex items-center gap-2">
@@ -90,7 +90,7 @@ const LoginPage = () => {
                         </h3>
                         <div className="space-y-3">
                             {baseScopes.map(s => (
-                                <div key={s.scope} className="flex items-start gap-3 p-3 rounded-lg bg-white/5 border border-white/5 opacity-75 cursor-not-allowed">
+                                <div key={s.scope} className="flex items-start gap-3 p-1.5 rounded-lg bg-white/5 border border-white/5 opacity-75 cursor-not-allowed">
                                     <div className="mt-0.5 text-brand-500">
                                         <CheckCircle size={18} fill="currentColor" className="text-black" />
                                     </div>
@@ -111,7 +111,7 @@ const LoginPage = () => {
                         </h3>
                         <div className="grid grid-cols-1 gap-3">
                             {optionalScopes.map(s => (
-                                <label key={s.scope} className="flex items-start gap-3 p-3 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/20 transition cursor-pointer group">
+                                <label key={s.scope} className="flex items-start gap-3 p-1.5 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/20 transition cursor-pointer group">
                                     <div className="relative flex items-center mt-0.5">
                                         <input 
                                             type="checkbox" 
@@ -132,7 +132,7 @@ const LoginPage = () => {
                 </div>
 
                 {/* Actions */}
-                <div className="p-6 bg-black/20 border-t border-white/5 flex flex-col sm:flex-row gap-4 justify-between items-center">
+                <div className="p-6 bg-black/20 border-t border-white/5 flex flex-col sm:flex-row gap-4 justify-between items-center shrink-0">
                     <button 
                         onClick={() => handleLogin(false)}
                         disabled={redirecting}
