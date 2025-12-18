@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
 import clsx from 'clsx';
 import { selectFleetPermissions, selectSiblingCategories } from '../store/slices/fleetSlice';
@@ -23,7 +23,28 @@ const WaitlistEntry = ({ entry, onAction, onOpenEntry, onOpenUpdate }) => {
     const canInspect = isOwner || permissions.can_view_overview || isFC;
 
     // Time Formatting
-    const timeWaiting = entry.time_waiting;
+    const [timeWaiting, setTimeWaiting] = useState(entry.time_waiting);
+
+    useEffect(() => {
+        // If created_at is available, calculate local time difference
+        if (entry.created_at) {
+            const calculateTime = () => {
+                const now = new Date();
+                const created = new Date(entry.created_at);
+                const diffMs = now - created;
+                const minutes = Math.floor(diffMs / 60000);
+                setTimeWaiting(minutes > 0 ? minutes : 0);
+            };
+
+            calculateTime(); // Initial calc
+            const interval = setInterval(calculateTime, 30000); // Update every 30s
+            return () => clearInterval(interval);
+        } else {
+             // Fallback to static if no timestamp
+             setTimeWaiting(entry.time_waiting);
+        }
+    }, [entry.created_at, entry.time_waiting]);
+
     const isLongWait = timeWaiting > 15;
 
     // Handle Clicks
