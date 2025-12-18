@@ -118,15 +118,12 @@ const ManagementUsers = () => {
                         <thead>
                             <tr className="bg-white/5 border-b border-white/5 text-xs text-slate-400 uppercase sticky top-0 backdrop-blur-md z-10">
                                 <th onClick={() => handleSort('character')} className="p-4 font-bold cursor-pointer hover:text-white transition select-none">
-                                    Character {sort.field === 'character' && (sort.dir === 'asc' ? '↑' : '↓')}
-                                </th>
-                                <th onClick={() => handleSort('main')} className="p-4 font-bold cursor-pointer hover:text-white transition select-none">
-                                    Main {sort.field === 'main' && (sort.dir === 'asc' ? '↑' : '↓')}
+                                    Character (Main) {sort.field === 'character' && (sort.dir === 'asc' ? '↑' : '↓')}
                                 </th>
                                 <th onClick={() => handleSort('corporation')} className="p-4 font-bold cursor-pointer hover:text-white transition select-none">
                                     Corp {sort.field === 'corporation' && (sort.dir === 'asc' ? '↑' : '↓')}
                                 </th>
-                                <th onClick={() => handleSort('linked')} className="p-4 font-bold cursor-pointer hover:text-white transition select-none">
+                                <th onClick={() => handleSort('linked')} className="p-4 font-bold cursor-pointer hover:text-white transition select-none w-1/3">
                                     Alts {sort.field === 'linked' && (sort.dir === 'asc' ? '↑' : '↓')}
                                 </th>
                                 <th className="p-4 font-bold text-right">Actions</th>
@@ -145,16 +142,27 @@ const ManagementUsers = () => {
                                 >
                                     <td className="p-4 font-medium text-white flex items-center gap-3">
                                         <img src={`https://images.evetech.net/characters/${u.character_id}/portrait?size=32`} className="w-8 h-8 rounded-full border border-white/10" alt="" />
-                                        {u.character_name}
+                                        <div>
+                                            <div className="font-bold text-white">{u.character_name}</div>
+                                            {u.linked_count > 1 && (
+                                                <div className="text-xs text-slate-500 mt-0.5">{u.linked_count - 1} alts</div>
+                                            )}
+                                        </div>
                                     </td>
-                                    <td className="p-4 text-brand-400 font-medium">
-                                        {u.main_character_name}
-                                    </td>
-                                    <td className="p-4">{u.corporation_name}</td>
+                                    <td className="p-4 text-slate-300">{u.corporation_name}</td>
                                     <td className="p-4">
-                                        <span className={clsx("badge", u.linked_count > 1 ? "badge-blue" : "bg-white/5 text-slate-500")}>
-                                            {u.linked_count} Linked
-                                        </span>
+                                        <div className="flex flex-wrap gap-2">
+                                            {u.alts && u.alts.length > 0 ? (
+                                                u.alts.map(alt => (
+                                                    <span key={alt.character_id} className="badge bg-white/5 hover:bg-white/10 text-slate-300 border border-white/5 transition px-2 py-1 rounded text-xs flex items-center gap-2">
+                                                        <img src={`https://images.evetech.net/characters/${alt.character_id}/portrait?size=32`} className="w-4 h-4 rounded-full opacity-75" alt="" />
+                                                        {alt.character_name}
+                                                    </span>
+                                                ))
+                                            ) : (
+                                                <span className="text-xs text-slate-600 italic">No Alts Registered</span>
+                                            )}
+                                        </div>
                                     </td>
                                     <td className="p-4 text-right">
                                         <button 
