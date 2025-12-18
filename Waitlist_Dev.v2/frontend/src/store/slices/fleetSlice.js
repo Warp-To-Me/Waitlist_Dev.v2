@@ -154,6 +154,24 @@ export const closeFleetByToken = createAsyncThunk(
   }
 );
 
+export const takeOverFleet = createAsyncThunk(
+  'fleet/takeOver',
+  async (token, { rejectWithValue }) => {
+    try {
+      const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+      const res = await apiCall(`/api/management/fleets/${token}/take_over/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrf }
+      });
+      const data = await res.json();
+      if (data.success) return data; // { success: true, warning: '...' }
+      throw new Error(data.error || data.message);
+    } catch (err) {
+      return rejectWithValue(err.message);
+    }
+  }
+);
+
 export const fetchFleetHistory = createAsyncThunk(
   'fleet/fetchHistory',
   async (token, { rejectWithValue }) => {
@@ -311,6 +329,15 @@ export const fleetSlice = createSlice({
         }
 
         if (msg.type === 'fleet_update') {
+            // Meta updates (e.g. takeover)
+            if (msg.action === 'fleet_meta' && msg.data && msg.data.fleet) {
+                // Merge fleet data
+                state.data = { ...state.data, ...msg.data.fleet };
+                // Clear error if we just got a valid meta update
+                if (state.error) state.error = null;
+                return;
+            }
+
             // Granular updates
             if (msg.action === 'remove') {
                 removeEntry(state.columns, msg.entry_id);
@@ -452,6 +479,12 @@ export const fleetSlice = createSlice({
              if (state.settings && state.settings.fleet) {
                  state.settings.fleet.esi_fleet_id = action.payload.fleet_id;
              }
+        })
+
+        // Take Over
+        .addCase(takeOverFleet.fulfilled, (state, action) => {
+            // Update happens via WebSocket broadcast usually, but we can optimistically update here or handle warning
+            state.error = null; // Clear connection error
         })
 
         // History

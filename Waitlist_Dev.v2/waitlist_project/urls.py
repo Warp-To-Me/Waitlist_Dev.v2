@@ -39,6 +39,7 @@ api_urlpatterns = [
     path('management/fleets/<uuid:token>/update_settings/', fleet_settings.api_update_fleet_settings, name='api_update_fleet_settings'),
     path('management/fleets/<uuid:token>/link_esi/', fleet_settings.api_link_esi_fleet, name='api_link_esi_fleet'),
     path('management/fleets/<uuid:token>/close/', fleet_settings.api_close_fleet, name='api_close_fleet'),
+    path('management/fleets/<uuid:token>/take_over/', fleet_settings.api_take_over_fleet, name='api_take_over_fleet'),
     
     path('management/fleets/<uuid:token>/history/', dashboard.fleet_history_view, name='fleet_history_api'),
     path('management/fleets/history/api/<int:log_id>/', actions.api_history_fit_details, name='api_history_fit_details'),
