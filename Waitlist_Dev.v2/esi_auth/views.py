@@ -81,7 +81,21 @@ def auth_login_options(request):
     if request.method == 'POST':
         data = request.data
         requested_custom = data.get('scopes', [])
+        mode = data.get('mode', None)
+
+        # Set session flags based on mode
+        _clear_session_flags(request)
+        if mode == 'add_alt':
+            if not request.user.is_authenticated:
+                return HttpResponse("Authentication required to add alt", status=403)
+            request.session['is_adding_alt'] = True
         
+        elif mode == 'srp_auth':
+            if not request.user.is_authenticated or not can_manage_srp(request.user):
+                 return HttpResponse("Permission denied for SRP auth", status=403)
+            request.session['is_adding_alt'] = True
+            request.session['is_srp_auth'] = True
+
         # Always include Base Scopes
         final_scopes = set(base_scopes)
         
@@ -90,6 +104,11 @@ def auth_login_options(request):
         for s in requested_custom:
             if s in allowed_optional:
                 final_scopes.add(s)
+
+        # If SRP Auth mode, enforce SRP scopes
+        if mode == 'srp_auth':
+             for s in srp_scopes:
+                 final_scopes.add(s)
                 
         # Generate State
         state_token = secrets.token_urlsafe(32)

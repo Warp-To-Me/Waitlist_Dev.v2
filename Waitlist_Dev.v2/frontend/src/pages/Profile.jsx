@@ -175,7 +175,7 @@ const Profile = () => {
                                 👥 Pilots <span className="badge badge-slate">{characters.length}</span>
                             </h2>
                             {!is_inspection_mode && (
-                                <a href="/auth/add_alt/" className="btn-primary text-xs px-3 py-1.5 shadow-lg shadow-brand-500/20 inline-flex items-center gap-2">
+                                <a href="/auth/login?mode=add_alt" className="btn-primary text-xs px-3 py-1.5 shadow-lg shadow-brand-500/20 inline-flex items-center gap-2">
                                     <Plus size={14} /> Link Alt
                                 </a>
                             )}
@@ -276,7 +276,7 @@ const Profile = () => {
                                     )}
 
                                     {scopes_missing && !is_inspection_mode && (
-                                         <a href="/auth/add_alt/" className="flex items-center gap-1 text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-1 rounded hover:bg-amber-500/20 transition cursor-pointer font-bold mt-2" title="Fleet Command scopes are missing. Click to add them.">
+                                         <a href="/auth/login?mode=add_alt" className="flex items-center gap-1 text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-1 rounded hover:bg-amber-500/20 transition cursor-pointer font-bold mt-2" title="Fleet Command scopes are missing. Click to add them.">
                                             <span>⚠️</span> Add FC Scopes
                                         </a>
                                     )}
