@@ -215,7 +215,7 @@ def api_take_over_fleet(request, token):
             'data': {
                 'fleet': {
                     'id': fleet.id,
-                    'token': fleet.join_token,
+                    'token': str(fleet.join_token),
                     'name': fleet.name,
                     'description': fleet.motd,
                     'is_active': fleet.is_active,
