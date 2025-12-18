@@ -22,6 +22,8 @@ const ManagementFleetSettings = () => {
     // Local state for editing form
     const [structure, setStructure] = useState([]);
     const [motd, setMotd] = useState('');
+    const [fleetName, setFleetName] = useState('');
+    const [status, setStatus] = useState('');
     const [previewHtml, setPreviewHtml] = useState('');
     const pickerRef = useRef(null);
 
@@ -35,6 +37,8 @@ const ManagementFleetSettings = () => {
         if (settingsData) {
             setStructure(settingsData.structure || []);
             setMotd(settingsData.fleet.motd || '');
+            setFleetName(settingsData.fleet.name || '');
+            setStatus(settingsData.fleet.status || '');
             // templates are now selected from selectFleetTemplates
         }
     }, [settingsData]);
@@ -129,7 +133,7 @@ const ManagementFleetSettings = () => {
     };
 
     const saveSettings = () => {
-        dispatch(updateFleetSettings({ token, payload: { motd, structure } }))
+        dispatch(updateFleetSettings({ token, payload: { motd, structure, name: fleetName, status } }))
             .unwrap()
             .then(() => alert("Synced!"))
             .catch(err => alert("Update Failed: " + err));
@@ -245,6 +249,24 @@ const ManagementFleetSettings = () => {
             <div className="flex-grow grid grid-cols-1 lg:grid-cols-2 gap-0">
                 {/* Left: Config */}
                 <div className="bg-dark-900/50 p-6 flex flex-col gap-6 border-r border-white/5">
+
+                    {/* Details */}
+                    <div>
+                        <h3 className="label-text mb-2">Fleet Details</h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-xs text-slate-500 block mb-1">Fleet Name</label>
+                                <input type="text" value={fleetName} onChange={(e) => setFleetName(e.target.value)} className="input-field" placeholder="Fleet Name" />
+                            </div>
+                            <div>
+                                <label className="text-xs text-slate-500 block mb-1">Status</label>
+                                <input type="text" value={status} onChange={(e) => setStatus(e.target.value)} className="input-field" placeholder="e.g. Forming up..." maxLength={100} />
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr className="border-white/5" />
+
                     {/* MOTD */}
                     <div>
                         <h3 className="label-text mb-2">Message of the Day</h3>
