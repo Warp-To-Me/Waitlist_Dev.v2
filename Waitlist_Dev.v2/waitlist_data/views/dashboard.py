@@ -163,7 +163,8 @@ def fleet_dashboard(request, token):
             'name': fleet.name,
             'description': fleet.motd,
             'is_active': fleet.is_active,
-            'commander_name': fc_name
+            'commander_name': fc_name,
+            'commander_user_id': fleet.commander.id
         },
         'columns': column_data,
         'user_chars': user_chars_data,

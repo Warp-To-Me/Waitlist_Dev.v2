@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
-import { Shield, Crosshair, Zap, Anchor, Clock, Settings, Scroll, Plus } from 'lucide-react';
+import { Shield, Crosshair, Zap, Anchor, Clock, Settings, Scroll, Plus, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
 import { 
     setFleetData, setFleetError, selectFleetData, selectFleetColumns, selectFleetOverview,
-    selectFleetPermissions, selectFleetLoading, selectFleetError, selectConnectionStatus 
+    selectFleetPermissions, selectFleetLoading, selectFleetError, selectConnectionStatus,
+    takeOverFleet 
 } from '../store/slices/fleetSlice';
+import { selectUser } from '../store/slices/authSlice';
 import { wsConnect, wsDisconnect } from '../store/middleware/socketMiddleware';
 import { apiCall } from '../utils/api';
 
@@ -28,6 +30,7 @@ const FleetDashboard = () => {
     const loading = useSelector(selectFleetLoading);
     const error = useSelector(selectFleetError);
     const connectionStatus = useSelector(selectConnectionStatus);
+    const currentUser = useSelector(selectUser);
 
     // Local Modal State
     const [xupModalOpen, setXupModalOpen] = useState(false);
@@ -71,6 +74,12 @@ const FleetDashboard = () => {
         })
         .catch(err => alert("Network Error"));
     };
+    
+    const handleTakeOver = () => {
+        if (confirm("Are you sure you want to take over this fleet? This will set you as the FC and attempt to link your current in-game fleet.")) {
+            dispatch(takeOverFleet(token));
+        }
+    };
 
     if (loading && !fleet) return (
         <div className="absolute inset-0 flex items-center justify-center bg-dark-950">
@@ -80,8 +89,9 @@ const FleetDashboard = () => {
             </div>
         </div>
     );
-
-    if (error) return (
+    
+    // Only block on error if we have NO fleet data
+    if (error && !fleet) return (
         <div className="absolute inset-0 flex items-center justify-center bg-dark-950">
             <div className="text-center">
                 <div className="text-4xl mb-4 text-red-500">⚠</div>
@@ -95,6 +105,7 @@ const FleetDashboard = () => {
     if (!fleet) return null;
 
     const isFC = permissions.is_fc;
+    const isCurrentCommander = currentUser && fleet.commander_user_id === currentUser.id;
 
     return (
         <div className="absolute inset-0 flex flex-col overflow-hidden bg-dark-950 opacity-100"> 
@@ -143,10 +154,26 @@ const FleetDashboard = () => {
                             <span 
                                 className={clsx(
                                     "w-2.5 h-2.5 rounded-full transition-all duration-500",
-                                    connectionStatus === 'connected' ? "bg-green-500 shadow-green-500/50" : "bg-red-500 animate-pulse"
+                                    (connectionStatus === 'connected' && !error) ? "bg-green-500 shadow-green-500/50" : "bg-red-500 animate-pulse"
                                 )}
-                                title={connectionStatus === 'connected' ? "Live" : "Disconnected"}
+                                title={error ? error : "Live"}
                             ></span>
+                            
+                            {/* Take Over Button */}
+                            {isFC && !isCurrentCommander && (
+                                <button 
+                                    onClick={handleTakeOver}
+                                    className={clsx(
+                                        "ml-2 text-[10px] px-2 py-0.5 rounded border flex items-center gap-1 transition-colors",
+                                        error 
+                                            ? "bg-red-500/20 hover:bg-red-500/30 text-red-400 border-red-500/30"
+                                            : "bg-slate-700/50 hover:bg-slate-700 text-slate-300 border-slate-600"
+                                    )}
+                                    title="Take Over Command"
+                                >
+                                    <RefreshCw size={10} /> Take Over
+                                </button>
+                            )}
                         </p>
                     </div>
                 </div>
@@ -182,7 +209,7 @@ const FleetDashboard = () => {
                         onAction={handleEntryAction} onOpenEntry={setEntryModalId} onOpenUpdate={setUpdateModalId}
                     />
                     <Column 
-                        title="OTHER" color="green" entries={columns.other} icon={Anchor} 
+                        title="OTHER" color="yellow" entries={columns.other} icon={Anchor} 
                         onAction={handleEntryAction} onOpenEntry={setEntryModalId} onOpenUpdate={setUpdateModalId}
                     />
                     
@@ -219,6 +246,7 @@ const Column = ({ title, color, entries, icon: Icon, isPending, onAction, onOpen
         green: 'bg-green-600/10 border-green-500/20 text-green-400 border-b-green-500',
         red: 'bg-red-600/10 border-red-500/20 text-red-400 border-b-red-500',
         blue: 'bg-blue-600/10 border-blue-500/20 text-blue-400 border-b-blue-500',
+        yellow: 'border-yellow-500/20 text-yellow-400 border-b-yellow-500',
     }[color] || 'bg-slate-600/10 border-slate-500/20 text-slate-400';
 
     return (

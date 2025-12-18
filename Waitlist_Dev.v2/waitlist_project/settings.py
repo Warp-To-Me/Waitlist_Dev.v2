@@ -132,26 +132,31 @@ EVE_SCOPES_BASE = (
     "publicData "
     "esi-skills.read_skills.v1 "
     "esi-skills.read_skillqueue.v1 "
-    "esi-clones.read_implants.v1 "
+    "esi-clones.read_implants.v1"
+)
+
+# 2. Optional Scopes (Required for certain features)
+EVE_SCOPES_OPTIONAL = (
     "esi-location.read_ship_type.v1 "
     "esi-location.read_online.v1 "
     "esi-wallet.read_character_wallet.v1 "
-    "esi-characters.read_loyalty.v1"
+    "esi-characters.read_loyalty.v1 "
+    "esi-characters.read_assets.v1"
 )
 
-# 2. FC Scopes (Required only for Fleet Commanders)
+# 3. FC Scopes (Required only for Fleet Commanders)
 EVE_SCOPES_FC = (
     "esi-fleets.read_fleet.v1 "
     "esi-fleets.write_fleet.v1"
 )
 
-# 3. SRP Manager Scopes (NEW)
+# 4. SRP Manager Scopes (Only required for SRP Manager)
 EVE_SCOPES_SRP = (
     "esi-wallet.read_corporation_wallets.v1"
 )
 
 # 4. Combined Master List (For Auditing/Backwards Compatibility)
-EVE_SCOPES = f"{EVE_SCOPES_BASE} {EVE_SCOPES_FC} {EVE_SCOPES_SRP}"
+EVE_SCOPES = f"{EVE_SCOPES_BASE} {EVE_SCOPES_OPTIONAL} {EVE_SCOPES_FC} {EVE_SCOPES_SRP}"
 
 # --- CELERY SETTINGS ---
 # 1. Connection to Redis (Running in WSL)

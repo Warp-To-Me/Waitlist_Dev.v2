@@ -8,6 +8,8 @@ from django.utils import timezone
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 
 from core.permissions import is_fleet_command, get_template_base, get_mgmt_context
 from waitlist_data.models import Fleet, FleetStructureTemplate
@@ -158,6 +160,77 @@ def take_fleet_command(request, token):
     fleet.commander = request.user
     fleet.save()
     return redirect('fleet_dashboard', token=fleet.join_token)
+
+@login_required
+@user_passes_test(is_fleet_command)
+@require_POST
+def api_take_over_fleet(request, token):
+    fleet = get_object_or_404(Fleet, join_token=token)
+    
+    # Update Commander
+    fleet.commander = request.user
+    
+    # Find new FC's active character for linking
+    fc_char = request.user.characters.filter(is_main=True).first() or request.user.characters.first()
+    
+    linked_id = None
+    error_msg = None
+    
+    if fc_char and check_token(fc_char):
+        try:
+            headers = {'Authorization': f'Bearer {fc_char.access_token}'}
+            resp = requests.get(f"{ESI_BASE}/characters/{fc_char.character_id}/fleet/", headers=headers, timeout=5)
+            
+            if resp.status_code == 200:
+                data = resp.json()
+                linked_id = data['fleet_id']
+                fleet.esi_fleet_id = linked_id
+            elif resp.status_code == 404:
+                error_msg = "You are now FC, but you are not in a fleet in-game. Please form fleet and link manually."
+                # Clear esi_fleet_id so we don't try to use the old one
+                fleet.esi_fleet_id = None
+            else:
+                error_msg = f"ESI Error {resp.status_code} during link attempt."
+                fleet.esi_fleet_id = None
+        except Exception as e:
+            error_msg = f"Link failed: {str(e)}"
+            fleet.esi_fleet_id = None
+    else:
+        error_msg = "You have no valid character to link fleet with."
+        fleet.esi_fleet_id = None
+
+    fleet.save()
+    
+    # Broadcast Update
+    channel_layer = get_channel_layer()
+    group_name = f'fleet_{fleet.id}'
+    
+    fc_name = fc_char.character_name if fc_char else request.user.username
+    
+    async_to_sync(channel_layer.group_send)(
+        group_name,
+        {
+            'type': 'fleet_update',
+            'action': 'fleet_meta', # New action type for meta updates
+            'data': {
+                'fleet': {
+                    'id': fleet.id,
+                    'token': str(fleet.join_token),
+                    'name': fleet.name,
+                    'description': fleet.motd,
+                    'is_active': fleet.is_active,
+                    'commander_name': fc_name,
+                    'esi_fleet_id': fleet.esi_fleet_id
+                }
+            }
+        }
+    )
+    
+    return JsonResponse({
+        'success': True, 
+        'message': error_msg or "Fleet command assumed and linked successfully.",
+        'warning': error_msg
+    })
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
