@@ -285,8 +285,20 @@ const Profile = () => {
                                 <div className="flex-grow grid grid-cols-1 sm:grid-cols-2 gap-3 w-full text-sm">
                                     <StatsBox label="Corporation" value={active_char.corporation_name || "Unknown"} />
                                     <StatsBox label="Alliance" value={active_char.alliance_name || "-"} />
-                                    <StatsBox label="Wallet" value={`${active_char.wallet_balance?.toLocaleString() || 0} ISK`} color="text-green-400" font="mono" obfuscated={obfuscate_financials} />
-                                    <StatsBox label="CONCORD LP" value={`${active_char.concord_lp?.toLocaleString() || 0} LP`} color="text-purple-400" font="mono" obfuscated={obfuscate_financials} />
+                                    <StatsBox
+                                        label="Wallet"
+                                        value={active_char.wallet_balance !== null ? `${active_char.wallet_balance?.toLocaleString()} ISK` : "Missing Scope"}
+                                        color={active_char.wallet_balance !== null ? "text-green-400" : "text-slate-500 italic"}
+                                        font="mono"
+                                        obfuscated={obfuscate_financials}
+                                    />
+                                    <StatsBox
+                                        label="CONCORD LP"
+                                        value={active_char.concord_lp !== null ? `${active_char.concord_lp?.toLocaleString()} LP` : "Missing Scope"}
+                                        color={active_char.concord_lp !== null ? "text-purple-400" : "text-slate-500 italic"}
+                                        font="mono"
+                                        obfuscated={obfuscate_financials}
+                                    />
                                     <div className="col-span-1 sm:col-span-2 bg-white/5 p-3 rounded-lg border border-white/5 flex items-center justify-between gap-4">
                                         <div>
                                             <div className="label-text mb-0">Skill Points</div>
@@ -295,8 +307,14 @@ const Profile = () => {
                                         <div className="flex items-center gap-3 text-right">
                                             <div className="overflow-hidden">
                                                 <div className="label-text mb-0">Active Ship</div>
-                                                <div className="text-white font-medium truncate text-xs">{active_char.current_ship_name || "Unknown"}</div>
-                                                <div className="text-[10px] text-slate-400 truncate">{active_char.ship_type_name || "Unknown Hull"}</div>
+                                                {active_char.current_ship_name !== null ? (
+                                                    <>
+                                                        <div className="text-white font-medium truncate text-xs">{active_char.current_ship_name || "Unknown"}</div>
+                                                        <div className="text-[10px] text-slate-400 truncate">{active_char.ship_type_name || "Unknown Hull"}</div>
+                                                    </>
+                                                ) : (
+                                                    <div className="text-slate-500 italic text-xs">Scope Missing</div>
+                                                )}
                                             </div>
                                             {active_char.current_ship_type_id && (
                                                 <img src={`https://images.evetech.net/types/${active_char.current_ship_type_id}/icon?size=32`} className="w-10 h-10 rounded border border-white/10" alt="" />

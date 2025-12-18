@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 import pymysql
+from .scopes import SCOPE_DESCRIPTIONS
 
 # Load environment variables from .env file
 load_dotenv()

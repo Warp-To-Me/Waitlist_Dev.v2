@@ -145,5 +145,7 @@ urlpatterns = [
 
     # Frontend Catch-All (Must be last)
     # Serves React for any path not matched above
-    re_path(r'^(?!api|admin|auth|static|media|ws).*$', views_frontend.frontend_app, name='frontend_app'),
+    # We remove 'auth' from exclusion to allow /auth/login (React) to pass through,
+    # as specific backend auth routes are already matched above.
+    re_path(r'^(?!api|admin|static|media|ws).*$', views_frontend.frontend_app, name='frontend_app'),
 ]
