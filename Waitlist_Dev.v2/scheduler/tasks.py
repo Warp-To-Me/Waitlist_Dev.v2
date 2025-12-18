@@ -8,6 +8,7 @@ import logging
 from pilot_data.models import EveCharacter, EsiHeaderCache, SRPConfiguration
 from esi_calls.token_manager import update_character_data
 from esi_calls.wallet_service import sync_corp_wallet
+from esi.models import Token # Import ESI Token
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,7 @@ def dispatch_stale_characters():
     # --- STRATEGY 2: Inactive "Heartbeat" (Keep Token Alive + Skill History) ---
     # If a character is OFFLINE and hasn't been updated in 48 hours,
     # we trigger a specific update for Skills/History.
-    # This implicitly refreshes the Auth Token, keeping it valid.
+    # The new call_esi() will automatically refresh the ESI Token if needed.
     
     heartbeat_chars = EveCharacter.objects.filter(
         is_online=False,
@@ -66,7 +67,6 @@ def dispatch_stale_characters():
         
         for char_id in heartbeat_chars:
             # We ONLY pull persistent data. We SKIP location/ship to save ESI calls.
-            # check_token() inside this task will refresh the auth token automatically.
             refresh_character_task.delay(char_id, ['skills', 'queue', 'history', 'public_info'])
             processed_ids.add(char_id)
             tasks_queued += 1
@@ -169,7 +169,7 @@ def refresh_character_task(char_id, target_endpoints=None, force_refresh=False):
             if is_heartbeat: mode_str = "HEARTBEAT"
             logger.info(f"[Worker] Updating {char.character_name} [{mode_str}]")
         
-        # Pass force_refresh to manager
+        # Pass force_refresh to manager (which uses call_esi which uses esi.Token)
         success = update_character_data(char, target_endpoints, force_refresh=force_refresh)
         
         if not success:

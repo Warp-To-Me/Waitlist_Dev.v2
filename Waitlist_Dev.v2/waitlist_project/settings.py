@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'waitlist_data',
     'esi_calls',
     'scheduler',
+    'esi', # Vendorized Django ESI
 ]
 
 MIDDLEWARE = [
@@ -125,6 +126,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # EVE Online Configuration
 EVE_CLIENT_ID = os.getenv('EVE_CLIENT_ID')
 EVE_CALLBACK_URL = os.getenv('EVE_CALLBACK_URL', 'http://localhost:8000/auth/sso/callback/')
+
+# ESI Configuration (Vendorized App)
+ESI_SSO_CLIENT_ID = EVE_CLIENT_ID
+ESI_SSO_CLIENT_SECRET = os.getenv('EVE_SECRET_KEY')
+ESI_SSO_CALLBACK_URL = EVE_CALLBACK_URL
+ESI_USER_CONTACT_EMAIL = 'admin@example.com' # Required by ESI Library
 
 # --- SCOPE CONFIGURATION ---
 
@@ -206,6 +213,10 @@ CELERY_BEAT_SCHEDULE = {
     'check-expired-bans-every-minute': {
         'task': 'core.tasks.check_expired_bans',
         'schedule': crontab(minute='*'),
+    },
+    'cleanup-esi-tokens-daily': {
+        'task': 'esi.tasks.cleanup_token',
+        'schedule': crontab(hour=0, minute=0),
     },
 }
 

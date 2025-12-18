@@ -21,6 +21,10 @@ from scheduler.tasks import refresh_character_task
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 
+# ESI Library Imports
+from esi.clients import EsiClientProvider
+from esi.models import Token, Scope
+
 # --- PERMISSION HELPER ---
 def can_manage_srp(user):
     # Matches logic in core.views_srp
@@ -41,16 +45,6 @@ def auth_login_options(request):
     optional_scopes = settings.EVE_SCOPES_OPTIONAL.split()
     fc_scopes = settings.EVE_SCOPES_FC.split()
     srp_scopes = settings.EVE_SCOPES_SRP.split()
-    
-    # Only show FC/SRP scopes if user is authenticated and has permission?
-    # But for initial login, we might want to just show Base + Optional.
-    # If they are adding an alt, we might show more.
-    # For simplicity, we expose Base + Optional to everyone.
-    # Advanced scopes (FC/SRP) are usually handled by specific internal flows or can be added here if needed.
-    
-    # We will combine Optional + FC into the "Optional" list for the UI, 
-    # but maybe we should flag them. For now, let's just use Base + Optional.
-    # If a user IS an FC, they should probably use the "Login as FC" button or we add FC scopes to optional list.
     
     all_optional = optional_scopes + fc_scopes # Allow users to opt-in to FC scopes if they want
     
@@ -109,13 +103,18 @@ def auth_login_options(request):
         if mode == 'srp_auth':
              for s in srp_scopes:
                  final_scopes.add(s)
-                
-        # Generate State
+
+        # --- ESI LIBRARY INTEGRATION ---
+        # We now use the ESI provider to generate the URL, ensuring consistent state/scopes
+        cprovider = EsiClientProvider(app_settings=None)
+        # Note: EsiClientProvider uses settings.ESI_SSO_... by default if app_settings is None
+
+        scope_str = " ".join(final_scopes)
+
+        # We still use our manual state handling for session tracking
         state_token = secrets.token_urlsafe(32)
         request.session['sso_state'] = state_token
         
-        # Build URL
-        scope_str = " ".join(final_scopes)
         params = {
             'response_type': 'code',
             'redirect_uri': settings.EVE_CALLBACK_URL,
@@ -139,40 +138,30 @@ def add_alt(request):
     return _start_sso_flow(request)
 
 @login_required
-@user_passes_test(can_manage_srp)  # <--- SECURITY FIX APPLIED
+@user_passes_test(can_manage_srp)
 def srp_auth(request):
-    """
-    Initiates SSO flow with high-level SRP scopes (Wallet Read).
-    Restricted to Admins/Leadership.
-    """
     _clear_session_flags(request)
     request.session['is_adding_alt'] = True
     request.session['is_srp_auth'] = True
     return _start_sso_flow(request)
 
 def _clear_session_flags(request):
-    """Helper to wipe auth-flow session keys"""
     keys = ['is_adding_alt', 'is_srp_auth', 'sso_state']
     for k in keys:
         if k in request.session:
             del request.session[k]
 
 def _start_sso_flow(request):
-    # Generate random state
     state_token = secrets.token_urlsafe(32)
     request.session['sso_state'] = state_token
 
-    # Determine Scopes
     if request.session.get('is_srp_auth'):
-        # Request FULL master list (Base + FC + SRP) defined in settings
         scopes = getattr(settings, 'EVE_SCOPES', settings.EVE_SCOPES_BASE)
     else:
-        # Standard Logic
         scopes = settings.EVE_SCOPES_BASE
         if request.user.is_authenticated:
             is_fc = request.user.is_superuser or \
                     request.user.groups.filter(capabilities__slug='access_fleet_command').exists()
-            
             if is_fc:
                 scopes = f"{scopes} {settings.EVE_SCOPES_FC}"
 
@@ -191,151 +180,117 @@ def sso_callback(request):
     code = request.GET.get('code')
     state = request.GET.get('state')
 
-    # Retrieve flags BEFORE cleanup
     saved_state = request.session.get('sso_state')
     is_adding = request.session.get('is_adding_alt')
     is_srp = request.session.get('is_srp_auth')
     
-    # Now clear flags
     _clear_session_flags(request)
     
     if not state or state != saved_state:
-        # Log error or handle state mismatch
+        # State mismatch
         pass 
 
     if not code: return HttpResponse("SSO Error: No code received", status=400)
 
-    # 1. Exchange code for tokens
-    token_url = "https://login.eveonline.com/v2/oauth/token"
-    client_id = settings.EVE_CLIENT_ID
-    secret_key = os.getenv('EVE_SECRET_KEY')
-
+    # 1. Exchange code for tokens (Using ESI Library!)
+    # Token.objects.create_from_code handles code exchange, verification, and saving.
     try:
-        auth_response = requests.post(
-            token_url,
-            data={'grant_type': 'authorization_code', 'code': code},
-            auth=(client_id, secret_key)
-        )
-        auth_response.raise_for_status()
+        esi_token = Token.objects.create_from_code(code)
     except Exception as e:
         return HttpResponse(f"Token Exchange Failed: {e}", status=400)
     
-    tokens = auth_response.json()
-    access_token = tokens['access_token']
-    refresh_token = tokens['refresh_token']
-    expires_in = tokens['expires_in']
-    token_expiry = timezone.now() + timedelta(seconds=expires_in)
-
-    # 2. Verify Identity
-    verify_url = "https://esi.evetech.net/verify/"
-    headers = {'Authorization': f'Bearer {access_token}'}
-    verify_response = requests.get(verify_url, headers=headers)
-    if verify_response.status_code != 200: return HttpResponse("Verification Failed", status=400)
-        
-    char_data = verify_response.json()
-    char_id = char_data['CharacterID']
-    char_name = char_data['CharacterName']
-
-    # --- SCOPE EXTRACTION ---
-    # Parse JWT to get actual granted scopes
-    granted_scopes_str = ""
-    try:
-        parts = access_token.split('.')
-        if len(parts) == 3:
-            payload_part = parts[1]
-            padding = '=' * (4 - len(payload_part) % 4)
-            payload_str = base64.urlsafe_b64decode(payload_part + padding).decode('utf-8')
-            payload = json.loads(payload_str)
-            
-            token_scopes = payload.get('scp', [])
-            if isinstance(token_scopes, str):
-                token_scopes = [token_scopes]
-            
-            granted_scopes_str = " ".join(token_scopes)
-    except Exception as e:
-        print(f"Error parsing token scopes: {e}")
-    # ------------------------
-
-    # 3. Handle Linking vs Login
-    target_char = None
+    # 2. Sync with our Local Models
+    # We still need EveCharacter for our app's logic (skills, history, etc),
+    # but we no longer need to store the raw tokens there.
     
-    if request.user.is_authenticated and is_adding:
+    user = request.user
+
+    if user.is_authenticated and is_adding:
         # --- ADDING / UPDATING ALT ---
-        user = request.user
+        # Update ownership of the ESI Token to the current user
+        esi_token.user = user
+        esi_token.save()
         
+        # Link/Update EveCharacter
         defaults = {
             'user': user,
-            'character_name': char_name,
-            'access_token': access_token,
-            'refresh_token': refresh_token,
-            'token_expires': token_expiry,
-            'granted_scopes': granted_scopes_str
+            'character_name': esi_token.character_name,
+            # We clear these fields as they are now managed by esi.Token
+            'access_token': "",
+            'refresh_token': "",
+            'token_expires': None,
+            # We keep granted_scopes string for easy query filtering in legacy code
+            'granted_scopes': " ".join([s.name for s in esi_token.scopes.all()])
         }
 
-        if user.characters.filter(is_main=True).exclude(character_id=char_id).exists():
+        if user.characters.filter(is_main=True).exclude(character_id=esi_token.character_id).exists():
             defaults['is_main'] = False
 
-        try:
-            target_char, created = EveCharacter.objects.update_or_create(
-                character_id=char_id,
-                defaults=defaults
-            )
-        except InvalidToken:
-            EveCharacter.objects.filter(character_id=char_id).update(access_token="", refresh_token="")
-            target_char, created = EveCharacter.objects.update_or_create(
-                character_id=char_id,
-                defaults=defaults
-            )
+        target_char, created = EveCharacter.objects.update_or_create(
+            character_id=esi_token.character_id,
+            defaults=defaults
+        )
 
         refresh_character_task.delay(target_char.character_id)
         
-        # Redirect Logic
         if is_srp:
             return redirect('/management/srp/config')
         return redirect('/profile')
+
     else:
         # --- LOGIN ---
-        try:
-            target_char = EveCharacter.objects.get(character_id=char_id)
-        except InvalidToken:
-            EveCharacter.objects.filter(character_id=char_id).update(access_token="", refresh_token="")
-            target_char = EveCharacter.objects.get(character_id=char_id)
-        except EveCharacter.DoesNotExist:
-            target_char = None
+        # Ensure Token has a user. If not, we create/find one.
+
+        target_char = EveCharacter.objects.filter(character_id=esi_token.character_id).first()
 
         if target_char:
+            # Existing Character -> Log in as this user
             user = target_char.user
-            target_char.access_token = access_token
-            target_char.refresh_token = refresh_token
-            target_char.token_expires = token_expiry
-            target_char.granted_scopes = granted_scopes_str
-            target_char.save()
-        else:
-            is_first_user = User.objects.count() == 0
-            user = User.objects.create_user(username=str(char_id), first_name=char_name)
-            
-            if is_first_user:
-                user.is_superuser = True
-                user.is_staff = True
-                user.save()
+            # Ensure ESI Token is owned by this user
+            if esi_token.user != user:
+                esi_token.user = user
+                esi_token.save()
 
-            default_group, _ = Group.objects.get_or_create(name='Public')
-            user.groups.add(default_group)
+            # Update scopes cache
+            target_char.granted_scopes = " ".join([s.name for s in esi_token.scopes.all()])
+            target_char.save()
+
+        else:
+            # New User / New Character
             
+            # Check if this ESI Token already has a user (maybe from a previous login that created it?)
+            if esi_token.user:
+                user = esi_token.user
+            else:
+                is_first_user = User.objects.count() == 0
+                user = User.objects.create_user(username=str(esi_token.character_id), first_name=esi_token.character_name)
+
+                if is_first_user:
+                    user.is_superuser = True
+                    user.is_staff = True
+                    user.save()
+
+                default_group, _ = Group.objects.get_or_create(name='Public')
+                user.groups.add(default_group)
+
+                # Assign to token
+                esi_token.user = user
+                esi_token.save()
+
+            # Create EveCharacter
             target_char = EveCharacter.objects.create(
                 user=user,
-                character_id=char_id,
-                character_name=char_name,
+                character_id=esi_token.character_id,
+                character_name=esi_token.character_name,
                 is_main=True,
-                access_token=access_token,
-                refresh_token=refresh_token,
-                token_expires=token_expiry,
-                granted_scopes=granted_scopes_str
+                access_token="",
+                refresh_token="",
+                granted_scopes=" ".join([s.name for s in esi_token.scopes.all()])
             )
             refresh_character_task.delay(target_char.character_id)
 
         login(request, user)
-        request.session['active_char_id'] = char_id
+        request.session['active_char_id'] = esi_token.character_id
         return redirect('/')
 
 def logout_view(request):

@@ -64,48 +64,8 @@ def check_esi_status():
     cache.set('esi_status_flag', is_healthy, timeout=60)
     return is_healthy
 
-def check_token(character):
-    if not character.refresh_token: return False
-    if not character.token_expires or character.token_expires <= timezone.now() + timedelta(minutes=5):
-        print(f"Refreshing token for {character.character_name}...")
-        return _refresh_access_token(character)
-    return True
-
-def force_refresh_token(character):
-    """
-    Public wrapper to force a token refresh immediately.
-    Useful for 401 Retry logic.
-    """
-    return _refresh_access_token(character)
-
-def _refresh_access_token(character):
-    url = "https://login.eveonline.com/v2/oauth/token"
-    client_id = settings.EVE_CLIENT_ID
-    secret_key = os.getenv('EVE_SECRET_KEY')
-    
-    if not secret_key:
-        print("ERROR: EVE_SECRET_KEY is missing from .env file!")
-        return False
-    
-    try:
-        response = requests.post(
-            url,
-            data={'grant_type': 'refresh_token', 'refresh_token': character.refresh_token},
-            auth=(client_id, secret_key),
-            timeout=10 
-        )
-        if response.status_code != 200: return False
-        response.raise_for_status()
-        tokens = response.json()
-        
-        character.access_token = tokens['access_token']
-        character.refresh_token = tokens.get('refresh_token', character.refresh_token) 
-        character.token_expires = timezone.now() + timedelta(seconds=tokens['expires_in'])
-        character.save()
-        return True
-    except Exception as e:
-        print(f"Exception refreshing token: {e}")
-        return False
+# REFACTORED: Removed old manual token checks.
+# Token refresh is now handled automatically by call_esi() via django-esi.
 
 # UPDATED: Added force_refresh parameter
 def update_character_data(character, target_endpoints=None, force_refresh=False):
@@ -116,7 +76,9 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
     if not check_esi_status():
         return False
 
-    if not check_token(character): return False
+    # Old logic called check_token() here.
+    # New logic relies on call_esi() to handle token retrieval and refresh.
+
     base_url = "https://esi.evetech.net/latest/characters/{char_id}"
     char_id = character.character_id
 

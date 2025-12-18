@@ -3,7 +3,17 @@ Django==5.0
 python-dotenv
 
 # ESI integration and OAuth
-django-esi
+# django-esi (Vendorized in ./esi)
+aiopenapi3
+bravado
+django-redis
+httpx
+jsonschema
+python-jose
+requests-oauthlib
+swapper
+tqdm
+tenacity
 
 # MySQL database driver
 PyMySQL==1.1.1
