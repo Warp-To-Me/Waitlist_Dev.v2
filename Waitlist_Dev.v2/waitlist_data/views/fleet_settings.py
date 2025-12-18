@@ -14,7 +14,7 @@ from channels.layers import get_channel_layer
 from core.permissions import is_fleet_command, get_template_base, get_mgmt_context
 from waitlist_data.models import Fleet, FleetStructureTemplate
 from esi_calls.fleet_service import get_fleet_composition, sync_fleet_structure, update_fleet_settings, ESI_BASE
-from esi_calls.token_manager import check_token
+from esi.models import Token # Updated Import
 
 @login_required
 @user_passes_test(is_fleet_command)
@@ -30,7 +30,7 @@ def fleet_settings(request, token):
     
     # PRE-FETCH CURRENT STRUCTURE
     initial_structure = "[]"
-    if fleet.esi_fleet_id and check_token(fc_char):
+    if fleet.esi_fleet_id and Token.objects.filter(character_id=fc_char.character_id).exists():
         comp, err = get_fleet_composition(fleet.esi_fleet_id, fc_char)
         if comp:
             # Sort wings by ID to keep order stable if not ordered by name
@@ -116,11 +116,14 @@ def api_link_esi_fleet(request, token):
     if not fc_char: 
         return JsonResponse({'success': False, 'error': 'No FC Character found'})
 
-    if not check_token(fc_char):
+    # Token Logic
+    esi_token = Token.objects.filter(character_id=fc_char.character_id).order_by('-created').first()
+    if not esi_token:
         return JsonResponse({'success': False, 'error': 'FC Token Expired/Invalid'})
 
     try:
-        headers = {'Authorization': f'Bearer {fc_char.access_token}'}
+        access_token = esi_token.valid_access_token()
+        headers = {'Authorization': f'Bearer {access_token}'}
         resp = requests.get(f"{ESI_BASE}/characters/{fc_char.character_id}/fleet/", headers=headers, timeout=5)
         
         if resp.status_code == 200:
@@ -176,24 +179,30 @@ def api_take_over_fleet(request, token):
     linked_id = None
     error_msg = None
     
-    if fc_char and check_token(fc_char):
-        try:
-            headers = {'Authorization': f'Bearer {fc_char.access_token}'}
-            resp = requests.get(f"{ESI_BASE}/characters/{fc_char.character_id}/fleet/", headers=headers, timeout=5)
-            
-            if resp.status_code == 200:
-                data = resp.json()
-                linked_id = data['fleet_id']
-                fleet.esi_fleet_id = linked_id
-            elif resp.status_code == 404:
-                error_msg = "You are now FC, but you are not in a fleet in-game. Please form fleet and link manually."
-                # Clear esi_fleet_id so we don't try to use the old one
+    if fc_char:
+        esi_token = Token.objects.filter(character_id=fc_char.character_id).order_by('-created').first()
+        if esi_token:
+            try:
+                access_token = esi_token.valid_access_token()
+                headers = {'Authorization': f'Bearer {access_token}'}
+                resp = requests.get(f"{ESI_BASE}/characters/{fc_char.character_id}/fleet/", headers=headers, timeout=5)
+
+                if resp.status_code == 200:
+                    data = resp.json()
+                    linked_id = data['fleet_id']
+                    fleet.esi_fleet_id = linked_id
+                elif resp.status_code == 404:
+                    error_msg = "You are now FC, but you are not in a fleet in-game. Please form fleet and link manually."
+                    # Clear esi_fleet_id so we don't try to use the old one
+                    fleet.esi_fleet_id = None
+                else:
+                    error_msg = f"ESI Error {resp.status_code} during link attempt."
+                    fleet.esi_fleet_id = None
+            except Exception as e:
+                error_msg = f"Link failed: {str(e)}"
                 fleet.esi_fleet_id = None
-            else:
-                error_msg = f"ESI Error {resp.status_code} during link attempt."
-                fleet.esi_fleet_id = None
-        except Exception as e:
-            error_msg = f"Link failed: {str(e)}"
+        else:
+            error_msg = "Your character has no valid token."
             fleet.esi_fleet_id = None
     else:
         error_msg = "You have no valid character to link fleet with."
@@ -243,7 +252,7 @@ def api_get_fleet_settings(request, token):
     
     # Structure Logic (similar to HTML view)
     initial_structure = []
-    if fleet.esi_fleet_id and fc_char and check_token(fc_char):
+    if fleet.esi_fleet_id and fc_char and Token.objects.filter(character_id=fc_char.character_id).exists():
         comp, err = get_fleet_composition(fleet.esi_fleet_id, fc_char)
         if comp:
             raw_wings = comp.get('wings', [])
