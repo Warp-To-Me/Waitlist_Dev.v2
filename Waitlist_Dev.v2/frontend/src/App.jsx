@@ -30,6 +30,7 @@ import ManagementSDE from './pages/management/ManagementSDE';
 import ManagementCelery from './pages/management/ManagementCelery';
 import ManagementPermissions from './pages/management/ManagementPermissions';
 import ManagementScripts from './pages/management/ManagementScripts';
+import ManagementCommandWorkflow from './pages/management/ManagementCommandWorkflow';
 
 function App() {
   return (
@@ -79,6 +80,7 @@ function App() {
               <Route path="celery" element={<ManagementCelery />} />
               <Route path="permissions" element={<ManagementPermissions />} />
               <Route path="scripts" element={<ManagementScripts />} />
+              <Route path="command" element={<ManagementCommandWorkflow />} />
               
               {/* Fallback for management sub-routes */}
               <Route path="*" element={<div className="p-10 text-slate-500">Page Not Found</div>} />

@@ -7,6 +7,7 @@ import srpReducer from './slices/srpSlice';
 import profileReducer from './slices/profileSlice';
 import usersReducer from './slices/usersSlice';
 import scriptReducer from './slices/scriptSlice';
+import commandReducer from './slices/commandSlice';
 import socketMiddleware from './middleware/socketMiddleware';
 
 export const store = configureStore({
@@ -19,6 +20,7 @@ export const store = configureStore({
     profile: profileReducer,
     users: usersReducer,
     scripts: scriptReducer,
+    command: commandReducer,
   },
   middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(socketMiddleware()),
 });

@@ -3,7 +3,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import clsx from 'clsx';
 import { 
     Activity, Users, Shield, Radio, AlertTriangle, Settings, 
-    BarChart2, Wallet, FileText, Database, Server, Key, Terminal
+    BarChart2, Wallet, FileText, Database, Server, Key, Terminal, ClipboardList
 } from 'lucide-react';
 import { useSelector } from 'react-redux';
 import { selectHasCapability } from '../store/slices/authSlice';
@@ -95,6 +95,11 @@ const Management = () => {
                                 {hasViewBanAudit && (
                                     <NavLink to="/management/bans/audit" className={({ isActive }) => clsx("flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm font-medium", isActive ? "bg-brand-500/10 text-brand-400 border border-brand-500/20" : "text-slate-400 hover:text-white hover:bg-white/5")}>
                                         <FileText size={16} /> Audit Log
+                                    </NavLink>
+                                )}
+                                {hasManageBans && (
+                                     <NavLink to="/management/command" className={({ isActive }) => clsx("flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm font-medium", isActive ? "bg-brand-500/10 text-brand-400 border border-brand-500/20" : "text-slate-400 hover:text-white hover:bg-white/5")}>
+                                        <ClipboardList size={16} /> Command Onboarding
                                     </NavLink>
                                 )}
                             </div>

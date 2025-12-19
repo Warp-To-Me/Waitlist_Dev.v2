@@ -75,3 +75,19 @@ class BanAuditLog(models.Model):
 
     def __str__(self):
         return f"{self.action} - {self.target_user}"
+
+
+class CommandWorkflowEntry(models.Model):
+    target_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='command_workflows')
+    issuer = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='command_workflows_issued')
+    program = models.CharField(max_length=50)  # e.g. 'Resident', 'TFC'
+    action_type = models.CharField(max_length=50)  # e.g. 'Confirmed', 'Removal'
+    checklist_state = models.JSONField(default=dict, blank=True)  # Stores { "mail": true, "waitlist": false ... }
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.program} {self.action_type} - {self.target_user}"
