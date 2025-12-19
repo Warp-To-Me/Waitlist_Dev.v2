@@ -51,7 +51,7 @@ INSTALLED_APPS = [
     'waitlist_data',
     'esi_calls',
     'scheduler',
-    'esi', # Vendorized Django ESI
+    'esi.apps.EsiConfig', # Vendorized Django ESI
 ]
 
 MIDDLEWARE = [
