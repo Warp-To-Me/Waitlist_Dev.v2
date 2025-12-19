@@ -141,81 +141,118 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
 
         # --- PUBLIC INFO (Corp/Alliance) ---
         if ENDPOINT_PUBLIC_INFO in target_endpoints:
-            resp = call_esi(character, ENDPOINT_PUBLIC_INFO, f"{base_url.format(char_id=char_id)}/", force_refresh=force_refresh)
-            if not check_critical_error(resp, ENDPOINT_PUBLIC_INFO) and resp['status'] == 200:
-                data = resp['data']
-                character.corporation_id = data.get('corporation_id')
-                character.alliance_id = data.get('alliance_id')
-                
-                names_to_resolve = {character.corporation_id}
-                if character.alliance_id: names_to_resolve.add(character.alliance_id)
-                
+            # We don't strictly need a user token for public info, but using one helps with rate limits?
+            # ESI Public endpoints can be called without auth.
+            # However, our pattern is to use the user's token if available.
+            token = Token.objects.filter(character_id=character.character_id).order_by('-created').first()
+            if token:
                 try:
-                    name_resp = requests.post("https://esi.evetech.net/latest/universe/names/", json=list(names_to_resolve))
-                    if name_resp.status_code == 200:
-                        for entry in name_resp.json():
-                            if entry['id'] == character.corporation_id:
-                                character.corporation_name = entry['name']
-                            elif entry['id'] == character.alliance_id:
-                                character.alliance_name = entry['name']
+                    client = get_esi_client(token)
+                    op = client.Character.get_characters_character_id(character_id=char_id)
+                    data, incoming_response = op.result(also_return_response=True)
+                    notify_user_ratelimit(character.user, incoming_response.headers)
+
+                    character.corporation_id = getattr(data, 'corporation_id', None)
+                    character.alliance_id = getattr(data, 'alliance_id', None)
+
+                    # Resolve Names
+                    names_to_resolve = {character.corporation_id}
+                    if character.alliance_id: names_to_resolve.add(character.alliance_id)
+
+                    try:
+                        # Use the client for name resolution too
+                        op_names = client.Universe.post_universe_names(ids=list(names_to_resolve))
+                        name_data, _ = op_names.result(also_return_response=True)
+
+                        for entry in name_data:
+                            if entry.id == character.corporation_id:
+                                character.corporation_name = entry.name
+                            elif entry.id == character.alliance_id:
+                                character.alliance_name = entry.name
+                    except Exception as e:
+                        logger.error(f"[ESI Library Error] Name Resolution: {e}")
+
+                    character.save(update_fields=['corporation_id', 'alliance_id', 'corporation_name', 'alliance_name'])
+
                 except Exception as e:
-                    print(f"Error resolving names: {e}")
-                
-                character.save(update_fields=['corporation_id', 'alliance_id', 'corporation_name', 'alliance_name'])
+                    logger.error(f"[ESI Library Error] Public Info Endpoint: {e}")
 
         # --- SKILLS ---
         if ENDPOINT_SKILLS in target_endpoints:
-            resp = call_esi(character, ENDPOINT_SKILLS, f"{base_url.format(char_id=char_id)}/skills/", force_refresh=force_refresh)
-            if not check_critical_error(resp, ENDPOINT_SKILLS) and resp['status'] == 200:
-                data = resp['data']
-                character.total_sp = data.get('total_sp', 0)
-                character.save(update_fields=['total_sp'])
-                
-                old_skills_map = {s.skill_id: s for s in CharacterSkill.objects.filter(character=character)}
-                history_buffer = []
-                
-                for s_data in data.get('skills', []):
-                    sid = s_data['skill_id']
-                    new_level = s_data['active_skill_level']
-                    new_sp = s_data['skillpoints_in_skill']
-                    
-                    if sid in old_skills_map:
-                        old_s = old_skills_map[sid]
-                        if old_s.active_skill_level != new_level or old_s.skillpoints_in_skill != new_sp:
-                            history_buffer.append(SkillHistory(
-                                character=character, skill_id=sid, old_level=old_s.active_skill_level,
-                                new_level=new_level, old_sp=old_s.skillpoints_in_skill, new_sp=new_sp
-                            ))
-                    else:
-                        history_buffer.append(SkillHistory(
-                            character=character, skill_id=sid, old_level=0,
-                            new_level=new_level, old_sp=0, new_sp=new_sp
-                        ))
-                
-                if history_buffer: SkillHistory.objects.bulk_create(history_buffer)
+            token = Token.objects.filter(character_id=character.character_id).order_by('-created').first()
+            if token:
+                try:
+                    client = get_esi_client(token)
+                    op = client.Skills.get_characters_character_id_skills(character_id=char_id)
+                    data, incoming_response = op.result(also_return_response=True)
+                    notify_user_ratelimit(character.user, incoming_response.headers)
 
-                CharacterSkill.objects.filter(character=character).delete()
-                new_skills = [
-                    CharacterSkill(
-                        character=character, skill_id=s['skill_id'],
-                        active_skill_level=s['active_skill_level'], skillpoints_in_skill=s['skillpoints_in_skill']
-                    ) for s in data.get('skills', [])
-                ]
-                CharacterSkill.objects.bulk_create(new_skills)
+                    character.total_sp = getattr(data, 'total_sp', 0)
+                    character.save(update_fields=['total_sp'])
+                    
+                    old_skills_map = {s.skill_id: s for s in CharacterSkill.objects.filter(character=character)}
+                    history_buffer = []
+
+                    skills_list = getattr(data, 'skills', [])
+
+                    for s_data in skills_list:
+                        sid = s_data.skill_id
+                        new_level = s_data.active_skill_level
+                        new_sp = s_data.skillpoints_in_skill
+
+                        if sid in old_skills_map:
+                            old_s = old_skills_map[sid]
+                            if old_s.active_skill_level != new_level or old_s.skillpoints_in_skill != new_sp:
+                                history_buffer.append(SkillHistory(
+                                    character=character, skill_id=sid, old_level=old_s.active_skill_level,
+                                    new_level=new_level, old_sp=old_s.skillpoints_in_skill, new_sp=new_sp
+                                ))
+                        else:
+                            history_buffer.append(SkillHistory(
+                                character=character, skill_id=sid, old_level=0,
+                                new_level=new_level, old_sp=0, new_sp=new_sp
+                            ))
+
+                    if history_buffer: SkillHistory.objects.bulk_create(history_buffer)
+
+                    CharacterSkill.objects.filter(character=character).delete()
+                    new_skills = [
+                        CharacterSkill(
+                            character=character, skill_id=s.skill_id,
+                            active_skill_level=s.active_skill_level, skillpoints_in_skill=s.skillpoints_in_skill
+                        ) for s in skills_list
+                    ]
+                    CharacterSkill.objects.bulk_create(new_skills)
+                except HTTPForbidden:
+                    logger.warning(f"Missing Scope 'esi-skills.read_skills.v1' for {character.character_name}")
+                except Exception as e:
+                    logger.error(f"[ESI Library Error] Skills Endpoint: {e}")
+
 
         # --- SKILL QUEUE ---
         if ENDPOINT_QUEUE in target_endpoints:
-            resp = call_esi(character, ENDPOINT_QUEUE, f"{base_url.format(char_id=char_id)}/skillqueue/", force_refresh=force_refresh)
-            if not check_critical_error(resp, ENDPOINT_QUEUE) and resp['status'] == 200:
-                CharacterQueue.objects.filter(character=character).delete()
-                new_queue = [
-                    CharacterQueue(
-                        character=character, skill_id=item['skill_id'],
-                        finished_level=item['finished_level'], queue_position=item['queue_position'],
-                        finish_date=item.get('finish_date')
-                    ) for item in resp['data']
-                ]
-                CharacterQueue.objects.bulk_create(new_queue)
+            token = Token.objects.filter(character_id=character.character_id).order_by('-created').first()
+            if token:
+                try:
+                    client = get_esi_client(token)
+                    op = client.Skills.get_characters_character_id_skillqueue(character_id=char_id)
+                    data, incoming_response = op.result(also_return_response=True)
+                    notify_user_ratelimit(character.user, incoming_response.headers)
+
+                    CharacterQueue.objects.filter(character=character).delete()
+                    # data is a list of objects for this endpoint
+                    new_queue = [
+                        CharacterQueue(
+                            character=character, skill_id=item.skill_id,
+                            finished_level=item.finished_level, queue_position=item.queue_position,
+                            finish_date=getattr(item, 'finish_date', None)
+                        ) for item in data
+                    ]
+                    CharacterQueue.objects.bulk_create(new_queue)
+                except HTTPForbidden:
+                    logger.warning(f"Missing Scope 'esi-skills.read_skillqueue.v1' for {character.character_name}")
+                except Exception as e:
+                    logger.error(f"[ESI Library Error] Skill Queue Endpoint: {e}")
 
         # --- SHIP ---
         if ENDPOINT_SHIP in target_endpoints:
