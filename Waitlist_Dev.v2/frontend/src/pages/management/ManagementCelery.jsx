@@ -128,7 +128,7 @@ const ManagementCelery = () => {
                     <div className="md:col-span-2 grid grid-cols-2 gap-4">
                         <StatBox label="Total Tokens" value={data.total_tokens} color="purple" />
                         <StatBox label="Missing Tokens" value={data.missing_token_count} color="red" />
-                        <StatBox label="Expired Tokens" value={data.expired_token_count} color={data.expired_token_count > 0 ? "yellow" : "green"} />
+                        <StatBox label="Idle Tokens" value={data.expired_token_count} color="blue" />
                         <StatBox label="Stale Characters (>1h)" value={data.stale_count} color="yellow" />
                         <StatBox label="Active (30d)" value={data.active_30d_count} color="blue" />
                         <StatBox label="ESI API Status" value={data.esi_server_status ? "ONLINE" : "DOWN"} color={data.esi_server_status ? "green" : "red"} />
