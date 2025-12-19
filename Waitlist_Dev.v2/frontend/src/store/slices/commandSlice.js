@@ -6,7 +6,8 @@ export const fetchCommandWorkflows = createAsyncThunk(
   async ({ limit = 20, offset = 0 } = {}, { rejectWithValue }) => {
     try {
       const response = await apiCall(`/api/management/command/?limit=${limit}&offset=${offset}`);
-      return response;
+      const data = await response.json();
+      return data;
     } catch (error) {
       return rejectWithValue(error.message);
     }
@@ -17,11 +18,20 @@ export const createCommandWorkflow = createAsyncThunk(
   'command/createCommandWorkflow',
   async (payload, { rejectWithValue }) => {
     try {
+      const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
       const response = await apiCall('/api/management/command/', {
         method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrf
+        },
         body: JSON.stringify(payload),
       });
-      return response;
+      const data = await response.json();
+      if (!response.ok) {
+          throw new Error(data.error || "Request failed");
+      }
+      return data;
     } catch (error) {
       return rejectWithValue(error.message);
     }
@@ -32,12 +42,20 @@ export const updateCommandStep = createAsyncThunk(
   'command/updateCommandStep',
   async ({ entryId, step, value, meta }, { rejectWithValue }) => {
     try {
+      const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
       const response = await apiCall(`/api/management/command/${entryId}/step/`, {
         method: 'PATCH',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrf
+        },
         body: JSON.stringify({ step, value, meta }),
       });
-      if (response.error) {
-          throw new Error(response.error);
+
+      const data = await response.json();
+
+      if (!response.ok || data.error) {
+          throw new Error(data.error || "Update failed");
       }
       return { entryId, step, value };
     } catch (error) {
@@ -65,13 +83,19 @@ const commandSlice = createSlice({
       })
       .addCase(fetchCommandWorkflows.fulfilled, (state, action) => {
         state.status = 'succeeded';
-        state.items = action.payload.items;
-        state.total = action.payload.total;
-        state.workflowSteps = action.payload.workflow_steps;
+        state.items = action.payload.items || [];
+        state.total = action.payload.total || 0;
+        state.workflowSteps = action.payload.workflow_steps || [];
+        state.error = null;
       })
       .addCase(fetchCommandWorkflows.rejected, (state, action) => {
         state.status = 'failed';
         state.error = action.payload;
+        // Keep existing data on error? Or clear?
+        // Safer to keep existing structure but maybe empty items if critical failure
+        // But for now, let's just ensure we don't break types
+        if (!state.items) state.items = [];
+        if (!state.workflowSteps) state.workflowSteps = [];
       })
       // Create
       .addCase(createCommandWorkflow.fulfilled, (state) => {
