@@ -149,7 +149,8 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                 try:
                     client = get_esi_client(token)
                     op = client.Character.get_characters_character_id(character_id=char_id)
-                    data, incoming_response = op.result(also_return_response=True)
+                    op.request_config.also_return_response = True
+                    data, incoming_response = op.result()
                     notify_user_ratelimit(character.user, incoming_response.headers)
 
                     character.corporation_id = getattr(data, 'corporation_id', None)
@@ -162,7 +163,8 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                     try:
                         # Use the client for name resolution too
                         op_names = client.Universe.post_universe_names(ids=list(names_to_resolve))
-                        name_data, _ = op_names.result(also_return_response=True)
+                        op_names.request_config.also_return_response = True
+                        name_data, _ = op_names.result()
 
                         for entry in name_data:
                             if entry.id == character.corporation_id:
@@ -184,7 +186,8 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                 try:
                     client = get_esi_client(token)
                     op = client.Skills.get_characters_character_id_skills(character_id=char_id)
-                    data, incoming_response = op.result(also_return_response=True)
+                    op.request_config.also_return_response = True
+                    data, incoming_response = op.result()
                     notify_user_ratelimit(character.user, incoming_response.headers)
 
                     character.total_sp = getattr(data, 'total_sp', 0)
@@ -236,7 +239,8 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                 try:
                     client = get_esi_client(token)
                     op = client.Skills.get_characters_character_id_skillqueue(character_id=char_id)
-                    data, incoming_response = op.result(also_return_response=True)
+                    op.request_config.also_return_response = True
+                    data, incoming_response = op.result()
                     notify_user_ratelimit(character.user, incoming_response.headers)
 
                     CharacterQueue.objects.filter(character=character).delete()
@@ -263,7 +267,8 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                     # get_esi_client handles UA. token.get_esi_client uses factory internally too but we use our helper.
                     client = get_esi_client(token)
                     op = client.Location.get_characters_character_id_ship(character_id=char_id)
-                    data, incoming_response = op.result(also_return_response=True)
+                    op.request_config.also_return_response = True
+                    data, incoming_response = op.result()
 
                     # Notify Rate Limits (Manual Hook)
                     notify_user_ratelimit(character.user, incoming_response.headers)
