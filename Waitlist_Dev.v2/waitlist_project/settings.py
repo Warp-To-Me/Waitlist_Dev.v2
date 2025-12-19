@@ -236,3 +236,8 @@ import sys
 # Detect if running as Celery worker
 if 'celery' in sys.argv[0]:
     os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
+
+# Force migration module for vendorized 'esi' app
+MIGRATION_MODULES = {
+    'esi': 'esi.migrations'
+}
