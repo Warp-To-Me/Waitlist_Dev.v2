@@ -8,11 +8,11 @@ from django.utils import timezone
 from django.core.cache import cache
 
 # Local Imports
-from waitlist_data.models import Fleet, FleetActivity, WaitlistEntry, CharacterStats # Added CharacterStats
+from waitlist_data.models import Fleet, FleetActivity, WaitlistEntry, CharacterStats
 from pilot_data.models import EveCharacter, EsiHeaderCache, ItemType
 from core.utils import ROLE_HIERARCHY
 from esi_calls.fleet_service import get_fleet_composition, process_fleet_data, resolve_unknown_names, ESI_BASE
-from esi_calls.token_manager import check_token
+from esi.models import Token # Updated Import
 import requests
 
 logger = logging.getLogger(__name__)
@@ -183,10 +183,16 @@ class FleetConsumer(AsyncWebsocketConsumer):
             fc_char = fleet.commander.characters.filter(is_main=True).first()
             if not fc_char: fc_char = fleet.commander.characters.first()
             if not fc_char: return {'error': 'FC has no characters'}
-            if not check_token(fc_char): return {'error': 'FC Token Invalid / Expired'}
+
+            # REFACTORED: Use Token model check
+            esi_token = Token.objects.filter(character_id=fc_char.character_id).order_by('-created').first()
+            if not esi_token: return {'error': 'FC Token Invalid / Expired'}
+
             if not fleet.esi_fleet_id:
                 try:
-                    headers = {'Authorization': f'Bearer {fc_char.access_token}'}
+                    # REFACTORED: Use validated token
+                    access_token = esi_token.valid_access_token()
+                    headers = {'Authorization': f'Bearer {access_token}'}
                     resp = requests.get(f"{ESI_BASE}/characters/{fc_char.character_id}/fleet/", headers=headers, timeout=5)
                     if resp.status_code == 200:
                         data = resp.json()
