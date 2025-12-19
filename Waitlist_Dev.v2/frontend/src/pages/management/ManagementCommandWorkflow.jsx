@@ -31,7 +31,8 @@ const ManagementCommandWorkflow = () => {
     if (query.length > 2) {
       try {
         const res = await apiCall(`/api/mgmt/search_users/?q=${query}`);
-        setUserSearchResults(res.users);
+        const data = await res.json();
+        setUserSearchResults(data.users || []);
       } catch (err) {
         console.error(err);
       }
