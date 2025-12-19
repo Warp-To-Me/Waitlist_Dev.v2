@@ -7,6 +7,10 @@ from django.core.cache import cache
 from datetime import timedelta
 from pilot_data.models import EveCharacter, ItemType, CharacterSkill, CharacterQueue, CharacterImplant, CharacterHistory, SkillHistory, EsiHeaderCache
 from esi_calls.esi_network import call_esi
+from esi_calls.client import get_esi_client
+from esi_calls.signals import notify_user_ratelimit
+from esi.models import Token
+from bravado.exception import HTTPForbidden
 
 # --- QUANTIFIED ESI ENDPOINTS ---
 ENDPOINT_ONLINE = 'online'
@@ -212,12 +216,26 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
 
         # --- SHIP ---
         if ENDPOINT_SHIP in target_endpoints:
-            resp = call_esi(character, ENDPOINT_SHIP, f"{base_url.format(char_id=char_id)}/ship/", force_refresh=force_refresh)
-            if not check_critical_error(resp, ENDPOINT_SHIP) and resp['status'] == 200:
-                data = resp['data']
-                character.current_ship_name = data.get('ship_name', 'Unknown')
-                character.current_ship_type_id = data.get('ship_type_id')
-                character.save(update_fields=['current_ship_name', 'current_ship_type_id'])
+            # New Migration to ESI Library
+            token = Token.objects.filter(character_id=character.character_id).order_by('-created').first()
+            if token:
+                try:
+                    # get_esi_client handles UA. token.get_esi_client uses factory internally too but we use our helper.
+                    client = get_esi_client(token)
+                    op = client.Location.get_characters_character_id_ship(character_id=char_id)
+                    data, incoming_response = op.result(also_return_response=True)
+
+                    # Notify Rate Limits (Manual Hook)
+                    notify_user_ratelimit(character.user, incoming_response.headers)
+
+                    character.current_ship_name = getattr(data, 'ship_name', 'Unknown')
+                    character.current_ship_type_id = getattr(data, 'ship_type_id', None)
+                    character.save(update_fields=['current_ship_name', 'current_ship_type_id'])
+
+                except HTTPForbidden:
+                    print(f"  !!! Missing Scope 'esi-location.read_ship_type.v1' for {character.character_name}")
+                except Exception as e:
+                    print(f"  [ESI Library Error] Ship Endpoint: {e}")
 
         # --- WALLET BALANCE ---
         if ENDPOINT_WALLET in target_endpoints:
