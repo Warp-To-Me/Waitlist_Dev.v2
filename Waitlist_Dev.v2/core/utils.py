@@ -345,11 +345,6 @@ def get_system_status():
     
     stale_count = EveCharacter.objects.filter(last_updated__lt=stale_threshold).count()
     
-    active_30d_count = EveCharacter.objects.filter(
-        Q(last_login_at__gte=active_30d_threshold) | 
-        Q(last_updated__gte=active_30d_threshold)
-    ).count()
-
     # New Token Metrics
     total_tokens = Token.objects.count()
 
@@ -367,7 +362,11 @@ def get_system_status():
         esi_health_percent = 0
 
     # --- OPERATIONAL METRICS ---
-    from waitlist_data.models import Fleet, WaitlistEntry
+    from waitlist_data.models import Fleet, WaitlistEntry, FleetActivity
+
+    active_30d_count = FleetActivity.objects.filter(
+        timestamp__gte=timezone.now() - timedelta(days=30)
+    ).values('character_id').distinct().count()
 
     active_fleets_count = Fleet.objects.filter(is_active=True).count()
 
