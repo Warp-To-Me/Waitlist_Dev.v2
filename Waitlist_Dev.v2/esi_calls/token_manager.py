@@ -153,28 +153,38 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                     data, incoming_response = op.result()
                     notify_user_ratelimit(character.user, incoming_response.headers)
 
-                    character.corporation_id = getattr(data, 'corporation_id', None)
-                    character.alliance_id = getattr(data, 'alliance_id', None)
+                    character.corporation_id = data.get('corporation_id')
+                    character.alliance_id = data.get('alliance_id')
 
                     # Resolve Names
                     names_to_resolve = {character.corporation_id}
                     if character.alliance_id: names_to_resolve.add(character.alliance_id)
 
-                    try:
-                        # Use the client for name resolution too
-                        op_names = client.Universe.post_universe_names(ids=list(names_to_resolve))
-                        op_names.request_config.also_return_response = True
-                        name_data, _ = op_names.result()
+                    # Filter out None values
+                    names_to_resolve = {n for n in names_to_resolve if n is not None}
 
-                        for entry in name_data:
-                            if entry.id == character.corporation_id:
-                                character.corporation_name = entry.name
-                            elif entry.id == character.alliance_id:
-                                character.alliance_name = entry.name
-                    except Exception as e:
-                        logger.error(f"[ESI Library Error] Name Resolution: {e}")
+                    if names_to_resolve:
+                        try:
+                            # Use the client for name resolution too
+                            op_names = client.Universe.post_universe_names(ids=list(names_to_resolve))
+                            op_names.request_config.also_return_response = True
+                            name_data, _ = op_names.result()
 
-                    character.save(update_fields=['corporation_id', 'alliance_id', 'corporation_name', 'alliance_name'])
+                            for entry in name_data:
+                                # entry is a dict
+                                entry_id = entry.get('id')
+                                entry_name = entry.get('name')
+                                if entry_id == character.corporation_id:
+                                    character.corporation_name = entry_name
+                                elif entry_id == character.alliance_id:
+                                    character.alliance_name = entry_name
+                        except Exception as e:
+                            logger.error(f"[ESI Library Error] Name Resolution: {e}")
+
+                    if character.corporation_id:
+                        character.save(update_fields=['corporation_id', 'alliance_id', 'corporation_name', 'alliance_name'])
+                    else:
+                        logger.warning(f"Skipping save for {character.character_name}: corporation_id is None")
 
                 except Exception as e:
                     logger.error(f"[ESI Library Error] Public Info Endpoint: {e}")
@@ -190,18 +200,18 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                     data, incoming_response = op.result()
                     notify_user_ratelimit(character.user, incoming_response.headers)
 
-                    character.total_sp = getattr(data, 'total_sp', 0)
+                    character.total_sp = data.get('total_sp', 0)
                     character.save(update_fields=['total_sp'])
-                    
+
                     old_skills_map = {s.skill_id: s for s in CharacterSkill.objects.filter(character=character)}
                     history_buffer = []
 
-                    skills_list = getattr(data, 'skills', [])
+                    skills_list = data.get('skills', [])
 
                     for s_data in skills_list:
-                        sid = s_data.skill_id
-                        new_level = s_data.active_skill_level
-                        new_sp = s_data.skillpoints_in_skill
+                        sid = s_data.get('skill_id')
+                        new_level = s_data.get('active_skill_level')
+                        new_sp = s_data.get('skillpoints_in_skill')
 
                         if sid in old_skills_map:
                             old_s = old_skills_map[sid]
@@ -221,8 +231,8 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                     CharacterSkill.objects.filter(character=character).delete()
                     new_skills = [
                         CharacterSkill(
-                            character=character, skill_id=s.skill_id,
-                            active_skill_level=s.active_skill_level, skillpoints_in_skill=s.skillpoints_in_skill
+                            character=character, skill_id=s.get('skill_id'),
+                            active_skill_level=s.get('active_skill_level'), skillpoints_in_skill=s.get('skillpoints_in_skill')
                         ) for s in skills_list
                     ]
                     CharacterSkill.objects.bulk_create(new_skills)
@@ -247,9 +257,9 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                     # data is a list of objects for this endpoint
                     new_queue = [
                         CharacterQueue(
-                            character=character, skill_id=item.skill_id,
-                            finished_level=item.finished_level, queue_position=item.queue_position,
-                            finish_date=getattr(item, 'finish_date', None)
+                            character=character, skill_id=item.get('skill_id'),
+                            finished_level=item.get('finished_level'), queue_position=item.get('queue_position'),
+                            finish_date=item.get('finish_date')
                         ) for item in data
                     ]
                     CharacterQueue.objects.bulk_create(new_queue)
@@ -273,8 +283,8 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                     # Notify Rate Limits (Manual Hook)
                     notify_user_ratelimit(character.user, incoming_response.headers)
 
-                    character.current_ship_name = getattr(data, 'ship_name', 'Unknown')
-                    character.current_ship_type_id = getattr(data, 'ship_type_id', None)
+                    character.current_ship_name = data.get('ship_name', 'Unknown')
+                    character.current_ship_type_id = data.get('ship_type_id')
                     character.save(update_fields=['current_ship_name', 'current_ship_type_id'])
 
                 except HTTPForbidden:
