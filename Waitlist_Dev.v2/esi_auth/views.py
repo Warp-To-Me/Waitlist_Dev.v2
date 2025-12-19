@@ -215,10 +215,6 @@ def sso_callback(request):
         defaults = {
             'user': user,
             'character_name': esi_token.character_name,
-            # We clear these fields as they are now managed by esi.Token
-            'access_token': "",
-            'refresh_token': "",
-            'token_expires': None,
             # We keep granted_scopes string for easy query filtering in legacy code
             'granted_scopes': " ".join([s.name for s in esi_token.scopes.all()])
         }
@@ -283,8 +279,6 @@ def sso_callback(request):
                 character_id=esi_token.character_id,
                 character_name=esi_token.character_name,
                 is_main=True,
-                access_token="",
-                refresh_token="",
                 granted_scopes=" ".join([s.name for s in esi_token.scopes.all()])
             )
             refresh_character_task.delay(target_char.character_id)
