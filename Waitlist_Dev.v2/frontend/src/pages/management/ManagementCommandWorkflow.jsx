@@ -32,7 +32,7 @@ const ManagementCommandWorkflow = () => {
       try {
         const res = await apiCall(`/api/mgmt/search_users/?q=${query}`);
         const data = await res.json();
-        setUserSearchResults(data.users || []);
+        setUserSearchResults(data.results || []);
       } catch (err) {
         console.error(err);
       }
