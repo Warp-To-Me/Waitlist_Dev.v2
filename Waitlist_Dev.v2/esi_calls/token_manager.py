@@ -11,6 +11,9 @@ from esi_calls.client import get_esi_client
 from esi_calls.signals import notify_user_ratelimit
 from esi.models import Token
 from bravado.exception import HTTPForbidden
+import logging
+
+logger = logging.getLogger(__name__)
 
 # --- QUANTIFIED ESI ENDPOINTS ---
 ENDPOINT_ONLINE = 'online'
@@ -233,9 +236,9 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                     character.save(update_fields=['current_ship_name', 'current_ship_type_id'])
 
                 except HTTPForbidden:
-                    print(f"  !!! Missing Scope 'esi-location.read_ship_type.v1' for {character.character_name}")
+                    logger.warning(f"Missing Scope 'esi-location.read_ship_type.v1' for {character.character_name}")
                 except Exception as e:
-                    print(f"  [ESI Library Error] Ship Endpoint: {e}")
+                    logger.error(f"[ESI Library Error] Ship Endpoint: {e}")
 
         # --- WALLET BALANCE ---
         if ENDPOINT_WALLET in target_endpoints:
