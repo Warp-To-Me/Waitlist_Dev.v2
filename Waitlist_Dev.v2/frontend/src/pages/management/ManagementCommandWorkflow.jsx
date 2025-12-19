@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchCommandWorkflows, createCommandWorkflow, updateCommandStep } from '../../store/slices/commandSlice';
+import { fetchCommandWorkflows, createCommandWorkflow, updateCommandStep, deleteCommandWorkflow } from '../../store/slices/commandSlice';
 import SmartPagination from '../../components/SmartPagination';
 import { apiCall } from '../../utils/api';
 import { format } from 'date-fns';
-import { Loader2, Plus, Check, X, AlertTriangle } from 'lucide-react';
+import { Loader2, Plus, Check, X, AlertTriangle, Trash2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 const ManagementCommandWorkflow = () => {
@@ -32,7 +32,7 @@ const ManagementCommandWorkflow = () => {
       try {
         const res = await apiCall(`/api/mgmt/search_users/?q=${query}`);
         const data = await res.json();
-        setUserSearchResults(data.users || []);
+        setUserSearchResults(data.results || []);
       } catch (err) {
         console.error(err);
       }
@@ -93,41 +93,51 @@ const ManagementCommandWorkflow = () => {
          .catch(err => toast.error(`Failed: ${err}`));
   };
 
+  const handleDelete = (id) => {
+      if (confirm('Are you sure you want to delete this entry?')) {
+          dispatch(deleteCommandWorkflow(id))
+            .unwrap()
+            .then(() => toast.success('Entry Deleted'))
+            .catch(err => toast.error(err));
+      }
+  };
+
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-slate-100">Command Onboarding</h1>
+    <div className="p-4">
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-xl font-bold text-slate-100">Command Onboarding</h1>
         <button 
           onClick={() => setShowModal(true)}
-          className="btn btn-primary flex items-center gap-2"
+          className="btn btn-primary btn-sm flex items-center gap-2"
         >
-          <Plus size={18} /> New Entry
+          <Plus size={16} /> New Entry
         </button>
       </div>
 
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="border-b border-slate-700 text-slate-400 text-sm">
-              <th className="p-3">Date</th>
-              <th className="p-3">Target</th>
-              <th className="p-3">Program</th>
-              <th className="p-3">Action</th>
+            <tr className="border-b border-slate-700 text-slate-400 text-xs uppercase">
+              <th className="p-2">Date</th>
+              <th className="p-2">Target</th>
+              <th className="p-2">Program</th>
+              <th className="p-2">Action</th>
               {workflowSteps.map(step => (
-                <th key={step} className="p-3 text-center whitespace-nowrap">{step}</th>
+                <th key={step} className="p-2 text-center whitespace-nowrap">{step}</th>
               ))}
-              <th className="p-3">Issuer</th>
+              <th className="p-2">Issuer</th>
+              <th className="p-2 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
             {items.map(entry => (
-              <tr key={entry.id} className="border-b border-slate-800 hover:bg-slate-800/30">
-                <td className="p-3 text-slate-300 text-sm whitespace-nowrap">
+              <tr key={entry.id} className="border-b border-slate-800 hover:bg-slate-800/30 text-sm">
+                <td className="p-2 text-slate-300 whitespace-nowrap text-xs">
                   {format(new Date(entry.created_at), 'yyyy-MM-dd')}
                 </td>
-                <td className="p-3 text-slate-200 font-medium">{entry.target_username}</td>
-                <td className="p-3 text-blue-400">{entry.program}</td>
-                <td className="p-3 text-yellow-400">{entry.action}</td>
+                <td className="p-2 text-slate-200 font-medium">{entry.target_username}</td>
+                <td className="p-2 text-blue-400 text-xs">{entry.program}</td>
+                <td className="p-2 text-yellow-400 text-xs">{entry.action}</td>
                 
                 {workflowSteps.map(step => {
                   const isChecked = entry.checklist[step];
@@ -136,12 +146,12 @@ const ManagementCommandWorkflow = () => {
                   const isWaitlist = step === 'Waitlist';
 
                   return (
-                    <td key={step} className="p-3 text-center">
+                    <td key={step} className="p-2 text-center">
                       <button
                         onClick={() => handleStepClick(entry, step)}
                         disabled={isLoading}
                         className={`
-                          w-6 h-6 rounded border flex items-center justify-center transition-colors
+                          w-5 h-5 rounded border flex items-center justify-center transition-colors mx-auto
                           ${isChecked 
                             ? 'bg-green-600 border-green-500 text-white' 
                             : 'bg-slate-800 border-slate-600 text-transparent hover:border-slate-400'}
@@ -149,13 +159,22 @@ const ManagementCommandWorkflow = () => {
                         `}
                         title={isWaitlist ? "Click to trigger automated permissions" : ""}
                       >
-                         {isLoading ? <Loader2 size={14} className="animate-spin text-white" /> : <Check size={14} />}
+                         {isLoading ? <Loader2 size={12} className="animate-spin text-white" /> : <Check size={12} />}
                       </button>
                     </td>
                   );
                 })}
                 
-                <td className="p-3 text-slate-400 text-sm">{entry.issuer_username}</td>
+                <td className="p-2 text-slate-400 text-xs">{entry.issuer_username}</td>
+                <td className="p-2 text-right">
+                    <button 
+                        onClick={() => handleDelete(entry.id)}
+                        className="text-slate-500 hover:text-red-400 transition-colors p-1"
+                        title="Delete Entry"
+                    >
+                        <Trash2 size={14} />
+                    </button>
+                </td>
               </tr>
             ))}
           </tbody>

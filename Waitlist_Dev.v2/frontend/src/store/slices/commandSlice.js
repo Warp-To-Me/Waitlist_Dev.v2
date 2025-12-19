@@ -14,6 +14,31 @@ export const fetchCommandWorkflows = createAsyncThunk(
   }
 );
 
+export const deleteCommandWorkflow = createAsyncThunk(
+  'command/deleteCommandWorkflow',
+  async (entryId, { rejectWithValue }) => {
+    try {
+      const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+      const response = await apiCall(`/api/management/command/${entryId}/`, {
+        method: 'DELETE',
+        headers: { 
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrf
+        }
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok || !data.success) {
+          throw new Error(data.error || "Delete failed");
+      }
+      return entryId;
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
 export const createCommandWorkflow = createAsyncThunk(
   'command/createCommandWorkflow',
   async (payload, { rejectWithValue }) => {
@@ -118,6 +143,11 @@ const commandSlice = createSlice({
       .addCase(updateCommandStep.rejected, (state, action) => {
         const { entryId, step } = action.meta.arg;
         state.stepUpdateStatus[`${entryId}-${step}`] = 'error';
+      })
+      // Delete
+      .addCase(deleteCommandWorkflow.fulfilled, (state, action) => {
+        state.items = state.items.filter(item => item.id !== action.payload);
+        state.total -= 1;
       });
   },
 });

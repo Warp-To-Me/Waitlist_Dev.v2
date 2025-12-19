@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.urls import path, include, re_path
 from core import views as core_views
 from core import views_management, views_profile, views_rules, views_srp, views_frontend, api_utils, views_skills
-from core.views_command import api_command_workflow, api_command_workflow_step
+from core.views_command import api_command_workflow, api_command_workflow_step, api_command_workflow_detail
 from waitlist_data.views import fleet_setup, fleet_settings, dashboard, actions
 
 # Define API patterns first
@@ -73,6 +73,7 @@ api_urlpatterns = [
 
     # --- COMMAND WORKFLOW ---
     path('management/command/', api_command_workflow, name='api_command_workflow'),
+    path('management/command/<int:entry_id>/', api_command_workflow_detail, name='api_command_workflow_detail'),
     path('management/command/<int:entry_id>/step/', api_command_workflow_step, name='api_command_workflow_step'),
 
     # --- RULE MANAGER ---

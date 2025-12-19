@@ -84,6 +84,16 @@ def api_command_workflow(request):
         
         return Response({'success': True, 'id': entry.id})
 
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def api_command_workflow_detail(request, entry_id):
+    if not has_command_access(request.user):
+        return Response({'error': 'Access Denied'}, status=status.HTTP_403_FORBIDDEN)
+
+    entry = get_object_or_404(CommandWorkflowEntry, id=entry_id)
+    entry.delete()
+    return Response({'success': True})
+
 @api_view(['PATCH'])
 @permission_classes([IsAuthenticated])
 def api_command_workflow_step(request, entry_id):
