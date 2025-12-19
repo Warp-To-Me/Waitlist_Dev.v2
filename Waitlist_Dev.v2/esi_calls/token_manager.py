@@ -371,7 +371,7 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
             if token:
                 try:
                     client = get_esi_client(token)
-                    op = client.Corporation.get_characters_character_id_corporationhistory(character_id=char_id)
+                    op = client.Character.get_characters_character_id_corporationhistory(character_id=char_id)
                     op.request_config.also_return_response = True
                     data, incoming_response = op.result(ignore_cache=force_refresh)
                     notify_user_ratelimit(character.user, incoming_response.headers)
