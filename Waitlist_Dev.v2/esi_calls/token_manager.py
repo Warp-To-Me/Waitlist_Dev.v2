@@ -150,7 +150,7 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                     client = get_esi_client(token)
                     op = client.Character.get_characters_character_id(character_id=char_id)
                     op.request_config.also_return_response = True
-                    data, incoming_response = op.result()
+                    data, incoming_response = op.result(ignore_cache=force_refresh)
                     notify_user_ratelimit(character.user, incoming_response.headers)
 
                     character.corporation_id = data.get('corporation_id')
@@ -168,7 +168,7 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                             # Use the client for name resolution too
                             op_names = client.Universe.post_universe_names(ids=list(names_to_resolve))
                             op_names.request_config.also_return_response = True
-                            name_data, _ = op_names.result()
+                            name_data, _ = op_names.result(ignore_cache=force_refresh)
 
                             for entry in name_data:
                                 # entry is a dict
@@ -188,6 +188,8 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
 
                 except Exception as e:
                     logger.error(f"[ESI Library Error] Public Info Endpoint: {e}")
+            else:
+                logger.warning(f"No valid token found for character {character.character_name} during Public Info sync")
 
         # --- SKILLS ---
         if ENDPOINT_SKILLS in target_endpoints:
@@ -197,7 +199,7 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                     client = get_esi_client(token)
                     op = client.Skills.get_characters_character_id_skills(character_id=char_id)
                     op.request_config.also_return_response = True
-                    data, incoming_response = op.result()
+                    data, incoming_response = op.result(ignore_cache=force_refresh)
                     notify_user_ratelimit(character.user, incoming_response.headers)
 
                     character.total_sp = data.get('total_sp', 0)
@@ -240,6 +242,8 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                     logger.warning(f"Missing Scope 'esi-skills.read_skills.v1' for {character.character_name}")
                 except Exception as e:
                     logger.error(f"[ESI Library Error] Skills Endpoint: {e}")
+            else:
+                logger.warning(f"No valid token found for character {character.character_name} during Skills sync")
 
 
         # --- SKILL QUEUE ---
@@ -250,7 +254,7 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                     client = get_esi_client(token)
                     op = client.Skills.get_characters_character_id_skillqueue(character_id=char_id)
                     op.request_config.also_return_response = True
-                    data, incoming_response = op.result()
+                    data, incoming_response = op.result(ignore_cache=force_refresh)
                     notify_user_ratelimit(character.user, incoming_response.headers)
 
                     CharacterQueue.objects.filter(character=character).delete()
@@ -267,6 +271,8 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                     logger.warning(f"Missing Scope 'esi-skills.read_skillqueue.v1' for {character.character_name}")
                 except Exception as e:
                     logger.error(f"[ESI Library Error] Skill Queue Endpoint: {e}")
+            else:
+                logger.warning(f"No valid token found for character {character.character_name} during Skill Queue sync")
 
         # --- SHIP ---
         if ENDPOINT_SHIP in target_endpoints:
@@ -278,7 +284,7 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                     client = get_esi_client(token)
                     op = client.Location.get_characters_character_id_ship(character_id=char_id)
                     op.request_config.also_return_response = True
-                    data, incoming_response = op.result()
+                    data, incoming_response = op.result(ignore_cache=force_refresh)
 
                     # Notify Rate Limits (Manual Hook)
                     notify_user_ratelimit(character.user, incoming_response.headers)
@@ -291,61 +297,115 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                     logger.warning(f"Missing Scope 'esi-location.read_ship_type.v1' for {character.character_name}")
                 except Exception as e:
                     logger.error(f"[ESI Library Error] Ship Endpoint: {e}")
+            else:
+                logger.warning(f"No valid token found for character {character.character_name} during Ship sync")
 
         # --- WALLET BALANCE ---
         if ENDPOINT_WALLET in target_endpoints:
-            resp = call_esi(character, ENDPOINT_WALLET, f"{base_url.format(char_id=char_id)}/wallet/", force_refresh=force_refresh)
-            if not check_critical_error(resp, ENDPOINT_WALLET):
-                if resp['status'] == 200:
-                    character.wallet_balance = resp['data']
+            token = Token.objects.filter(character_id=character.character_id).order_by('-created').first()
+            if token:
+                try:
+                    client = get_esi_client(token)
+                    op = client.Wallet.get_characters_character_id_wallet(character_id=char_id)
+                    op.request_config.also_return_response = True
+                    # Force refresh supported by django-esi if configured
+                    data, incoming_response = op.result(ignore_cache=force_refresh)
+                    notify_user_ratelimit(character.user, incoming_response.headers)
+
+                    character.wallet_balance = data
                     character.save(update_fields=['wallet_balance'])
-                elif resp['status'] == 403:
-                    print(f"  !!! Missing Scopes for Wallet: {character.character_name}")
+                except HTTPForbidden:
+                    logger.warning(f"Missing Scope 'esi-wallet.read_character_wallet.v1' for {character.character_name}")
+                except Exception as e:
+                    logger.error(f"[ESI Library Error] Wallet Endpoint: {e}")
+            else:
+                logger.warning(f"No valid token found for character {character.character_name} during Wallet sync")
 
         # --- LOYALTY POINTS ---
         if ENDPOINT_LP in target_endpoints:
-            resp = call_esi(character, ENDPOINT_LP, f"{base_url.format(char_id=char_id)}/loyalty/points/", force_refresh=force_refresh)
-            if not check_critical_error(resp, ENDPOINT_LP):
-                if resp['status'] == 200:
-                    concord_entry = next((item for item in resp['data'] if item['corporation_id'] == 1000125), None)
-                    character.concord_lp = concord_entry['loyalty_points'] if concord_entry else 0
+            token = Token.objects.filter(character_id=character.character_id).order_by('-created').first()
+            if token:
+                try:
+                    client = get_esi_client(token)
+                    op = client.Loyalty.get_characters_character_id_loyalty_points(character_id=char_id)
+                    op.request_config.also_return_response = True
+                    data, incoming_response = op.result(ignore_cache=force_refresh)
+                    notify_user_ratelimit(character.user, incoming_response.headers)
+
+                    # data is list of dicts: {'corporation_id': 123, 'loyalty_points': 500}
+                    concord_entry = next((item for item in data if item.get('corporation_id') == 1000125), None)
+                    character.concord_lp = concord_entry.get('loyalty_points') if concord_entry else 0
                     character.save(update_fields=['concord_lp'])
-                elif resp['status'] == 403:
-                    print(f"  !!! Missing Scopes for LP: {character.character_name}")
+                except HTTPForbidden:
+                    logger.warning(f"Missing Scope 'esi-characters.read_loyalty.v1' for {character.character_name}")
+                except Exception as e:
+                    logger.error(f"[ESI Library Error] LP Endpoint: {e}")
+            else:
+                logger.warning(f"No valid token found for character {character.character_name} during LP sync")
 
         # --- IMPLANTS ---
         if ENDPOINT_IMPLANTS in target_endpoints:
-            resp = call_esi(character, ENDPOINT_IMPLANTS, f"{base_url.format(char_id=char_id)}/implants/", force_refresh=force_refresh)
-            if not check_critical_error(resp, ENDPOINT_IMPLANTS) and resp['status'] == 200:
-                CharacterImplant.objects.filter(character=character).delete()
-                new_implants = [CharacterImplant(character=character, type_id=imp_id) for imp_id in resp['data']]
-                CharacterImplant.objects.bulk_create(new_implants)
+            token = Token.objects.filter(character_id=character.character_id).order_by('-created').first()
+            if token:
+                try:
+                    client = get_esi_client(token)
+                    op = client.Clones.get_characters_character_id_implants(character_id=char_id)
+                    op.request_config.also_return_response = True
+                    data, incoming_response = op.result(ignore_cache=force_refresh)
+                    notify_user_ratelimit(character.user, incoming_response.headers)
+
+                    CharacterImplant.objects.filter(character=character).delete()
+                    # data is list of integers (type_ids)
+                    new_implants = [CharacterImplant(character=character, type_id=imp_id) for imp_id in data]
+                    CharacterImplant.objects.bulk_create(new_implants)
+                except HTTPForbidden:
+                    logger.warning(f"Missing Scope 'esi-clones.read_implants.v1' for {character.character_name}")
+                except Exception as e:
+                    logger.error(f"[ESI Library Error] Implants Endpoint: {e}")
+            else:
+                logger.warning(f"No valid token found for character {character.character_name} during Implants sync")
 
         # --- HISTORY ---
         if ENDPOINT_HISTORY in target_endpoints:
-            resp = call_esi(character, ENDPOINT_HISTORY, f"{base_url.format(char_id=char_id)}/corporationhistory/", force_refresh=force_refresh)
-            if not check_critical_error(resp, ENDPOINT_HISTORY) and resp['status'] == 200:
-                CharacterHistory.objects.filter(character=character).delete()
-                history_data = resp['data']
-                corp_ids = set(h['corporation_id'] for h in history_data)
-                corp_names = {}
-                if corp_ids:
-                    try:
-                        name_resp = requests.post("https://esi.evetech.net/latest/universe/names/", json=list(corp_ids))
-                        if name_resp.status_code == 200:
-                            for entry in name_resp.json():
-                                corp_names[entry['id']] = entry['name']
-                    except Exception as e:
-                        print(f"Error resolving history names: {e}")
-                        
-                new_history = [
-                    CharacterHistory(
-                        character=character, corporation_id=h['corporation_id'],
-                        corporation_name=corp_names.get(h['corporation_id'], f"Unknown ({h['corporation_id']})"),
-                        start_date=h['start_date']
-                    ) for h in history_data
-                ]
-                CharacterHistory.objects.bulk_create(new_history)
+            token = Token.objects.filter(character_id=character.character_id).order_by('-created').first()
+            if token:
+                try:
+                    client = get_esi_client(token)
+                    op = client.Corporation.get_characters_character_id_corporationhistory(character_id=char_id)
+                    op.request_config.also_return_response = True
+                    data, incoming_response = op.result(ignore_cache=force_refresh)
+                    notify_user_ratelimit(character.user, incoming_response.headers)
+
+                    CharacterHistory.objects.filter(character=character).delete()
+
+                    history_data = data # list of dicts
+                    corp_ids = {h.get('corporation_id') for h in history_data if h.get('corporation_id')}
+                    corp_names = {}
+
+                    if corp_ids:
+                        try:
+                            op_names = client.Universe.post_universe_names(ids=list(corp_ids))
+                            op_names.request_config.also_return_response = True
+                            name_data, _ = op_names.result(ignore_cache=force_refresh)
+                            for entry in name_data:
+                                corp_names[entry.get('id')] = entry.get('name')
+                        except Exception as e:
+                            logger.error(f"[ESI Library Error] History Name Resolution: {e}")
+
+                    new_history = [
+                        CharacterHistory(
+                            character=character, corporation_id=h.get('corporation_id'),
+                            corporation_name=corp_names.get(h.get('corporation_id'), f"Unknown ({h.get('corporation_id')})"),
+                            start_date=h.get('start_date')
+                        ) for h in history_data
+                    ]
+                    CharacterHistory.objects.bulk_create(new_history)
+                except HTTPForbidden:
+                    logger.warning(f"Missing Scope 'esi-corporations.read_corporation_membership.v1' for {character.character_name}")
+                except Exception as e:
+                    logger.error(f"[ESI Library Error] History Endpoint: {e}")
+            else:
+                logger.warning(f"No valid token found for character {character.character_name} during History sync")
 
         character.last_updated = timezone.now()
         character.save(update_fields=['last_updated'])
