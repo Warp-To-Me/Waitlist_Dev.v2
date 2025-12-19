@@ -3,12 +3,13 @@ import time
 from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
-from django.db.models import Count, Q 
+from django.db.models import Count, Q, Subquery
 from waitlist_project.celery import app as celery_app
 from django.contrib.auth.models import Group
 from django.core.cache import cache
 
 from pilot_data.models import EveCharacter, EsiHeaderCache, ItemType, ItemGroup, SkillHistory
+from esi.models import Token
 
 # --- LEGACY / FALLBACK DEFAULTS ---
 ROLE_HIERARCHY_DEFAULT = [
@@ -343,17 +344,22 @@ def get_system_status():
     active_30d_threshold = timezone.now() - timedelta(days=30)
     
     stale_count = EveCharacter.objects.filter(last_updated__lt=stale_threshold).count()
-    users_online_count = EveCharacter.objects.filter(is_online=True).count()
     
     active_30d_count = EveCharacter.objects.filter(
         Q(last_login_at__gte=active_30d_threshold) | 
         Q(last_updated__gte=active_30d_threshold)
     ).count()
+
+    # New Token Metrics
+    total_tokens = Token.objects.count()
+
+    # Missing Tokens: Characters that exist but have no corresponding ESI token
+    missing_token_count = EveCharacter.objects.exclude(
+        character_id__in=Subquery(Token.objects.values('character_id'))
+    ).count()
     
-    invalid_token_count = 0
-    for char in EveCharacter.objects.all().iterator():
-        if not char.refresh_token:
-            invalid_token_count += 1
+    # Expired Tokens: Tokens that are past their expiry date (need refresh)
+    expired_token_count = Token.objects.all().get_expired().count()
             
     if total_characters > 0:
         esi_health_percent = int(((total_characters - stale_count) / total_characters * 100))
@@ -417,8 +423,9 @@ def get_system_status():
         'total_processed': total_processed,
         'total_characters': total_characters,
         'stale_count': stale_count,
-        'invalid_token_count': invalid_token_count,
-        'users_online_count': users_online_count,
+        'missing_token_count': missing_token_count,
+        'expired_token_count': expired_token_count,
+        'total_tokens': total_tokens,
         'active_30d_count': active_30d_count, 
         'esi_health_percent': esi_health_percent,
         'queued_breakdown': queued_breakdown,     

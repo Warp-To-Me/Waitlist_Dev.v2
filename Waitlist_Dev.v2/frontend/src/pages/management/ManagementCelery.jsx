@@ -112,15 +112,13 @@ const ManagementCelery = () => {
                              <span>Total Characters:</span>
                              <span className="font-mono text-white">{fmt(data.total_characters)}</span>
                          </div>
-                         <div className="flex justify-between w-full mt-1 text-sm text-slate-300">
-                             <span>Online Users:</span>
-                             <span className="font-mono text-green-400">{fmt(data.users_online_count)}</span>
-                         </div>
                     </div>
 
                     {/* Stats Breakdown */}
                     <div className="md:col-span-2 grid grid-cols-2 gap-4">
-                        <StatBox label="Invalid Tokens" value={data.invalid_token_count} color="red" />
+                        <StatBox label="Total Tokens" value={data.total_tokens} color="purple" />
+                        <StatBox label="Missing Tokens" value={data.missing_token_count} color="red" />
+                        <StatBox label="Expired Tokens" value={data.expired_token_count} color={data.expired_token_count > 0 ? "yellow" : "green"} />
                         <StatBox label="Stale Characters (>1h)" value={data.stale_count} color="yellow" />
                         <StatBox label="Active (30d)" value={data.active_30d_count} color="blue" />
                         <StatBox label="ESI API Status" value={data.esi_server_status ? "ONLINE" : "DOWN"} color={data.esi_server_status ? "green" : "red"} />
