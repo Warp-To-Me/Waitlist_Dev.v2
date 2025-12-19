@@ -44,6 +44,7 @@ from core.models import Capability, RolePriority, Ban, BanAuditLog
 from pilot_data.models import EveCharacter, ItemType, ItemGroup, TypeAttribute
 from waitlist_data.models import Fleet, WaitlistEntry, FleetActivity
 from waitlist_data.stats import calculate_pilot_stats
+from esi.models import Token
 
 # Decorator Helper
 def check_permission(perm_func):
@@ -285,7 +286,9 @@ def management_user_inspect(request, user_id, char_id=None):
     
     # Check for missing tokens/scopes (Simplified for inspect)
     token_missing = False
-    if active_char and not active_char.refresh_token: token_missing = True
+    if active_char:
+        if not Token.objects.filter(character_id=active_char.character_id).exists():
+            token_missing = True
     
     # We construct active_char_data to match profile_view expectations
     active_char_data = None
@@ -424,21 +427,9 @@ def management_sde(request):
 @api_view(['GET'])
 @check_permission(is_admin)
 def management_celery(request):
-    context = get_system_status() # { 'redis_latency': ..., 'active_workers': ... }
-    total_characters = EveCharacter.objects.count()
-    threshold = timezone.now() - timedelta(minutes=60)
-    stale_count = EveCharacter.objects.filter(last_updated__lt=threshold).count()
-    invalid_token_count = EveCharacter.objects.filter(refresh_token__isnull=True).count() # Simplified check
-    
-    if total_characters > 0: esi_health_percent = int(((total_characters - stale_count) / total_characters * 100))
-    else: esi_health_percent = 0
-    
-    context.update({
-        'total_characters': total_characters, 
-        'stale_count': stale_count,
-        'invalid_token_count': invalid_token_count, 
-        'esi_health_percent': esi_health_percent
-    })
+    context = get_system_status() 
+    # context already contains missing_token_count, expired_token_count, total_characters, stale_count
+    # we don't need to override them with legacy logic.
     return Response(context)
 
 # --- PERMISSIONS & GROUPS MANAGEMENT ---

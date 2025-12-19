@@ -22,6 +22,7 @@ from pilot_data.models import EveCharacter
 from waitlist_data.models import FleetActivity
 from waitlist_data.stats import calculate_pilot_stats
 from scheduler.tasks import refresh_character_task
+from esi.models import Token
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -87,22 +88,20 @@ def profile_view(request):
             )
     
     token_missing = False
-    if active_char and not active_char.refresh_token: token_missing = True
+    if active_char:
+        if not Token.objects.filter(character_id=active_char.character_id).exists():
+            token_missing = True
     
     scopes_missing = False
-    if active_char and active_char.access_token and is_fleet_command(request.user):
-        try:
-            parts = active_char.access_token.split('.')
-            if len(parts) == 3:
-                padded = parts[1] + '=' * (4 - len(parts[1]) % 4)
-                payload = json.loads(base64.urlsafe_b64decode(padded).decode('utf-8'))
-                current_scopes = payload.get('scp', [])
-                if isinstance(current_scopes, str): current_scopes = [current_scopes]
-                current_scopes_set = set(current_scopes)
-                required_fc = set(settings.EVE_SCOPES_FC.split())
-                if not required_fc.issubset(current_scopes_set):
-                    scopes_missing = True
-        except Exception: pass
+    if active_char and is_fleet_command(request.user):
+        token = Token.objects.filter(character_id=active_char.character_id).order_by('-created').first()
+        if token:
+            token_scopes = set(token.scopes.values_list('name', flat=True))
+            required_fc = set(settings.EVE_SCOPES_FC.split())
+            if not required_fc.issubset(token_scopes):
+                scopes_missing = True
+        else:
+            scopes_missing = True
 
     totals = characters.aggregate(wallet_sum=Sum('wallet_balance'), lp_sum=Sum('concord_lp'), sp_sum=Sum('total_sp'))
     
@@ -176,7 +175,8 @@ def api_refresh_profile(request, char_id):
     Triggers a background refresh task via Celery.
     """
     character = get_object_or_404(EveCharacter, character_id=char_id, user=request.user)
-    if not character.refresh_token: return Response({'success': False, 'error': 'No refresh token'})
+    if not Token.objects.filter(character_id=character.character_id).exists():
+        return Response({'success': False, 'error': 'No refresh token'})
     
     refresh_character_task.delay(character.character_id)
     return Response({'success': True, 'status': 'queued'})

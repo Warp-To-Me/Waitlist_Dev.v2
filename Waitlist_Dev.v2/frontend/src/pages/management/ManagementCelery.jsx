@@ -40,6 +40,16 @@ const ManagementCelery = () => {
     // Helper to format large numbers
     const fmt = (n) => n?.toLocaleString() || 0;
 
+    // Helper to format time ago
+    const timeAgo = (isoString) => {
+        if (!isoString) return 'Never';
+        const diff = Date.now() - new Date(isoString).getTime();
+        const mins = Math.floor(diff / 60000);
+        if (mins < 60) return `${mins}m ago`;
+        const hours = Math.floor(mins / 60);
+        return `${hours}h ago`;
+    };
+
     return (
         <div className="space-y-8 animate-fade-in">
              {/* Header */}
@@ -112,19 +122,52 @@ const ManagementCelery = () => {
                              <span>Total Characters:</span>
                              <span className="font-mono text-white">{fmt(data.total_characters)}</span>
                          </div>
-                         <div className="flex justify-between w-full mt-1 text-sm text-slate-300">
-                             <span>Online Users:</span>
-                             <span className="font-mono text-green-400">{fmt(data.users_online_count)}</span>
-                         </div>
                     </div>
 
                     {/* Stats Breakdown */}
                     <div className="md:col-span-2 grid grid-cols-2 gap-4">
-                        <StatBox label="Invalid Tokens" value={data.invalid_token_count} color="red" />
+                        <StatBox label="Total Tokens" value={data.total_tokens} color="purple" />
+                        <StatBox label="Missing Tokens" value={data.missing_token_count} color="red" />
+                        <StatBox label="Idle Tokens" value={data.expired_token_count} color="blue" />
                         <StatBox label="Stale Characters (>1h)" value={data.stale_count} color="yellow" />
-                        <StatBox label="Active (30d)" value={data.active_30d_count} color="blue" />
+                        <StatBox label="Active Users (30d)" value={data.active_site_30d} color="blue" />
                         <StatBox label="ESI API Status" value={data.esi_server_status ? "ONLINE" : "DOWN"} color={data.esi_server_status ? "green" : "red"} />
                     </div>
+                </div>
+            </div>
+
+            {/* Operational Health Section */}
+            <div className="glass-panel p-6">
+                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                    <div className="w-1 h-6 bg-blue-500 rounded-full"></div>
+                    Operational Health
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <StatBox 
+                        label="Active Fleets" 
+                        value={data.active_fleets_count} 
+                        color={data.active_fleets_count > 0 ? "green" : "blue"} 
+                    />
+                    <StatBox 
+                        label="Pilots Waiting" 
+                        value={data.pending_pilots_count} 
+                        color={data.pending_pilots_count > 10 ? "yellow" : "blue"} 
+                    />
+                    <StatBox 
+                        label="Active Pilots" 
+                        value={data.active_pilots_count} 
+                        color="purple" 
+                    />
+                    <StatBox 
+                        label="Fleet Activity (30d)" 
+                        value={data.active_waitlist_30d} 
+                        color="purple" 
+                    />
+                    <StatBox 
+                        label="Last SRP Sync" 
+                        value={timeAgo(data.last_srp_sync)} 
+                        color={(!data.last_srp_sync || timeAgo(data.last_srp_sync).includes('h') && parseInt(timeAgo(data.last_srp_sync)) > 24) ? "red" : "green"} 
+                    />
                 </div>
             </div>
 

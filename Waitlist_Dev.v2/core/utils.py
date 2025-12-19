@@ -3,12 +3,13 @@ import time
 from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
-from django.db.models import Count, Q 
+from django.db.models import Count, Q, Subquery
 from waitlist_project.celery import app as celery_app
-from django.contrib.auth.models import Group
+from django.contrib.auth.models import Group, User
 from django.core.cache import cache
 
-from pilot_data.models import EveCharacter, EsiHeaderCache, ItemType, ItemGroup, SkillHistory
+from pilot_data.models import EveCharacter, EsiHeaderCache, ItemType, ItemGroup, SkillHistory, SRPConfiguration
+from esi.models import Token
 
 # --- LEGACY / FALLBACK DEFAULTS ---
 ROLE_HIERARCHY_DEFAULT = [
@@ -343,22 +344,53 @@ def get_system_status():
     active_30d_threshold = timezone.now() - timedelta(days=30)
     
     stale_count = EveCharacter.objects.filter(last_updated__lt=stale_threshold).count()
-    users_online_count = EveCharacter.objects.filter(is_online=True).count()
     
-    active_30d_count = EveCharacter.objects.filter(
-        Q(last_login_at__gte=active_30d_threshold) | 
-        Q(last_updated__gte=active_30d_threshold)
+    # New Token Metrics
+    total_tokens = Token.objects.count()
+    
+    # Missing Tokens: Characters that exist but have no corresponding ESI token
+    missing_token_count = EveCharacter.objects.exclude(
+        character_id__in=Subquery(Token.objects.values('character_id'))
     ).count()
     
-    invalid_token_count = 0
-    for char in EveCharacter.objects.all().iterator():
-        if not char.refresh_token:
-            invalid_token_count += 1
+    # Expired Tokens: Tokens that are past their expiry date (need refresh)
+    expired_token_count = Token.objects.all().get_expired().count()
             
     if total_characters > 0:
         esi_health_percent = int(((total_characters - stale_count) / total_characters * 100))
     else:
         esi_health_percent = 0
+
+    # --- OPERATIONAL METRICS ---
+    from waitlist_data.models import Fleet, WaitlistEntry, FleetActivity
+
+    # 1. Active in Fleets (Waitlist Actions)
+    active_waitlist_30d = FleetActivity.objects.filter(
+        timestamp__gte=timezone.now() - timedelta(days=30)
+    ).values('character_id').distinct().count()
+
+    # 2. Active on Site (Logins)
+    active_site_30d = User.objects.filter(
+        last_login__gte=timezone.now() - timedelta(days=30)
+    ).count()
+
+    active_fleets_count = Fleet.objects.filter(is_active=True).count()
+    
+    # Pilots specifically waiting for an active fleet
+    pending_pilots_count = WaitlistEntry.objects.filter(
+        status='pending', 
+        fleet__is_active=True
+    ).count()
+
+    # Pilots currently flying in an active fleet
+    active_pilots_count = WaitlistEntry.objects.filter(
+        status__in=['approved', 'invited'],
+        fleet__is_active=True
+    ).count()
+
+    # --- SRP METRICS ---
+    srp_config = SRPConfiguration.objects.first()
+    last_srp_sync = srp_config.last_sync if (srp_config and srp_config.last_sync) else None
 
     now = timezone.now()
     grace_period = now - timedelta(minutes=15)
@@ -417,15 +449,22 @@ def get_system_status():
         'total_processed': total_processed,
         'total_characters': total_characters,
         'stale_count': stale_count,
-        'invalid_token_count': invalid_token_count,
-        'users_online_count': users_online_count,
-        'active_30d_count': active_30d_count, 
+        'missing_token_count': missing_token_count,
+        'expired_token_count': expired_token_count,
+        'total_tokens': total_tokens,
+        'active_waitlist_30d': active_waitlist_30d,
+        'active_site_30d': active_site_30d, 
         'esi_health_percent': esi_health_percent,
         'queued_breakdown': queued_breakdown,     
         'delayed_breakdown': delayed_breakdown,   
         'esi_server_status': esi_status_bool,
         'system_load_percent': system_load_percent,
-        'load_hue': load_hue
+        'load_hue': load_hue,
+        # New Metrics
+        'active_fleets_count': active_fleets_count,
+        'pending_pilots_count': pending_pilots_count,
+        'active_pilots_count': active_pilots_count,
+        'last_srp_sync': last_srp_sync
     }
 
 def get_character_data(active_char):

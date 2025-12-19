@@ -29,12 +29,6 @@ class EveCharacter(models.Model):
     last_login_at = models.DateTimeField(null=True, blank=True)
     last_online_at = models.DateTimeField(null=True, blank=True)
 
-    # Encrypted Fields
-    access_token = EncryptedTextField(blank=True, default="")
-    refresh_token = EncryptedTextField(blank=True, default="")
-    
-    token_expires = models.DateTimeField(null=True, blank=True)
-    
     last_updated = models.DateTimeField(auto_now=True)
 
     # Scopes
