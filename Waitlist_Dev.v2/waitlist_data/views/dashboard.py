@@ -15,7 +15,7 @@ from pilot_data.models import EveCharacter, ItemType
 from waitlist_data.models import Fleet, WaitlistEntry, FleetActivity, DoctrineCategory
 from waitlist_data.stats import batch_calculate_pilot_stats
 from esi_calls.fleet_service import get_fleet_composition, process_fleet_data, ESI_BASE
-from esi_calls.token_manager import check_token
+from esi.models import Token # Updated Import
 from .helpers import _resolve_column, get_category_map, get_entry_target_column, get_entry_real_category
 from core.decorators import check_ban_status
 from rest_framework.decorators import api_view, permission_classes
@@ -232,9 +232,11 @@ def fleet_overview_api(request, token):
     
     actual_fleet_id = fleet.esi_fleet_id
     if not actual_fleet_id:
-        if check_token(fc_char):
-            headers = {'Authorization': f'Bearer {fc_char.access_token}'}
+        esi_token = Token.objects.filter(character_id=fc_char.character_id).order_by('-created').first()
+        if esi_token:
             try:
+                access_token = esi_token.valid_access_token()
+                headers = {'Authorization': f'Bearer {access_token}'}
                 resp = requests.get(f"{ESI_BASE}/characters/{fc_char.character_id}/fleet/", headers=headers)
                 if resp.status_code == 200:
                     data = resp.json()

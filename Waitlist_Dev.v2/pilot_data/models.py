@@ -34,6 +34,7 @@ class EveCharacter(models.Model):
     refresh_token = EncryptedTextField(blank=True, default="")
     
     token_expires = models.DateTimeField(null=True, blank=True)
+    
     last_updated = models.DateTimeField(auto_now=True)
 
     # Scopes

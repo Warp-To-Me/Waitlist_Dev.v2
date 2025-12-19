@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'waitlist_data',
     'esi_calls',
     'scheduler',
+    'esi.apps.EsiConfig', # Vendorized Django ESI
 ]
 
 MIDDLEWARE = [
@@ -118,6 +119,7 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'static_root'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -125,6 +127,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # EVE Online Configuration
 EVE_CLIENT_ID = os.getenv('EVE_CLIENT_ID')
 EVE_CALLBACK_URL = os.getenv('EVE_CALLBACK_URL', 'http://localhost:8000/auth/sso/callback/')
+
+# ESI Configuration (Vendorized App)
+ESI_SSO_CLIENT_ID = EVE_CLIENT_ID
+ESI_SSO_CLIENT_SECRET = os.getenv('EVE_SECRET_KEY')
+ESI_SSO_CALLBACK_URL = EVE_CALLBACK_URL
+ESI_USER_CONTACT_EMAIL = 'admin@example.com' # Required by ESI Library
 
 # --- SCOPE CONFIGURATION ---
 
@@ -207,6 +215,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'core.tasks.check_expired_bans',
         'schedule': crontab(minute='*'),
     },
+    'cleanup-esi-tokens-daily': {
+        'task': 'esi.tasks.cleanup_token',
+        'schedule': crontab(hour=0, minute=0),
+    },
 }
 
 # 5. SAFETY & RATE LIMITS
@@ -225,3 +237,8 @@ import sys
 # Detect if running as Celery worker
 if 'celery' in sys.argv[0]:
     os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
+
+# Force migration module for vendorized 'esi' app
+MIGRATION_MODULES = {
+    'esi': 'esi.migrations'
+}

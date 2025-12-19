@@ -4,10 +4,23 @@ import time
 from django.core.cache import cache
 from pilot_data.models import EveCharacter, ItemType, ItemGroup
 from esi_calls.esi_network import call_esi, get_esi_session
-from esi_calls.token_manager import check_token
+from esi.models import Token # Updated import
 
 # Base ESI URL
 ESI_BASE = "https://esi.evetech.net/latest"
+
+def _get_valid_token(character):
+    """
+    Helper to get a valid access token string for a character.
+    Handles refresh automatically via django-esi.
+    """
+    token = Token.objects.filter(character_id=character.character_id).order_by('-created').first()
+    if token:
+        try:
+            return token.valid_access_token()
+        except Exception:
+            return None
+    return None
 
 def get_fleet_composition(fleet_id, fc_character):
     """
@@ -210,10 +223,11 @@ def process_fleet_data(composite_data, external_names=None):
     return summary, hierarchy
 
 def invite_to_fleet(fleet_id, fc_character, target_character_id, role='squad_member', squad_id=None, wing_id=None):
-    if not check_token(fc_character): 
+    access_token = _get_valid_token(fc_character)
+    if not access_token:
         return False, "FC Token Expired"
     
-    headers = {'Authorization': f'Bearer {fc_character.access_token}'}
+    headers = {'Authorization': f'Bearer {access_token}'}
     url = f"{ESI_BASE}/fleets/{fleet_id}/members/"
     
     payload = {"character_id": target_character_id, "role": role}
@@ -241,11 +255,12 @@ def invite_to_fleet(fleet_id, fc_character, target_character_id, role='squad_mem
         return False, f"Network Error: {str(e)}"
 
 def update_fleet_settings(fleet_id, fc_character, motd=None, is_free_move=None):
-    if not check_token(fc_character):
+    access_token = _get_valid_token(fc_character)
+    if not access_token:
         return False, "FC Token Expired"
 
     url = f"{ESI_BASE}/fleets/{fleet_id}/"
-    headers = {'Authorization': f'Bearer {fc_character.access_token}'}
+    headers = {'Authorization': f'Bearer {access_token}'}
     
     payload = {}
     if motd is not None: payload['motd'] = motd
@@ -271,7 +286,9 @@ def sync_fleet_structure(fleet_id, fc_character, desired_structure):
     """
     Synchronizes in-game structure to match desired structure exactly (Create/Rename/Delete).
     """
-    if not check_token(fc_character):
+    # NOTE: check_token was here, but we now check validity implicitly when getting tokens for operations
+    # However, for robustness, we can check initially.
+    if not _get_valid_token(fc_character):
         return False, "FC Token Expired"
 
     # 1. Fetch Current State
@@ -358,8 +375,10 @@ def sync_fleet_structure(fleet_id, fc_character, desired_structure):
     return True, logs
 
 def _create_wing(character, fleet_id):
+    access_token = _get_valid_token(character)
+    if not access_token: return None
     url = f"{ESI_BASE}/fleets/{fleet_id}/wings/"
-    headers = {'Authorization': f'Bearer {character.access_token}'}
+    headers = {'Authorization': f'Bearer {access_token}'}
     try:
         session = get_esi_session()
         resp = session.post(url, headers=headers)
@@ -368,8 +387,10 @@ def _create_wing(character, fleet_id):
     return None
 
 def _create_squad(character, fleet_id, wing_id):
+    access_token = _get_valid_token(character)
+    if not access_token: return None
     url = f"{ESI_BASE}/fleets/{fleet_id}/wings/{wing_id}/squads/"
-    headers = {'Authorization': f'Bearer {character.access_token}'}
+    headers = {'Authorization': f'Bearer {access_token}'}
     try:
         session = get_esi_session()
         resp = session.post(url, headers=headers)
@@ -378,8 +399,10 @@ def _create_squad(character, fleet_id, wing_id):
     return None
 
 def _delete_wing(character, fleet_id, wing_id):
+    access_token = _get_valid_token(character)
+    if not access_token: return False
     url = f"{ESI_BASE}/fleets/{fleet_id}/wings/{wing_id}/"
-    headers = {'Authorization': f'Bearer {character.access_token}'}
+    headers = {'Authorization': f'Bearer {access_token}'}
     try:
         session = get_esi_session()
         resp = session.delete(url, headers=headers)
@@ -387,9 +410,11 @@ def _delete_wing(character, fleet_id, wing_id):
     except: return False
 
 def _delete_squad(character, fleet_id, squad_id):
+    access_token = _get_valid_token(character)
+    if not access_token: return False
     # Squad delete URL is flat: /fleets/{fleet_id}/squads/{squad_id}/
     url = f"{ESI_BASE}/fleets/{fleet_id}/squads/{squad_id}/"
-    headers = {'Authorization': f'Bearer {character.access_token}'}
+    headers = {'Authorization': f'Bearer {access_token}'}
     try:
         session = get_esi_session()
         resp = session.delete(url, headers=headers)
@@ -397,13 +422,15 @@ def _delete_squad(character, fleet_id, squad_id):
     except: return False
 
 def _rename_entity(character, fleet_id, entity_type, entity_id, new_name, wing_id=None):
+    access_token = _get_valid_token(character)
+    if not access_token: return False
     url = ""
     if entity_type == 'wings':
         url = f"{ESI_BASE}/fleets/{fleet_id}/wings/{entity_id}/"
     elif entity_type == 'squads':
         url = f"{ESI_BASE}/fleets/{fleet_id}/squads/{entity_id}/"
     
-    headers = {'Authorization': f'Bearer {character.access_token}'}
+    headers = {'Authorization': f'Bearer {access_token}'}
     payload = {'name': new_name}
     
     try:

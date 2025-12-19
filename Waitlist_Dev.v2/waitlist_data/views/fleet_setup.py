@@ -13,7 +13,7 @@ from core.permissions import is_fleet_command, get_template_base, get_mgmt_conte
 from pilot_data.models import EveCharacter
 from waitlist_data.models import Fleet, FleetStructureTemplate, StructureWing, StructureSquad
 from esi_calls.fleet_service import sync_fleet_structure, update_fleet_settings, ESI_BASE
-from esi_calls.token_manager import check_token
+from esi.models import Token # Updated Import
 from .helpers import _log_fleet_action
 
 @login_required
@@ -164,20 +164,26 @@ def api_create_fleet_with_structure(request):
 
         # 1. ESI Check (Skip if Offline)
         if not is_offline:
-            headers = {'Authorization': f'Bearer {fc_char.access_token}'}
+            # Token Refresh Logic
+            esi_token = Token.objects.filter(character_id=fc_char.character_id).order_by('-created').first()
+            if not esi_token:
+                return JsonResponse({'success': False, 'error': 'FC Token Missing'})
+            
             try:
-                if check_token(fc_char):
-                    resp = requests.get(f"{ESI_BASE}/characters/{fc_char.character_id}/fleet/", headers=headers, timeout=5)
-                    if resp.status_code == 200:
-                        esi_fleet_id = resp.json()['fleet_id']
-                    elif resp.status_code == 404:
-                        return JsonResponse({'success': False, 'error': 'You are not in a fleet in-game. Please form fleet first or use Offline Mode.'})
-                    else:
-                        return JsonResponse({'success': False, 'error': f'ESI Error {resp.status_code}'})
+                access_token = esi_token.valid_access_token()
+                headers = {'Authorization': f'Bearer {access_token}'}
+                
+                resp = requests.get(f"{ESI_BASE}/characters/{fc_char.character_id}/fleet/", headers=headers, timeout=5)
+                
+                if resp.status_code == 200:
+                    esi_fleet_id = resp.json()['fleet_id']
+                elif resp.status_code == 404:
+                    return JsonResponse({'success': False, 'error': 'You are not in a fleet in-game. Please form fleet first or use Offline Mode.'})
                 else:
-                    return JsonResponse({'success': False, 'error': 'Token Expired'})
+                    return JsonResponse({'success': False, 'error': f'ESI Error {resp.status_code}'})
+                    
             except Exception as e:
-                return JsonResponse({'success': False, 'error': str(e)})
+                return JsonResponse({'success': False, 'error': f'Token/Network Error: {str(e)}'})
         else:
             logs.append("Fleet created in Offline Mode (No ESI Link).")
 
