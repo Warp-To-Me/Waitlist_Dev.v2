@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.urls import path, include, re_path
 from core import views as core_views
 from core import views_management, views_profile, views_rules, views_srp, views_frontend, api_utils, views_skills
-from core.views_command import api_command_workflow, api_command_workflow_step
+from core.views_command import api_command_workflow, api_command_workflow_step, api_command_workflow_detail
 from waitlist_data.views import fleet_setup, fleet_settings, dashboard, actions
 
 # Define API patterns first
