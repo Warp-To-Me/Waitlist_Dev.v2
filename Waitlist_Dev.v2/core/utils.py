@@ -5,7 +5,7 @@ from django.utils import timezone
 from datetime import timedelta
 from django.db.models import Count, Q, Subquery
 from waitlist_project.celery import app as celery_app
-from django.contrib.auth.models import Group
+from django.contrib.auth.models import Group, User
 from django.core.cache import cache
 
 from pilot_data.models import EveCharacter, EsiHeaderCache, ItemType, ItemGroup, SkillHistory, SRPConfiguration
@@ -364,9 +364,15 @@ def get_system_status():
     # --- OPERATIONAL METRICS ---
     from waitlist_data.models import Fleet, WaitlistEntry, FleetActivity
 
-    active_30d_count = FleetActivity.objects.filter(
+    # 1. Active in Fleets (Waitlist Actions)
+    active_waitlist_30d = FleetActivity.objects.filter(
         timestamp__gte=timezone.now() - timedelta(days=30)
     ).values('character_id').distinct().count()
+
+    # 2. Active on Site (Logins)
+    active_site_30d = User.objects.filter(
+        last_login__gte=timezone.now() - timedelta(days=30)
+    ).count()
 
     active_fleets_count = Fleet.objects.filter(is_active=True).count()
 
@@ -446,7 +452,8 @@ def get_system_status():
         'missing_token_count': missing_token_count,
         'expired_token_count': expired_token_count,
         'total_tokens': total_tokens,
-        'active_30d_count': active_30d_count, 
+        'active_waitlist_30d': active_waitlist_30d,
+        'active_site_30d': active_site_30d,
         'esi_health_percent': esi_health_percent,
         'queued_breakdown': queued_breakdown,     
         'delayed_breakdown': delayed_breakdown,   

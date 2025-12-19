@@ -130,7 +130,7 @@ const ManagementCelery = () => {
                         <StatBox label="Missing Tokens" value={data.missing_token_count} color="red" />
                         <StatBox label="Idle Tokens" value={data.expired_token_count} color="blue" />
                         <StatBox label="Stale Characters (>1h)" value={data.stale_count} color="yellow" />
-                        <StatBox label="Active (30d)" value={data.active_30d_count} color="blue" />
+                        <StatBox label="Active Users (30d)" value={data.active_site_30d} color="blue" />
                         <StatBox label="ESI API Status" value={data.esi_server_status ? "ONLINE" : "DOWN"} color={data.esi_server_status ? "green" : "red"} />
                     </div>
                 </div>
@@ -156,6 +156,11 @@ const ManagementCelery = () => {
                     <StatBox
                         label="Active Pilots"
                         value={data.active_pilots_count}
+                        color="purple"
+                    />
+                    <StatBox
+                        label="Fleet Activity (30d)"
+                        value={data.active_waitlist_30d}
                         color="purple"
                     />
                     <StatBox
