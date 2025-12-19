@@ -1,5 +1,15 @@
 from django.contrib import admin
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.contrib.auth.models import User
 from .models import Capability, Ban, BanAuditLog
+
+class CustomUserAdmin(BaseUserAdmin):
+    list_display = BaseUserAdmin.list_display + ('date_joined',)
+    list_filter = BaseUserAdmin.list_filter + ('date_joined',)
+    ordering = ('-date_joined',)
+
+admin.site.unregister(User)
+admin.site.register(User, CustomUserAdmin)
 
 @admin.register(Capability)
 class CapabilityAdmin(admin.ModelAdmin):
