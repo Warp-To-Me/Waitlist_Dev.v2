@@ -34,6 +34,12 @@ ALL_ENDPOINTS = [
 # List of endpoints that are pointless to check if the user is offline
 SKIP_IF_OFFLINE = [ENDPOINT_SHIP, ENDPOINT_IMPLANTS]
 
+def get_token_for_scopes(character_id, scopes):
+    """
+    Returns the most recent valid token for a character that possesses ALL the required scopes.
+    """
+    return Token.objects.filter(character_id=character_id).require_scopes(scopes).order_by('-created').first()
+
 def check_esi_status():
     """
     Checks EVE Online server status via ESI.
@@ -193,7 +199,7 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
 
         # --- SKILLS ---
         if ENDPOINT_SKILLS in target_endpoints:
-            token = Token.objects.filter(character_id=character.character_id).order_by('-created').first()
+            token = get_token_for_scopes(character.character_id, ['esi-skills.read_skills.v1'])
             if token:
                 try:
                     client = get_esi_client(token)
@@ -248,7 +254,7 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
 
         # --- SKILL QUEUE ---
         if ENDPOINT_QUEUE in target_endpoints:
-            token = Token.objects.filter(character_id=character.character_id).order_by('-created').first()
+            token = get_token_for_scopes(character.character_id, ['esi-skills.read_skillqueue.v1'])
             if token:
                 try:
                     client = get_esi_client(token)
@@ -277,7 +283,7 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
         # --- SHIP ---
         if ENDPOINT_SHIP in target_endpoints:
             # New Migration to ESI Library
-            token = Token.objects.filter(character_id=character.character_id).order_by('-created').first()
+            token = get_token_for_scopes(character.character_id, ['esi-location.read_ship_type.v1'])
             if token:
                 try:
                     # get_esi_client handles UA. token.get_esi_client uses factory internally too but we use our helper.
@@ -302,7 +308,7 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
 
         # --- WALLET BALANCE ---
         if ENDPOINT_WALLET in target_endpoints:
-            token = Token.objects.filter(character_id=character.character_id).order_by('-created').first()
+            token = get_token_for_scopes(character.character_id, ['esi-wallet.read_character_wallet.v1'])
             if token:
                 try:
                     client = get_esi_client(token)
@@ -323,7 +329,7 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
 
         # --- LOYALTY POINTS ---
         if ENDPOINT_LP in target_endpoints:
-            token = Token.objects.filter(character_id=character.character_id).order_by('-created').first()
+            token = get_token_for_scopes(character.character_id, ['esi-characters.read_loyalty.v1'])
             if token:
                 try:
                     client = get_esi_client(token)
@@ -345,7 +351,7 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
 
         # --- IMPLANTS ---
         if ENDPOINT_IMPLANTS in target_endpoints:
-            token = Token.objects.filter(character_id=character.character_id).order_by('-created').first()
+            token = get_token_for_scopes(character.character_id, ['esi-clones.read_implants.v1'])
             if token:
                 try:
                     client = get_esi_client(token)
@@ -367,7 +373,7 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
 
         # --- HISTORY ---
         if ENDPOINT_HISTORY in target_endpoints:
-            token = Token.objects.filter(character_id=character.character_id).order_by('-created').first()
+            token = get_token_for_scopes(character.character_id, ['esi-corporations.read_corporation_membership.v1'])
             if token:
                 try:
                     client = get_esi_client(token)
