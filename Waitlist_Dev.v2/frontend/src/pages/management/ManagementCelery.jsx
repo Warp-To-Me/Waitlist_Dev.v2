@@ -40,6 +40,16 @@ const ManagementCelery = () => {
     // Helper to format large numbers
     const fmt = (n) => n?.toLocaleString() || 0;
 
+    // Helper to format time ago
+    const timeAgo = (isoString) => {
+        if (!isoString) return 'Never';
+        const diff = Date.now() - new Date(isoString).getTime();
+        const mins = Math.floor(diff / 60000);
+        if (mins < 60) return `${mins}m ago`;
+        const hours = Math.floor(mins / 60);
+        return `${hours}h ago`;
+    };
+
     return (
         <div className="space-y-8 animate-fade-in">
              {/* Header */}
@@ -123,6 +133,36 @@ const ManagementCelery = () => {
                         <StatBox label="Active (30d)" value={data.active_30d_count} color="blue" />
                         <StatBox label="ESI API Status" value={data.esi_server_status ? "ONLINE" : "DOWN"} color={data.esi_server_status ? "green" : "red"} />
                     </div>
+                </div>
+            </div>
+
+            {/* Operational Health Section */}
+            <div className="glass-panel p-6">
+                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                    <div className="w-1 h-6 bg-blue-500 rounded-full"></div>
+                    Operational Health
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <StatBox
+                        label="Active Fleets"
+                        value={data.active_fleets_count}
+                        color={data.active_fleets_count > 0 ? "green" : "blue"}
+                    />
+                    <StatBox
+                        label="Pilots Waiting"
+                        value={data.pending_pilots_count}
+                        color={data.pending_pilots_count > 10 ? "yellow" : "blue"}
+                    />
+                    <StatBox
+                        label="Active Pilots"
+                        value={data.active_pilots_count}
+                        color="purple"
+                    />
+                    <StatBox
+                        label="Last SRP Sync"
+                        value={timeAgo(data.last_srp_sync)}
+                        color={(!data.last_srp_sync || timeAgo(data.last_srp_sync).includes('h') && parseInt(timeAgo(data.last_srp_sync)) > 24) ? "red" : "green"}
+                    />
                 </div>
             </div>
 

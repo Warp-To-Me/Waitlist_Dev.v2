@@ -8,7 +8,7 @@ from waitlist_project.celery import app as celery_app
 from django.contrib.auth.models import Group
 from django.core.cache import cache
 
-from pilot_data.models import EveCharacter, EsiHeaderCache, ItemType, ItemGroup, SkillHistory
+from pilot_data.models import EveCharacter, EsiHeaderCache, ItemType, ItemGroup, SkillHistory, SRPConfiguration
 from esi.models import Token
 
 # --- LEGACY / FALLBACK DEFAULTS ---
@@ -366,6 +366,27 @@ def get_system_status():
     else:
         esi_health_percent = 0
 
+    # --- OPERATIONAL METRICS ---
+    from waitlist_data.models import Fleet, WaitlistEntry
+
+    active_fleets_count = Fleet.objects.filter(is_active=True).count()
+
+    # Pilots specifically waiting for an active fleet
+    pending_pilots_count = WaitlistEntry.objects.filter(
+        status='pending',
+        fleet__is_active=True
+    ).count()
+
+    # Pilots currently flying in an active fleet
+    active_pilots_count = WaitlistEntry.objects.filter(
+        status__in=['approved', 'invited'],
+        fleet__is_active=True
+    ).count()
+
+    # --- SRP METRICS ---
+    srp_config = SRPConfiguration.objects.first()
+    last_srp_sync = srp_config.last_sync if (srp_config and srp_config.last_sync) else None
+
     now = timezone.now()
     grace_period = now - timedelta(minutes=15)
 
@@ -432,7 +453,12 @@ def get_system_status():
         'delayed_breakdown': delayed_breakdown,   
         'esi_server_status': esi_status_bool,
         'system_load_percent': system_load_percent,
-        'load_hue': load_hue
+        'load_hue': load_hue,
+        # New Metrics
+        'active_fleets_count': active_fleets_count,
+        'pending_pilots_count': pending_pilots_count,
+        'active_pilots_count': active_pilots_count,
+        'last_srp_sync': last_srp_sync
     }
 
 def get_character_data(active_char):
