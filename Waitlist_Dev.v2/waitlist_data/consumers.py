@@ -351,6 +351,12 @@ class FleetConsumer(AsyncWebsocketConsumer):
             char, sid, sname = get_char_and_ship(cid)
             if not char: continue
 
+            # Update Character Ship Info
+            char.current_ship_type_id = sid
+            char.current_ship_name = sname
+            char.last_updated = now
+            char.save(update_fields=['current_ship_type_id', 'current_ship_name', 'last_updated'])
+
             # Update Stats Model
             update_char_stats(char, 'join', sname, now)
 
@@ -408,6 +414,12 @@ class FleetConsumer(AsyncWebsocketConsumer):
                     old_ship_name = "Unknown"
                     if old['ship_type_id'] in ship_map: old_ship_name = ship_map[old['ship_type_id']].type_name
                     
+                    # Update Character Ship Info
+                    char.current_ship_type_id = sid
+                    char.current_ship_name = sname
+                    char.last_updated = now
+                    char.save(update_fields=['current_ship_type_id', 'current_ship_name', 'last_updated'])
+
                     # Update Stats Model
                     update_char_stats(char, 'reship', sname, now)
                     
