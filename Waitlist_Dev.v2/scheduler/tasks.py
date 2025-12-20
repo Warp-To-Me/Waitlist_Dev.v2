@@ -2,6 +2,7 @@ from celery import shared_task
 from django.utils import timezone
 from datetime import timedelta
 from django.db.models import Q
+from django.db import close_old_connections
 import logging
 
 # Models
@@ -115,20 +116,25 @@ def refresh_character_task(char_id, target_endpoints=None, force_refresh=False):
     Refreshes a single character.
     """
     try:
-        char = EveCharacter.objects.get(character_id=char_id)
-        
-        # Pass force_refresh to manager (which uses call_esi which uses esi.Token)
-        success = update_character_data(char, target_endpoints, force_refresh=force_refresh)
-        
-        if not success:
-            # On failure, bump timestamp slightly to prevent immediate loop, but ensure retry
-            char.last_updated = timezone.now()
-            char.save(update_fields=['last_updated'])
+        try:
+            char = EveCharacter.objects.get(character_id=char_id)
 
-    except EveCharacter.DoesNotExist:
-        logger.error(f"[Worker] Character ID {char_id} not found.")
-    except Exception as e:
-        logger.error(f"[Worker] Crash on {char_id}: {e}")
+            # Pass force_refresh to manager (which uses call_esi which uses esi.Token)
+            success = update_character_data(char, target_endpoints, force_refresh=force_refresh)
+
+            if not success:
+                # On failure, bump timestamp slightly to prevent immediate loop, but ensure retry
+                char.last_updated = timezone.now()
+                char.save(update_fields=['last_updated'])
+
+        except EveCharacter.DoesNotExist:
+            logger.error(f"[Worker] Character ID {char_id} not found.")
+        except Exception as e:
+            logger.error(f"[Worker] Crash on {char_id}: {e}")
+    finally:
+        # DEFENSIVE: Ensure DB connection is returned to pool (or closed if aged out)
+        # Critical for gevent + persistent connections
+        close_old_connections()
 
 # --- NEW: SRP WALLET SYNC TASK ---
 @shared_task(bind=True, max_retries=3)

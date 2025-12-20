@@ -243,3 +243,5 @@ if 'celery' in sys.argv[0]:
 MIGRATION_MODULES = {
     'esi': 'esi.migrations'
 }
+
+CELERY_WORKER_CONCURRENCY = 20
