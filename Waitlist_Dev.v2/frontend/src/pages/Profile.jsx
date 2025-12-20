@@ -378,7 +378,7 @@ const Profile = () => {
                                     )}
 
                                     {scopes_missing && !is_inspection_mode && (
-                                         <a href="/auth/login?mode=add_alt" className="flex items-center gap-1 text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-1 rounded hover:bg-amber-500/20 transition cursor-pointer font-bold mt-2" title="Fleet Command scopes are missing. Click to add them.">
+                                         <a href="/auth/login?mode=fc_auth" className="flex items-center gap-1 text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-1 rounded hover:bg-amber-500/20 transition cursor-pointer font-bold mt-2" title="Fleet Command scopes are missing. Click to add them.">
                                             <span>⚠️</span> Add FC Scopes
                                         </a>
                                     )}

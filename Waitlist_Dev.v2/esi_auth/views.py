@@ -46,11 +46,21 @@ def auth_login_options(request):
     fc_scopes = settings.EVE_SCOPES_FC.split()
     srp_scopes = settings.EVE_SCOPES_SRP.split()
     
-    all_optional = optional_scopes + fc_scopes # Allow users to opt-in to FC scopes if they want
-    
+    mode = request.GET.get('mode') if request.method == 'GET' else request.data.get('mode')
+
+    is_fc = False
+    if request.user.is_authenticated:
+        is_fc = request.user.is_superuser or \
+                request.user.groups.filter(capabilities__slug='access_fleet_command').exists()
+
+    # Determine which optional scopes are allowed/visible
+    allowed_optional_list = list(optional_scopes)
+    if is_fc and mode == 'fc_auth':
+        allowed_optional_list += fc_scopes
+
     if request.method == 'GET':
         scope_options = []
-        for scope in all_optional:
+        for scope in allowed_optional_list:
             meta = settings.SCOPE_DESCRIPTIONS.get(scope, {'label': scope, 'description': ''})
             scope_options.append({
                 'scope': scope,
@@ -67,19 +77,39 @@ def auth_login_options(request):
                 'description': meta['description']
             })
 
+        # Calculate pre-selected scopes
+        preselected = []
+        if request.user.is_authenticated:
+            if mode == 'fc_auth' and is_fc:
+                preselected.extend(fc_scopes)
+            elif mode == 'add_alt':
+                # Attempt to find main character to copy scopes from
+                main_char = request.user.characters.filter(is_main=True).first()
+                if not main_char and request.user.characters.exists():
+                    main_char = request.user.characters.first()
+
+                if main_char and main_char.granted_scopes:
+                    granted = set(main_char.granted_scopes.split())
+                    # Only pre-select scopes that are actually available/optional
+                    # (Prevent copying legacy scopes or invalid ones)
+                    valid_optional = set(allowed_optional_list)
+                    for scope in granted:
+                        if scope in valid_optional:
+                            preselected.append(scope)
+
         return JsonResponse({
             'base_scopes': base_options,
-            'optional_scopes': scope_options
+            'optional_scopes': scope_options,
+            'preselected_scopes': preselected
         })
 
     if request.method == 'POST':
         data = request.data
         requested_custom = data.get('scopes', [])
-        mode = data.get('mode', None)
 
         # Set session flags based on mode
         _clear_session_flags(request)
-        if mode == 'add_alt':
+        if mode == 'add_alt' or mode == 'fc_auth':
             if not request.user.is_authenticated:
                 return HttpResponse("Authentication required to add alt", status=403)
             request.session['is_adding_alt'] = True
@@ -94,9 +124,9 @@ def auth_login_options(request):
         final_scopes = set(base_scopes)
         
         # Add valid custom scopes
-        allowed_optional = set(all_optional)
+        allowed_optional_set = set(allowed_optional_list)
         for s in requested_custom:
-            if s in allowed_optional:
+            if s in allowed_optional_set:
                 final_scopes.add(s)
 
         # If SRP Auth mode, enforce SRP scopes
