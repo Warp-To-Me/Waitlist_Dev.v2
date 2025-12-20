@@ -98,6 +98,14 @@ def dispatch_stale_characters():
                 
                 if valid_endpoints:
                     refresh_character_task.delay(char_id, valid_endpoints, force_refresh=False)
+
+                    # CLAIM: Bump expiry by 10 minutes to prevent re-queuing while task is pending/running
+                    # If the task succeeds, it will overwrite this with the real ESI expiry (e.g. +1h)
+                    EsiHeaderCache.objects.filter(
+                        character_id=char_id,
+                        endpoint_name__in=valid_endpoints
+                    ).update(expires=now + timedelta(minutes=10))
+
                     tasks_queued += 1
 
             except EveCharacter.DoesNotExist:
