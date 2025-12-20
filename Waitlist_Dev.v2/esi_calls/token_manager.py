@@ -30,6 +30,18 @@ ALL_ENDPOINTS = [
     ENDPOINT_LP, ENDPOINT_IMPLANTS, ENDPOINT_PUBLIC_INFO, ENDPOINT_HISTORY
 ]
 
+# Map Endpoints to Required Scopes for Pre-Check
+ENDPOINT_SCOPE_MAP = {
+    ENDPOINT_SKILLS: 'esi-skills.read_skills.v1',
+    ENDPOINT_QUEUE: 'esi-skills.read_skillqueue.v1',
+    ENDPOINT_SHIP: 'esi-location.read_ship_type.v1',
+    ENDPOINT_WALLET: 'esi-wallet.read_character_wallet.v1',
+    ENDPOINT_LP: 'esi-characters.read_loyalty.v1',
+    ENDPOINT_IMPLANTS: 'esi-clones.read_implants.v1',
+    ENDPOINT_HISTORY: 'esi-corporations.read_corporation_membership.v1',
+    # ENDPOINT_PUBLIC_INFO: No scope required
+}
+
 def get_token_for_scopes(character_id, scopes):
     """
     Returns the most recent valid token for a character that possesses ALL the required scopes.
@@ -93,6 +105,25 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
 
     if target_endpoints is None:
         target_endpoints = list(ALL_ENDPOINTS)
+
+    # --- SCOPE FILTERING (Pre-Flight Check) ---
+    # To avoid 403s and spamming warnings, we remove endpoints
+    # if we know the character doesn't have the scope.
+    granted_str = character.granted_scopes
+    if granted_str:
+        granted_set = set(granted_str.split())
+        filtered_endpoints = []
+        for ep in target_endpoints:
+            required_scope = ENDPOINT_SCOPE_MAP.get(ep)
+            if required_scope:
+                if required_scope in granted_set:
+                    filtered_endpoints.append(ep)
+                # Else: Skip silently
+            else:
+                # No scope required (e.g. Public Info)
+                filtered_endpoints.append(ep)
+
+        target_endpoints = filtered_endpoints
 
     try:
         # --- NEW: Error Handler with Backoff ---
