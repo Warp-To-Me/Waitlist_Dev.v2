@@ -106,8 +106,10 @@ api_urlpatterns = [
     path('refresh_profile/<int:char_id>/', views_profile.api_refresh_profile, name='api_refresh_profile'),
     path('profile/status/<int:char_id>/', views_profile.api_pilot_status, name='api_pilot_status'), 
     
-    path('profile/toggle_visibility/', views_profile.api_toggle_xup_visibility, name='api_toggle_xup_visibility'),
+    path('profile/toggle_xup/', views_profile.api_toggle_xup_visibility, name='api_toggle_xup_visibility'),
     path('profile/toggle_aggregate/', views_profile.api_toggle_aggregate_setting, name='api_toggle_aggregate_setting'),
+    path('profile/toggle_aggregate/bulk/', views_profile.api_bulk_toggle_aggregate, name='api_bulk_toggle_aggregate'),
+    path('profile/unlink/', views_profile.api_unlink_character, name='api_unlink_character'),
     
     # Doctrines API
     path('doctrines/', core_views.doctrine_list, name='doctrine_list_api'),

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { RefreshCw, Search, X, LogIn, AlertTriangle, ShieldAlert, Plus, Check, Mail, Link as LinkIcon, LogOut, Wind, RotateCw, Anchor, ArrowRightLeft, ArrowUp, ArrowDown, Ban, Lock, Unlock, FileText, Hourglass, Copy } from 'lucide-react';
+import { RefreshCw, Search, X, LogIn, AlertTriangle, ShieldAlert, Plus, Check, Mail, Link as LinkIcon, LogOut, Wind, RotateCw, Anchor, ArrowRightLeft, ArrowUp, ArrowDown, Ban, Lock, Unlock, FileText, Hourglass, Copy, Star, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../context/AuthContext';
 import { fetchProfileData, selectProfileData, selectProfileStatus } from '../store/slices/profileSlice';
@@ -172,6 +172,62 @@ const Profile = () => {
         }
     };
 
+    const handleToggleXUp = async (charId) => {
+        try {
+            const res = await fetch('/api/profile/toggle_xup/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                body: JSON.stringify({ character_id: charId })
+            });
+            if (res.ok) dispatch(fetchProfileData());
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    const handleUnlinkChar = async (charId) => {
+        if (!window.confirm("Are you sure you want to remove this character from the account?")) return;
+        try {
+            const res = await fetch('/api/profile/unlink/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                body: JSON.stringify({ character_id: charId })
+            });
+            if (res.ok) {
+                dispatch(fetchProfileData());
+                refreshUser(); // Global auth state might change
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    const handleBulkToggle = async (setting, currentValue) => {
+        try {
+            const res = await fetch('/api/profile/toggle_aggregate/bulk/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                body: JSON.stringify({ setting, value: !currentValue })
+            });
+            if (res.ok) dispatch(fetchProfileData());
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    const handleIndividualToggle = async (charId, setting, currentValue) => {
+        try {
+            const res = await fetch('/api/profile/toggle_aggregate/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                body: JSON.stringify({ character_id: charId, setting, value: !currentValue })
+            });
+            if (res.ok) dispatch(fetchProfileData());
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
     // Filter Logic
     const filteredLogs = (service_record?.history_logs || []).filter(log => serviceFilters.size === 0 || serviceFilters.has(log.action));
     const filteredPilots = characters.filter(c => 
@@ -179,6 +235,11 @@ const Profile = () => {
         c.character_name.toLowerCase().includes(pilotSearch.toLowerCase()) || 
         (c.corporation_name || '').toLowerCase().includes(pilotSearch.toLowerCase())
     );
+
+    // Calc bulk state
+    const allWallet = characters.every(c => c.include_wallet);
+    const allLP = characters.every(c => c.include_lp);
+    const allSP = characters.every(c => c.include_sp);
 
     return (
         <div className="absolute inset-0 overflow-y-auto custom-scrollbar">
@@ -640,11 +701,29 @@ const Profile = () => {
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-dark-950/90 backdrop-blur-sm" onClick={() => setPilotModalOpen(false)}>
                     <div className="relative transform rounded-xl bg-slate-900 border border-white/10 shadow-2xl w-full max-w-4xl flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
                         <div className="glass-header px-6 py-4 flex flex-col gap-4 border-b border-white/5">
-                            <div className="flex justify-between items-center">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                                 <h3 className="text-xl font-bold text-white flex items-center gap-2">
                                     <span>👥</span> Pilot Directory <span className="badge badge-slate">{characters.length}</span>
                                 </h3>
-                                <button onClick={() => setPilotModalOpen(false)} className="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
+
+                                {/* Bulk Toggles */}
+                                <div className="flex items-center gap-4 bg-white/5 px-3 py-1.5 rounded-lg border border-white/5">
+                                    <span className="text-[10px] uppercase font-bold text-slate-500">Toggle All:</span>
+                                    <label className="flex items-center gap-1.5 cursor-pointer group" title="Toggle Wallet for All">
+                                        <input type="checkbox" checked={allWallet} onChange={() => handleBulkToggle('wallet', allWallet)} className="checkbox checkbox-xs rounded-sm border-slate-600 bg-black/40 checked:bg-green-500" />
+                                        <span className="text-xs font-bold text-slate-400 group-hover:text-green-400">ISK</span>
+                                    </label>
+                                    <label className="flex items-center gap-1.5 cursor-pointer group" title="Toggle LP for All">
+                                        <input type="checkbox" checked={allLP} onChange={() => handleBulkToggle('lp', allLP)} className="checkbox checkbox-xs rounded-sm border-slate-600 bg-black/40 checked:bg-purple-500" />
+                                        <span className="text-xs font-bold text-slate-400 group-hover:text-purple-400">LP</span>
+                                    </label>
+                                    <label className="flex items-center gap-1.5 cursor-pointer group" title="Toggle SP for All">
+                                        <input type="checkbox" checked={allSP} onChange={() => handleBulkToggle('sp', allSP)} className="checkbox checkbox-xs rounded-sm border-slate-600 bg-black/40 checked:bg-brand-500" />
+                                        <span className="text-xs font-bold text-slate-400 group-hover:text-brand-400">SP</span>
+                                    </label>
+                                </div>
+
+                                <button onClick={() => setPilotModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white text-xl leading-none">&times;</button>
                             </div>
                             <div className="relative w-full">
                                 <Search className="absolute left-3 top-3 w-5 h-5 text-slate-500" />
@@ -662,20 +741,66 @@ const Profile = () => {
                                 {filteredPilots.map(char => (
                                     <div 
                                         key={char.character_id}
-                                        onClick={() => handleSwitchChar(char.character_id)}
-                                        className="flex items-center gap-3 p-3 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 hover:border-brand-500/30 transition cursor-pointer group"
+                                        className="relative group flex flex-col p-3 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 transition"
                                     >
-                                        <div className="relative">
-                                            <img src={`https://images.evetech.net/characters/${char.character_id}/portrait?size=64`} className="w-12 h-12 rounded-lg border border-white/10 bg-black group-hover:scale-105 transition" alt="" />
-                                            {char.character_id === active_char.character_id && <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-slate-900 rounded-full"></div>}
+                                        {/* Hover Overlay Buttons */}
+                                        <div className="absolute -top-2 -left-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleToggleXUp(char.character_id); }}
+                                                className={clsx(
+                                                    "w-8 h-8 rounded-full flex items-center justify-center shadow-lg border transition transform hover:scale-110",
+                                                    char.x_up_visible ? "bg-brand-500 text-white border-brand-400" : "bg-slate-800 text-slate-500 border-slate-600 hover:bg-slate-700 hover:text-slate-300"
+                                                )}
+                                                title={char.x_up_visible ? "Visible in X-Up" : "Hidden from X-Up"}
+                                            >
+                                                <Star size={14} fill={char.x_up_visible ? "currentColor" : "none"} />
+                                            </button>
                                         </div>
-                                        <div className="flex-grow min-w-0">
-                                            <div className="flex justify-between items-start">
-                                                <h4 className="font-bold text-slate-200 group-hover:text-white truncate">{char.character_name}</h4>
-                                                {char.is_main && <span className="text-[9px] font-bold text-brand-400 bg-brand-900/20 px-1.5 py-0.5 rounded border border-brand-500/20 uppercase">Main</span>}
+
+                                        {profile.is_admin_user && (
+                                            <div className="absolute -top-2 -right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handleUnlinkChar(char.character_id); }}
+                                                    className="w-8 h-8 rounded-full bg-red-900/90 text-red-400 border border-red-500/50 flex items-center justify-center shadow-lg hover:bg-red-600 hover:text-white hover:border-red-400 transition transform hover:scale-110"
+                                                    title="Remove from Account (Admin Only)"
+                                                >
+                                                    <X size={16} />
+                                                </button>
                                             </div>
-                                            <div className="text-xs text-slate-500 truncate mt-0.5">{char.corporation_name || "Unknown Corp"}</div>
-                                            <div className="text-[10px] text-slate-600 font-mono mt-1">{(char.total_sp || 0).toLocaleString()} SP</div>
+                                        )}
+
+                                        {/* Main Card Content */}
+                                        <div
+                                            className="flex items-center gap-3 cursor-pointer mb-3"
+                                            onClick={() => handleSwitchChar(char.character_id)}
+                                        >
+                                            <div className="relative">
+                                                <img src={`https://images.evetech.net/characters/${char.character_id}/portrait?size=64`} className="w-12 h-12 rounded-lg border border-white/10 bg-black group-hover:border-white/30 transition" alt="" />
+                                                {char.character_id === active_char.character_id && <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-slate-900 rounded-full"></div>}
+                                            </div>
+                                            <div className="flex-grow min-w-0">
+                                                <div className="flex justify-between items-start">
+                                                    <h4 className="font-bold text-slate-200 group-hover:text-white truncate transition">{char.character_name}</h4>
+                                                    {char.is_main && <span className="text-[9px] font-bold text-brand-400 bg-brand-900/20 px-1.5 py-0.5 rounded border border-brand-500/20 uppercase">Main</span>}
+                                                </div>
+                                                <div className="text-xs text-slate-500 truncate mt-0.5">{char.corporation_name || "Unknown Corp"}</div>
+                                            </div>
+                                        </div>
+
+                                        {/* Toggles Footer */}
+                                        <div className="mt-auto pt-2 border-t border-white/5 flex justify-between items-center px-1">
+                                            <label className="flex items-center gap-1.5 cursor-pointer opacity-70 hover:opacity-100 transition" title="Include Wallet">
+                                                <input type="checkbox" checked={char.include_wallet} onChange={() => handleIndividualToggle(char.character_id, 'wallet', char.include_wallet)} disabled={char.missing_wallet_scope} className="checkbox checkbox-xs rounded-sm border-white/20 bg-black/20 checked:bg-green-500 disabled:opacity-30" />
+                                                <span className="text-[10px] font-bold text-slate-400">ISK</span>
+                                            </label>
+                                            <label className="flex items-center gap-1.5 cursor-pointer opacity-70 hover:opacity-100 transition" title="Include LP">
+                                                <input type="checkbox" checked={char.include_lp} onChange={() => handleIndividualToggle(char.character_id, 'lp', char.include_lp)} disabled={char.missing_lp_scope} className="checkbox checkbox-xs rounded-sm border-white/20 bg-black/20 checked:bg-purple-500 disabled:opacity-30" />
+                                                <span className="text-[10px] font-bold text-slate-400">LP</span>
+                                            </label>
+                                            <label className="flex items-center gap-1.5 cursor-pointer opacity-70 hover:opacity-100 transition" title="Include SP">
+                                                <input type="checkbox" checked={char.include_sp} onChange={() => handleIndividualToggle(char.character_id, 'sp', char.include_sp)} disabled={char.missing_sp_scope} className="checkbox checkbox-xs rounded-sm border-white/20 bg-black/20 checked:bg-brand-500 disabled:opacity-30" />
+                                                <span className="text-[10px] font-bold text-slate-400">SP</span>
+                                            </label>
                                         </div>
                                     </div>
                                 ))}

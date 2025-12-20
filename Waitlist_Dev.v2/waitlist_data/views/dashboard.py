@@ -28,8 +28,8 @@ from rest_framework.response import Response
 def fleet_dashboard(request, token):
     # Trigger Update for User Characters
     if request.user.is_authenticated:
-        for char in request.user.characters.all():
-            refresh_character_task.delay(char.character_id)
+        for char in request.user.characters.filter(x_up_visible=True):
+            refresh_character_task.delay(char.character_id, ['skills', 'implants'])
 
     fleet = get_object_or_404(Fleet, join_token=token)
     
