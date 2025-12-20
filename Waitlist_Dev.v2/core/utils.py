@@ -332,6 +332,8 @@ def get_system_status():
             'pending_count': safety_net_count
         })
 
+    delayed_breakdown = []
+
     from esi_calls.token_manager import check_esi_status
     esi_status_bool = check_esi_status()
 
