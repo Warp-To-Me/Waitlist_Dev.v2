@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { RefreshCw, Search, X, LogIn, AlertTriangle, ShieldAlert, Plus, Check, Mail, Link as LinkIcon, LogOut, Wind, RotateCw, Anchor, ArrowRightLeft, ArrowUp, ArrowDown, Ban, Lock, Unlock, FileText, Hourglass, Copy, Star, Trash2 } from 'lucide-react';
+import { RefreshCw, Search, X, LogIn, AlertTriangle, ShieldAlert, Plus, Check, Mail, Link as LinkIcon, LogOut, Wind, RotateCw, Anchor, ArrowRightLeft, ArrowUp, ArrowDown, Ban, Lock, Unlock, FileText, Hourglass, Copy, Star, Trash2, Crown } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../context/AuthContext';
 import { fetchProfileData, selectProfileData, selectProfileStatus } from '../store/slices/profileSlice';
@@ -196,6 +196,21 @@ const Profile = () => {
             if (res.ok) {
                 dispatch(fetchProfileData());
                 refreshUser(); // Global auth state might change
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    const handleMakeMain = async (charId) => {
+        try {
+            const res = await fetch(`/api/profile/make_main/${charId}/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCookie('csrftoken') }
+            });
+            if (res.ok) {
+                dispatch(fetchProfileData());
+                refreshUser();
             }
         } catch (error) {
             console.error(error);
@@ -744,6 +759,8 @@ const Profile = () => {
                                         className="relative group flex flex-col p-3 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 transition"
                                     >
                                         {/* Hover Overlay Buttons */}
+
+                                        {/* Top Left: X-Up Toggle */}
                                         <div className="absolute -top-2 -left-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); handleToggleXUp(char.character_id); }}
@@ -757,8 +774,24 @@ const Profile = () => {
                                             </button>
                                         </div>
 
+                                        {/* Top Right: Make Main */}
+                                        <div className="absolute -top-2 -right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleMakeMain(char.character_id); }}
+                                                disabled={char.is_main}
+                                                className={clsx(
+                                                    "w-8 h-8 rounded-full flex items-center justify-center shadow-lg border transition transform",
+                                                    char.is_main ? "bg-brand-500 text-white border-brand-400 cursor-default" : "bg-slate-800 text-slate-500 border-slate-600 hover:bg-slate-700 hover:text-brand-400 hover:scale-110"
+                                                )}
+                                                title={char.is_main ? "Current Main" : "Make Main"}
+                                            >
+                                                <Crown size={14} fill={char.is_main ? "currentColor" : "none"} />
+                                            </button>
+                                        </div>
+
+                                        {/* Bottom Right: Remove (Admin) */}
                                         {profile.is_admin_user && (
-                                            <div className="absolute -top-2 -right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                            <div className="absolute -bottom-2 -right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); handleUnlinkChar(char.character_id); }}
                                                     className="w-8 h-8 rounded-full bg-red-900/90 text-red-400 border border-red-500/50 flex items-center justify-center shadow-lg hover:bg-red-600 hover:text-white hover:border-red-400 transition transform hover:scale-110"
