@@ -25,8 +25,6 @@ class EveCharacter(models.Model):
     concord_lp = models.IntegerField(default=0)
     
     # Activity Tracking
-    is_online = models.BooleanField(default=False)
-    last_login_at = models.DateTimeField(null=True, blank=True)
     last_online_at = models.DateTimeField(null=True, blank=True)
 
     last_updated = models.DateTimeField(auto_now=True)

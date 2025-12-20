@@ -27,8 +27,13 @@ from esi.models import Token
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def profile_view(request):
-    characters = request.user.characters.all()
+    # Trigger Update for Active Character (or all if simpler, but active is focus)
     active_char_id = request.session.get('active_char_id')
+    if active_char_id:
+        refresh_character_task.delay(active_char_id)
+
+    characters = request.user.characters.all()
+    # active_char_id = request.session.get('active_char_id') # Redundant if moved up
     if active_char_id: active_char = characters.filter(character_id=active_char_id).first()
     else:
         active_char = characters.filter(is_main=True).first()
