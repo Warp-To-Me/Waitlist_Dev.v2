@@ -178,7 +178,7 @@ def call_esi(character, endpoint_name, url, method='GET', params=None, body=None
             
         # Handle Token Errors
         if response.status_code in [401, 403]:
-            print(f"  -> [{response.status_code}] Token Invalid/Scope Missing")
+            print(f"  -> [{response.status_code}] Token Invalid/Scope Missing for {character.character_name}")
             # If 401, the library's `valid_access_token` should have caught it, 
             # unless it expired *during* the request or was revoked.
             # We can force a refresh on the token object if we wanted to retry,

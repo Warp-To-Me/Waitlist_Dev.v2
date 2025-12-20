@@ -16,7 +16,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 # --- QUANTIFIED ESI ENDPOINTS ---
-ENDPOINT_ONLINE = 'online'
 ENDPOINT_SKILLS = 'skills'
 ENDPOINT_QUEUE = 'queue'
 ENDPOINT_SHIP = 'ship'
@@ -27,12 +26,9 @@ ENDPOINT_PUBLIC_INFO = 'public_info'
 ENDPOINT_HISTORY = 'history'
 
 ALL_ENDPOINTS = [
-    ENDPOINT_ONLINE, ENDPOINT_SKILLS, ENDPOINT_QUEUE, ENDPOINT_SHIP, ENDPOINT_WALLET, 
+    ENDPOINT_SKILLS, ENDPOINT_QUEUE, ENDPOINT_SHIP, ENDPOINT_WALLET,
     ENDPOINT_LP, ENDPOINT_IMPLANTS, ENDPOINT_PUBLIC_INFO, ENDPOINT_HISTORY
 ]
-
-# List of endpoints that are pointless to check if the user is offline
-SKIP_IF_OFFLINE = [ENDPOINT_SHIP, ENDPOINT_IMPLANTS]
 
 def get_token_for_scopes(character_id, scopes):
     """
@@ -118,32 +114,6 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                         
                 return True
             return False
-
-        # --- ONLINE STATUS ---
-        if ENDPOINT_ONLINE in target_endpoints:
-            # Pass force_refresh
-            resp = call_esi(character, ENDPOINT_ONLINE, f"{base_url.format(char_id=char_id)}/online/", force_refresh=force_refresh)
-            
-            if resp['status'] == 403:
-                print(f"  !!! Missing Scope 'esi-location.read_online.v1' for {character.character_name}")
-            elif not check_critical_error(resp, ENDPOINT_ONLINE) and resp['status'] == 200:
-                data = resp['data']
-                character.is_online = data.get('online', False)
-                character.last_login_at = data.get('last_login')
-                character.save(update_fields=['is_online', 'last_login_at'])
-
-                if not character.is_online:
-                    for ep in SKIP_IF_OFFLINE:
-                        if ep in target_endpoints:
-                            target_endpoints.remove(ep)
-                            
-                            defaults = {'expires': timezone.now()}
-                            rows_updated = EsiHeaderCache.objects.filter(character=character, endpoint_name=ep).update(**defaults)
-                            if rows_updated == 0:
-                                try:
-                                    EsiHeaderCache.objects.create(character=character, endpoint_name=ep, **defaults)
-                                except Exception:
-                                    pass
 
         # --- PUBLIC INFO (Corp/Alliance) ---
         if ENDPOINT_PUBLIC_INFO in target_endpoints:
