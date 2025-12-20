@@ -51,69 +51,8 @@ def dispatch_stale_characters():
             tasks_queued += 1
 
     # --- STRATEGY 2: Cache Expiry ---
-    # Only process characters we haven't already fixed in Step 1
-    expired_headers = EsiHeaderCache.objects.filter(expires__lte=now).select_related('character')
-    updates_map = {}
-
-    for header in expired_headers:
-        char = header.character
-        char_id = char.character_id
-        
-        # Skip if already handled
-        if char_id in processed_ids:
-            continue
-            
-        endpoint = header.endpoint_name
-        
-        if char_id not in updates_map:
-            updates_map[char_id] = []
-        updates_map[char_id].append(endpoint)
-
-    if updates_map:
-        # logger.info(f"[Dispatcher] Found {len(updates_map)} characters with expired caches.")
-        for char_id, endpoints in updates_map.items():
-            # Retrieve character to check scopes
-            try:
-                char_obj = EveCharacter.objects.get(character_id=char_id)
-                granted = set(char_obj.granted_scopes.split()) if char_obj.granted_scopes else None
-                
-                # Filter endpoints based on scopes
-                valid_endpoints = []
-                for ep in endpoints:
-                    # Skip deprecated 'online' endpoint
-                    if ep == 'online':
-                        continue
-
-                    # Map endpoint to scope
-                    scope_needed = None
-                    if ep == 'wallet': scope_needed = 'esi-wallet.read_character_wallet.v1'
-                    elif ep == 'ship': scope_needed = 'esi-location.read_ship_type.v1'
-                    elif ep == 'lp': scope_needed = 'esi-characters.read_loyalty.v1'
-                    # Base scopes (skills, queue, implants) are usually assumed present
-                    
-                    if granted is None:
-                        # Legacy/No scopes recorded -> Allow for now or Block?
-                        # Let's allow for backwards compatibility unless strict
-                        valid_endpoints.append(ep)
-                    elif scope_needed and scope_needed not in granted:
-                        continue # Skip this endpoint
-                    else:
-                        valid_endpoints.append(ep)
-                
-                if valid_endpoints:
-                    refresh_character_task.delay(char_id, valid_endpoints, force_refresh=False)
-                    
-                    # CLAIM: Bump expiry by 10 minutes to prevent re-queuing while task is pending/running
-                    # If the task succeeds, it will overwrite this with the real ESI expiry (e.g. +1h)
-                    EsiHeaderCache.objects.filter(
-                        character_id=char_id,
-                        endpoint_name__in=valid_endpoints
-                    ).update(expires=now + timedelta(minutes=10))
-                    
-                    tasks_queued += 1
-
-            except EveCharacter.DoesNotExist:
-                continue
+    # REMOVED: We no longer auto-refresh characters just because their cache expired.
+    # Updates are now event-driven (Fleet Dashboard, Profile View) or via the Safety Net above.
 
     if tasks_queued > 0:
         logger.info(f"[Dispatcher] Cycle Complete. Total Tasks Queued: {tasks_queued}")
