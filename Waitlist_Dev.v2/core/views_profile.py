@@ -121,12 +121,26 @@ def profile_view(request):
     # Serialize Characters
     chars_data = []
     for c in characters:
+        # Determine missing scopes for UI disable logic
+        c_granted = set(c.granted_scopes.split()) if c.granted_scopes else set()
+        c_missing_wallet = 'esi-wallet.read_character_wallet.v1' not in c_granted
+        c_missing_lp = 'esi-characters.read_loyalty.v1' not in c_granted
+        c_missing_sp = 'esi-skills.read_skills.v1' not in c_granted
+
         chars_data.append({
             'character_id': c.character_id,
             'character_name': c.character_name,
             'corporation_name': c.corporation_name,
             'is_main': c.is_main,
-            'x_up_visible': c.x_up_visible
+            'x_up_visible': c.x_up_visible,
+            # Aggregate Flags
+            'include_wallet': c.include_wallet_in_aggregate,
+            'include_lp': c.include_lp_in_aggregate,
+            'include_sp': c.include_sp_in_aggregate,
+            # Missing Scope Flags
+            'missing_wallet_scope': c_missing_wallet,
+            'missing_lp_scope': c_missing_lp,
+            'missing_sp_scope': c_missing_sp
         })
 
     active_char_data = None
