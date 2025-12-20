@@ -25,11 +25,13 @@
     <Compile Include="core\admin.py" />
     <Compile Include="core\api_utils.py" />
     <Compile Include="core\apps.py" />
+    <Compile Include="core\command_data.py" />
     <Compile Include="core\consumers.py" />
     <Compile Include="core\context_processors.py" />
     <Compile Include="core\decorators.py" />
     <Compile Include="core\eft_parser.py" />
     <Compile Include="core\management\commands\cleanup_sim_users.py" />
+    <Compile Include="core\views_command.py" />
     <Compile Include="esi\admin.py" />
     <Compile Include="esi\aiopenapi3\client.py" />
     <Compile Include="esi\aiopenapi3\plugins.py" />
