@@ -88,13 +88,16 @@ def _broadcast_ratelimit(user, headers):
             try:
                 loop = asyncio.get_running_loop()
                 # If we are in an active loop (Daphne/Async Worker), schedule it
-                loop.create_task(channel_layer.group_send(
-                    f"user_{user.id}",
-                    {
-                        "type": "user_notification",
-                        "data": payload
-                    }
-                ))
+                if loop.is_running():
+                    loop.create_task(channel_layer.group_send(
+                        f"user_{user.id}",
+                        {
+                            "type": "user_notification",
+                            "data": payload
+                        }
+                    ))
+                else:
+                    raise RuntimeError("Loop not running")
             except RuntimeError:
                 # No running loop (Standard Thread), use async_to_sync
                 async_to_sync(channel_layer.group_send)(
@@ -229,11 +232,23 @@ def _update_cache_headers(character, endpoint_name, headers, existing_entry=None
         'expires': expires_dt
     }
 
-    # FIX: Use update-then-create pattern to avoid 'select_for_update outside transaction'
-    rows_updated = EsiHeaderCache.objects.filter(character=character, endpoint_name=endpoint_name).update(**defaults)
+    # Optimistic Update using update_or_create to utilize DB-level atomic upsert if possible (depends on backend)
+    # But sticking to update-then-create for explicit control and to minimize lock time
+    # We remove 'select_for_update' references entirely.
     
-    if rows_updated == 0:
-        try:
-            EsiHeaderCache.objects.create(character=character, endpoint_name=endpoint_name, **defaults)
-        except Exception: 
-            pass
+    try:
+        # Try update first (Fastest if row exists)
+        rows = EsiHeaderCache.objects.filter(character=character, endpoint_name=endpoint_name).update(**defaults)
+        if rows == 0:
+            # Row doesn't exist, create it.
+            # We use get_or_create to handle race condition where another worker created it
+            # between the filter().update() and this line.
+            EsiHeaderCache.objects.get_or_create(
+                character=character,
+                endpoint_name=endpoint_name,
+                defaults=defaults
+            )
+            # Note: if it existed (race condition), get_or_create gets it but doesn't update it with new defaults.
+            # This is acceptable for a cache header (next run will catch it), prioritizing non-locking behavior.
+    except Exception as e:
+        print(f"Cache update error: {e}")
