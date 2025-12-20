@@ -101,28 +101,29 @@ def _update_cache_headers(character, endpoint_name, headers):
     expires_header = headers.get('Expires')
     etag_header = headers.get('ETag')
 
-    # ETag often comes with quotes, keep them if you want or strip them.
-    # Usually we just store what we get.
-
+    expires_dt = None
     if expires_header:
         try:
             # parsedate_to_datetime handles RFC 1123 (e.g. "Sat, 20 Dec 2025 16:01:21 GMT")
             # and returns a timezone-aware datetime (UTC).
             expires_dt = parsedate_to_datetime(expires_header)
-
-            defaults = {
-                'expires': expires_dt,
-                'etag': etag_header
-            }
-
-            # Update or Create
-            EsiHeaderCache.objects.update_or_create(
-                character=character,
-                endpoint_name=endpoint_name,
-                defaults=defaults
-            )
         except Exception as e:
             logger.warning(f"[Cache Update] Failed to parse headers for {character.character_name}/{endpoint_name}: {e}")
+
+    try:
+        defaults = {
+            'expires': expires_dt,
+            'etag': etag_header
+        }
+
+        # Update or Create (Always update to clear old expiry if new one is None)
+        EsiHeaderCache.objects.update_or_create(
+            character=character,
+            endpoint_name=endpoint_name,
+            defaults=defaults
+        )
+    except Exception as e:
+        logger.error(f"[Cache Update] DB Error for {character.character_name}/{endpoint_name}: {e}")
 
 def update_character_data(character, target_endpoints=None, force_refresh=False):
     """
