@@ -249,7 +249,7 @@ def get_system_status():
     # 2. Inspect Celery Workers
     # We use a lightweight inspect (stats/ping only) to list active workers.
     # Active task monitoring is handled via WebSocket events (celery_signals.py).
-    inspector = celery_app.control.inspect(timeout=0.5)
+    inspector = celery_app.control.inspect(timeout=2.0)
     
     worker_stats = {}
     worker_ping = {}
