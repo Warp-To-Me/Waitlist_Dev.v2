@@ -13,7 +13,7 @@ from channels.layers import get_channel_layer
 
 from core.permissions import is_fleet_command, get_template_base, get_mgmt_context
 from waitlist_data.models import Fleet, FleetStructureTemplate
-from esi_calls.fleet_service import get_fleet_composition, sync_fleet_structure, update_fleet_settings, ESI_BASE
+from esi_calls.fleet_service import get_fleet_composition, sync_fleet_structure, update_fleet_settings, cleanup_fleet_cache, ESI_BASE
 from esi.models import Token # Updated Import
 
 @login_required
@@ -149,7 +149,14 @@ def api_close_fleet(request, token):
     # Permission Check (Just in case, mostly handled by decorator)
     if not request.user.is_superuser and fleet.commander != request.user:
         return JsonResponse({'success': False, 'error': 'Permission denied.'}, status=403)
-        
+
+    # CLEANUP CACHE
+    try:
+        for char in request.user.characters.all():
+            cleanup_fleet_cache(char, fleet.esi_fleet_id)
+    except Exception:
+        pass
+
     fleet.is_active = False
     fleet.end_time = timezone.now()
     fleet.save()
@@ -170,6 +177,15 @@ def take_fleet_command(request, token):
 def api_take_over_fleet(request, token):
     fleet = get_object_or_404(Fleet, join_token=token)
     
+    # CLEANUP OLD COMMANDER CACHE
+    try:
+        old_commander = fleet.commander
+        if old_commander:
+            for char in old_commander.characters.all():
+                cleanup_fleet_cache(char, fleet.esi_fleet_id)
+    except Exception:
+        pass
+
     # Update Commander
     fleet.commander = request.user
     
