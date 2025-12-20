@@ -180,7 +180,7 @@ const ManagementCelery = () => {
                 </div>
             </div>
 
-            {/* Queued Breakdowns */}
+            {/* Queued Breakdowns & Workers */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="glass-panel p-6">
                     <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
@@ -190,25 +190,44 @@ const ManagementCelery = () => {
                     <QueueTable items={data.queued_breakdown} emptyMsg="No tasks currently queued." />
                 </div>
 
-                {/* Real-time Task Stream (Replaces Delayed/Workers) */}
+                {/* Workers List */}
                 <div className="glass-panel p-6">
                     <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                         <Zap size={20} className="text-blue-400"/>
-                         Live Task Stream
+                        <div className="w-1 h-6 bg-purple-500 rounded-full"></div>
+                        Celery Workers ({data.worker_count})
                     </h3>
+                    {data.workers && data.workers.length > 0 ? (
+                        <div className="grid grid-cols-1 gap-4">
+                            {data.workers.map((worker) => (
+                                <WorkerRow key={worker.name} worker={worker} />
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="p-8 text-center text-slate-500 bg-white/5 rounded-lg border border-white/5 border-dashed">
+                            No workers detected.
+                        </div>
+                    )}
+                </div>
+            </div>
 
-                    <div className="space-y-2 h-[400px] overflow-y-auto pr-2 custom-scrollbar relative">
-                        {tasks.length === 0 && (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 italic">
-                                <Activity className="mb-2 opacity-50" />
-                                No active tasks processed recently.
-                            </div>
-                        )}
+            {/* Real-time Task Stream */}
+            <div className="glass-panel p-6">
+                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                        <Zap size={20} className="text-blue-400"/>
+                        Live Task Stream
+                </h3>
 
-                        {tasks.map((task) => (
-                            <TaskRow key={task.id} task={task} />
-                        ))}
-                    </div>
+                <div className="space-y-2 h-[400px] overflow-y-auto pr-2 custom-scrollbar relative">
+                    {tasks.length === 0 && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 italic">
+                            <Activity className="mb-2 opacity-50" />
+                            No active tasks processed recently.
+                        </div>
+                    )}
+
+                    {tasks.map((task) => (
+                        <TaskRow key={task.id} task={task} />
+                    ))}
                 </div>
             </div>
         </div>
@@ -216,6 +235,27 @@ const ManagementCelery = () => {
 };
 
 // --- Sub Components ---
+
+const WorkerRow = ({ worker }) => {
+    return (
+        <div className="bg-slate-900/50 border border-white/10 rounded-lg p-4">
+            <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
+                 <div className="flex items-center gap-3">
+                     <div className={clsx("w-3 h-3 rounded-full", worker.status === 'Active' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-red-500')}></div>
+                     <div>
+                         <div className="text-sm font-bold text-white">{worker.name}</div>
+                         <div className="text-xs text-slate-500 font-mono">PID: {worker.pid} | Concurrency: {worker.concurrency}</div>
+                     </div>
+                 </div>
+                 <div className="flex gap-4 text-xs">
+                     <div className="bg-slate-700/50 text-slate-400 px-3 py-1 rounded border border-white/10">
+                         Processed: <b>{worker.processed.toLocaleString()}</b>
+                     </div>
+                 </div>
+            </div>
+        </div>
+    )
+}
 
 const StatusCard = ({ label, value, sub, icon, color }) => {
     const colorClasses = {

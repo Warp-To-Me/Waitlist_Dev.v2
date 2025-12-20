@@ -247,15 +247,46 @@ def get_system_status():
         queue_length = 0
 
     # 2. Inspect Celery Workers
-    # OPTIMIZATION: We no longer poll inspect() as it's heavy and blocks the thread.
-    # We rely on WebSocket events for real-time task tracking.
+    # We use a lightweight inspect (stats/ping only) to list active workers.
+    # Active task monitoring is handled via WebSocket events (celery_signals.py).
+    inspector = celery_app.control.inspect(timeout=0.5)
     
+    worker_stats = {}
+    worker_ping = {}
+
+    try:
+        worker_ping = inspector.ping() or {}
+        if worker_ping:
+            worker_stats = inspector.stats() or {}
+    except Exception as e:
+        if not redis_error:
+            redis_error = f"Celery Inspect Error: {str(e)}"
+
+    worker_data = []
+    
+    # Process Worker Data
+    for worker_name, response in worker_ping.items():
+        w_stats = worker_stats.get(worker_name, {})
+        w_total = sum(w_stats.get('total', {}).values())
+
+        worker_data.append({
+            'name': worker_name,
+            'status': 'Active' if response == 'pong' else 'Unknown',
+            'active_count': 'N/A', # Not polling active tasks
+            'reserved_count': 'N/A',
+            'concurrency': w_stats.get('pool', {}).get('max-concurrency', 'N/A'),
+            'pid': w_stats.get('pid', 'N/A'),
+            'processed': w_total
+        })
+
+    # Cache total processed count
     total_processed = 0
-    cache_key_proc = 'monitor_total_processed_stable'
-    cached_total = cache.get(cache_key_proc) or 0
-    total_processed = cached_total
-    
-    worker_data = [] # Legacy format kept empty
+    if worker_data:
+        current_total = sum(w['processed'] for w in worker_data if isinstance(w['processed'], int))
+        total_processed = current_total
+        cache.set('monitor_total_processed_stable', total_processed, timeout=3600)
+    else:
+        total_processed = cache.get('monitor_total_processed_stable') or 0
 
     total_characters = EveCharacter.objects.count()
     stale_threshold = timezone.now() - timedelta(hours=24)
