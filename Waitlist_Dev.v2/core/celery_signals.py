@@ -6,6 +6,12 @@ import time
 
 logger = logging.getLogger(__name__)
 
+# Whitelist of tasks to broadcast to the UI
+MONITORED_TASKS = [
+    'scheduler.tasks.refresh_character_task',
+    'scheduler.tasks.refresh_srp_wallet_task',
+]
+
 # Helper to broadcast
 def broadcast_celery_event(event_type, task_data):
     try:
@@ -31,7 +37,8 @@ def on_task_prerun(sender=None, task_id=None, task=None, args=None, kwargs=None,
     """
     Fired when a task starts.
     """
-    if not task: return
+    if not task or task.name not in MONITORED_TASKS:
+        return
 
     # Enrich args for display if possible (similar to utils.py logic)
     enriched_info = ""
@@ -80,6 +87,9 @@ def on_task_postrun(sender=None, task_id=None, task=None, state=None, retval=Non
     """
     Fired when a task ends.
     """
+    if not task or task.name not in MONITORED_TASKS:
+        return
+
     task_data = {
         "id": task_id,
         "state": state,
