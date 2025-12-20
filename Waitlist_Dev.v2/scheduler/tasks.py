@@ -117,13 +117,6 @@ def refresh_character_task(char_id, target_endpoints=None, force_refresh=False):
     try:
         char = EveCharacter.objects.get(character_id=char_id)
         
-        # Log Logic: Reduce spam by only logging "Real" updates
-        is_heartbeat = target_endpoints and 'skills' in target_endpoints and 'ship' not in target_endpoints
-        
-        mode_str = "FULL" if target_endpoints is None else f"Partial: {len(target_endpoints)}"
-        if is_heartbeat: mode_str = "HEARTBEAT"
-        logger.info(f"[Worker] Updating {char.character_name} [{mode_str}]")
-        
         # Pass force_refresh to manager (which uses call_esi which uses esi.Token)
         success = update_character_data(char, target_endpoints, force_refresh=force_refresh)
         

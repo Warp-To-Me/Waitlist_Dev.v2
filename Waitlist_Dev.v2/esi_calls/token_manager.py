@@ -125,6 +125,9 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
 
         target_endpoints = filtered_endpoints
 
+    # Log the summary of what we are about to attempt
+    logger.info(f"[Worker] Updating {character.character_name} [{', '.join(target_endpoints)}]")
+
     try:
         # --- NEW: Error Handler with Backoff ---
         def check_critical_error(response, endpoint_name):
@@ -196,7 +199,7 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                 except Exception as e:
                     logger.error(f"[ESI Library Error] Public Info Endpoint: {e}")
             else:
-                logger.warning(f"No valid token found for character {character.character_name} during Public Info sync")
+                pass # logger.warning(f"No valid token found for character {character.character_name} during Public Info sync")
 
         # --- SKILLS ---
         if ENDPOINT_SKILLS in target_endpoints:
@@ -246,11 +249,11 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                     ]
                     CharacterSkill.objects.bulk_create(new_skills)
                 except HTTPForbidden:
-                    logger.warning(f"Missing Scope 'esi-skills.read_skills.v1' for {character.character_name}")
+                    pass
                 except Exception as e:
                     logger.error(f"[ESI Library Error] Skills Endpoint: {e}")
             else:
-                logger.warning(f"No valid token found for character {character.character_name} during Skills sync")
+                pass
 
 
         # --- SKILL QUEUE ---
@@ -275,11 +278,11 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                     ]
                     CharacterQueue.objects.bulk_create(new_queue)
                 except HTTPForbidden:
-                    logger.warning(f"Missing Scope 'esi-skills.read_skillqueue.v1' for {character.character_name}")
+                    pass
                 except Exception as e:
                     logger.error(f"[ESI Library Error] Skill Queue Endpoint: {e}")
             else:
-                logger.warning(f"No valid token found for character {character.character_name} during Skill Queue sync")
+                pass
 
         # --- SHIP ---
         if ENDPOINT_SHIP in target_endpoints:
@@ -301,11 +304,11 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                     character.save(update_fields=['current_ship_name', 'current_ship_type_id'])
                 
                 except HTTPForbidden:
-                    logger.warning(f"Missing Scope 'esi-location.read_ship_type.v1' for {character.character_name}")
+                    pass
                 except Exception as e:
                     logger.error(f"[ESI Library Error] Ship Endpoint: {e}")
             else:
-                logger.warning(f"No valid token found for character {character.character_name} during Ship sync")
+                pass
 
         # --- WALLET BALANCE ---
         if ENDPOINT_WALLET in target_endpoints:
@@ -322,11 +325,11 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                     character.wallet_balance = data
                     character.save(update_fields=['wallet_balance'])
                 except HTTPForbidden:
-                    logger.warning(f"Missing Scope 'esi-wallet.read_character_wallet.v1' for {character.character_name}")
+                    pass
                 except Exception as e:
                     logger.error(f"[ESI Library Error] Wallet Endpoint: {e}")
             else:
-                logger.warning(f"No valid token found for character {character.character_name} during Wallet sync")
+                pass
 
         # --- LOYALTY POINTS ---
         if ENDPOINT_LP in target_endpoints:
@@ -344,11 +347,11 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                     character.concord_lp = concord_entry.get('loyalty_points') if concord_entry else 0
                     character.save(update_fields=['concord_lp'])
                 except HTTPForbidden:
-                    logger.warning(f"Missing Scope 'esi-characters.read_loyalty.v1' for {character.character_name}")
+                    pass
                 except Exception as e:
                     logger.error(f"[ESI Library Error] LP Endpoint: {e}")
             else:
-                logger.warning(f"No valid token found for character {character.character_name} during LP sync")
+                pass
 
         # --- IMPLANTS ---
         if ENDPOINT_IMPLANTS in target_endpoints:
@@ -366,11 +369,11 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                     new_implants = [CharacterImplant(character=character, type_id=imp_id) for imp_id in data]
                     CharacterImplant.objects.bulk_create(new_implants)
                 except HTTPForbidden:
-                    logger.warning(f"Missing Scope 'esi-clones.read_implants.v1' for {character.character_name}")
+                    pass
                 except Exception as e:
                     logger.error(f"[ESI Library Error] Implants Endpoint: {e}")
             else:
-                logger.warning(f"No valid token found for character {character.character_name} during Implants sync")
+                pass
 
         # --- HISTORY ---
         if ENDPOINT_HISTORY in target_endpoints:
@@ -408,11 +411,11 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                     ]
                     CharacterHistory.objects.bulk_create(new_history)
                 except HTTPForbidden:
-                    logger.warning(f"Missing Scope 'esi-corporations.read_corporation_membership.v1' for {character.character_name}")
+                    pass
                 except Exception as e:
                     logger.error(f"[ESI Library Error] History Endpoint: {e}")
             else:
-                logger.warning(f"No valid token found for character {character.character_name} during History sync")
+                pass
 
         character.last_updated = timezone.now()
         character.save(update_fields=['last_updated'])

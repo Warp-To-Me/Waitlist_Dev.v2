@@ -33,7 +33,6 @@ def profile_view(request):
         refresh_character_task.delay(active_char_id)
 
     characters = request.user.characters.all()
-    # active_char_id = request.session.get('active_char_id') # Redundant if moved up
     if active_char_id: active_char = characters.filter(character_id=active_char_id).first()
     else:
         active_char = characters.filter(is_main=True).first()
