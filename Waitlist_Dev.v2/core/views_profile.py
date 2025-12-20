@@ -27,8 +27,12 @@ from esi.models import Token
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def profile_view(request):
-    characters = request.user.characters.all()
+    # Trigger Update for Active Character (or all if simpler, but active is focus)
     active_char_id = request.session.get('active_char_id')
+    if active_char_id:
+        refresh_character_task.delay(active_char_id)
+    
+    characters = request.user.characters.all()
     if active_char_id: active_char = characters.filter(character_id=active_char_id).first()
     else:
         active_char = characters.filter(is_main=True).first()
@@ -117,12 +121,26 @@ def profile_view(request):
     # Serialize Characters
     chars_data = []
     for c in characters:
+        # Determine missing scopes for UI disable logic
+        c_granted = set(c.granted_scopes.split()) if c.granted_scopes else set()
+        c_missing_wallet = 'esi-wallet.read_character_wallet.v1' not in c_granted
+        c_missing_lp = 'esi-characters.read_loyalty.v1' not in c_granted
+        c_missing_sp = 'esi-skills.read_skills.v1' not in c_granted
+
         chars_data.append({
             'character_id': c.character_id,
             'character_name': c.character_name,
             'corporation_name': c.corporation_name,
             'is_main': c.is_main,
-            'x_up_visible': c.x_up_visible
+            'x_up_visible': c.x_up_visible,
+            # Aggregate Flags
+            'include_wallet': c.include_wallet_in_aggregate,
+            'include_lp': c.include_lp_in_aggregate,
+            'include_sp': c.include_sp_in_aggregate,
+            # Missing Scope Flags
+            'missing_wallet_scope': c_missing_wallet,
+            'missing_lp_scope': c_missing_lp,
+            'missing_sp_scope': c_missing_sp
         })
 
     active_char_data = None
@@ -279,3 +297,51 @@ def api_toggle_aggregate_setting(request):
         return Response({'success': False, 'error': 'Invalid setting type'}, status=400)
 
     return Response({'success': True})
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def api_bulk_toggle_aggregate(request):
+    """
+    Toggles the inclusion of specific metrics for ALL characters of the user.
+    Payload: { setting: 'wallet' | 'lp' | 'sp', value: boolean }
+    """
+    setting = request.data.get('setting')
+    value = request.data.get('value')
+
+    if not setting:
+        return Response({'success': False, 'error': 'Missing parameters'}, status=400)
+    
+    characters = request.user.characters.all()
+
+    if setting == 'wallet':
+        characters.update(include_wallet_in_aggregate=value)
+    elif setting == 'lp':
+        characters.update(include_lp_in_aggregate=value)
+    elif setting == 'sp':
+        characters.update(include_sp_in_aggregate=value)
+    else:
+        return Response({'success': False, 'error': 'Invalid setting type'}, status=400)
+
+    return Response({'success': True})
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def api_unlink_character(request):
+    """
+    Removes a character from the user account. Admin only.
+    """
+    if not is_admin(request.user):
+        return Response({'success': False, 'error': 'Permission denied'}, status=403)
+
+    char_id = request.data.get('character_id')
+    if not char_id:
+        return Response({'success': False, 'error': 'Character ID required'}, status=400)
+
+    character = get_object_or_404(EveCharacter, character_id=char_id, user=request.user)
+    
+    # Prevent removing main character if it's the only one, or force new main assignment?
+    # Logic: Delete the character. If it was main, user has no main until they switch.
+    # Frontend handles switching active char if current is deleted.
+    
+    character.delete()
+    return Response({'success': True, 'character_id': char_id})

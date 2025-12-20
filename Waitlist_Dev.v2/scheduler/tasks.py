@@ -21,23 +21,22 @@ def dispatch_stale_characters():
     tasks_queued = 0
     processed_ids = set() # Track characters we have already queued
     
-    OFFLINE_THROTTLE_WINDOW = timedelta(minutes=15)
-    INACTIVE_SNAPSHOT_WINDOW = timedelta(hours=48) # 48h Snapshot
+    STALE_THRESHOLD = timedelta(hours=24) # 24h Stale Definition
     
-    # --- STRATEGY 1: Safety Net (PRIORITY FIX) ---
+    # --- STRATEGY 1: Stale / Broken (PRIORITY FIX) ---
     # We run this FIRST to catch broken characters before the cache logic sees them.
     
     # 1. Define "Broken" (Missing Critical Data)
     creation_grace = now - timedelta(minutes=5)
     
-    # 2. Define "Stale" (Hasn't updated in 48h - fallback)
-    stale_threshold = now - timedelta(hours=1)
+    # 2. Define "Stale" (Hasn't updated in 24h)
+    stale_limit = now - STALE_THRESHOLD
     
     broken_chars = EveCharacter.objects.filter(
         # Condition A: It's old enough to have data, but doesn't
         (Q(last_updated__lt=creation_grace) & (Q(total_sp=0) | Q(corporation_name=""))) |
-        # Condition B: Emergency fallback if nothing ran for 2 days
-        Q(last_updated__lt=stale_threshold) |
+        # Condition B: Emergency fallback if nothing ran for 24h
+        Q(last_updated__lt=stale_limit) |
         # Condition C: Never updated
         (Q(last_updated__isnull=True) & Q(id__gt=0))
     ).values_list('character_id', flat=True)
@@ -51,28 +50,8 @@ def dispatch_stale_characters():
             processed_ids.add(char_id)
             tasks_queued += 1
 
-    # --- STRATEGY 2: Inactive "Heartbeat" (Keep Token Alive + Skill History) ---
-    # If a character is OFFLINE and hasn't been updated in 48 hours,
-    # we trigger a specific update for Skills/History.
-    # The new call_esi() will automatically refresh the ESI Token if needed.
-    
-    heartbeat_chars = EveCharacter.objects.filter(
-        is_online=False,
-        last_updated__lt=now - INACTIVE_SNAPSHOT_WINDOW
-    ).exclude(character_id__in=processed_ids).values_list('character_id', flat=True)
-
-    if heartbeat_chars:
-        count = len(heartbeat_chars)
-        logger.info(f"[Dispatcher] Heartbeat: Queueing snapshot for {count} inactive pilots.")
-        
-        for char_id in heartbeat_chars:
-            # We ONLY pull persistent data. We SKIP location/ship to save ESI calls.
-            refresh_character_task.delay(char_id, ['skills', 'queue', 'history', 'public_info'])
-            processed_ids.add(char_id)
-            tasks_queued += 1
-
-    # --- STRATEGY 3: Cache Expiry (Active & Online Monitoring) ---
-    # Only process characters we haven't already fixed in Step 1 or 2
+    # --- STRATEGY 2: Cache Expiry ---
+    # Only process characters we haven't already fixed in Step 1
     expired_headers = EsiHeaderCache.objects.filter(expires__lte=now).select_related('character')
     updates_map = {}
 
@@ -86,27 +65,6 @@ def dispatch_stale_characters():
             
         endpoint = header.endpoint_name
         
-        # Check if character is offline AND outside the grace period
-        is_recently_online = False
-        if char.last_online_at:
-            if now - char.last_online_at < OFFLINE_THROTTLE_WINDOW:
-                is_recently_online = True
-
-        if not char.is_online and not is_recently_online:
-            # If Offline and NOT recently online, we only check the 'online' endpoint to see if they came back.
-            # We do NOT check other endpoints (ship, wallet) until they wake up.
-            if endpoint != 'online':
-                # Apply throttle window to prevent spamming /online/ check too fast
-                # Note: The 'online' endpoint usually has a 60s cache, but we rely on
-                # EsiHeaderCache to tell us when that 60s is up.
-                continue
-            
-            # Additional safety: Don't check /online/ more than every 15m for offline users
-            # (Unless the cache header explicitly says otherwise, but we enforce a minimum)
-            time_since_last = now - (char.last_updated or (now - timedelta(days=1)))
-            if time_since_last < OFFLINE_THROTTLE_WINDOW:
-                continue
-
         if char_id not in updates_map:
             updates_map[char_id] = []
         updates_map[char_id].append(endpoint)
@@ -125,7 +83,6 @@ def dispatch_stale_characters():
                     # Map endpoint to scope
                     scope_needed = None
                     if ep == 'wallet': scope_needed = 'esi-wallet.read_character_wallet.v1'
-                    elif ep == 'online': scope_needed = 'esi-location.read_online.v1'
                     elif ep == 'ship': scope_needed = 'esi-location.read_ship_type.v1'
                     elif ep == 'lp': scope_needed = 'esi-characters.read_loyalty.v1'
                     # Base scopes (skills, queue, implants) are usually assumed present
@@ -159,15 +116,6 @@ def refresh_character_task(char_id, target_endpoints=None, force_refresh=False):
     """
     try:
         char = EveCharacter.objects.get(character_id=char_id)
-        
-        # Log Logic: Reduce spam by only logging "Real" updates
-        is_heartbeat = target_endpoints and 'skills' in target_endpoints and 'ship' not in target_endpoints
-        is_online_check = target_endpoints == ['online']
-        
-        if not is_online_check:
-            mode_str = "FULL" if target_endpoints is None else f"Partial: {len(target_endpoints)}"
-            if is_heartbeat: mode_str = "HEARTBEAT"
-            logger.info(f"[Worker] Updating {char.character_name} [{mode_str}]")
         
         # Pass force_refresh to manager (which uses call_esi which uses esi.Token)
         success = update_character_data(char, target_endpoints, force_refresh=force_refresh)

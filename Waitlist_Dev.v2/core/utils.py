@@ -340,7 +340,7 @@ def get_system_status():
         total_processed = cached_total
 
     total_characters = EveCharacter.objects.count()
-    stale_threshold = timezone.now() - timedelta(minutes=60)
+    stale_threshold = timezone.now() - timedelta(hours=24)
     active_30d_threshold = timezone.now() - timedelta(days=30)
     
     stale_count = EveCharacter.objects.filter(last_updated__lt=stale_threshold).count()
@@ -393,15 +393,10 @@ def get_system_status():
     last_srp_sync = srp_config.last_sync if (srp_config and srp_config.last_sync) else None
 
     now = timezone.now()
-    grace_period = now - timedelta(minutes=15)
-
+    
     raw_queued = EsiHeaderCache.objects.filter(
         endpoint_name__in=BACKGROUND_ENDPOINTS, 
         expires__lte=now
-    ).filter(
-        Q(endpoint_name='online') | 
-        Q(character__is_online=True) | 
-        Q(expires__lte=grace_period)
     ).values('endpoint_name').annotate(
         pending_count=Count('id')
     ).order_by('-pending_count')
@@ -419,16 +414,7 @@ def get_system_status():
             'pending_count': safety_net_count
         })
 
-    delayed_breakdown = list(EsiHeaderCache.objects.filter(
-        endpoint_name__in=BACKGROUND_ENDPOINTS,
-        expires__lte=now
-    ).exclude(
-        Q(endpoint_name='online') | 
-        Q(character__is_online=True) | 
-        Q(expires__lte=grace_period)
-    ).values('endpoint_name').annotate(
-        pending_count=Count('id')
-    ).order_by('-pending_count'))
+    delayed_breakdown = []
 
     from esi_calls.token_manager import check_esi_status
     esi_status_bool = check_esi_status()

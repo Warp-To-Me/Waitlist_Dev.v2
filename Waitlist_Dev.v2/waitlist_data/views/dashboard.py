@@ -17,6 +17,7 @@ from waitlist_data.stats import batch_calculate_pilot_stats
 from esi_calls.fleet_service import get_fleet_composition, process_fleet_data, ESI_BASE
 from esi.models import Token # Updated Import
 from .helpers import _resolve_column, get_category_map, get_entry_target_column, get_entry_real_category
+from scheduler.tasks import refresh_character_task
 from core.decorators import check_ban_status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -25,6 +26,11 @@ from rest_framework.response import Response
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def fleet_dashboard(request, token):
+    # Trigger Update for User Characters
+    if request.user.is_authenticated:
+        for char in request.user.characters.filter(x_up_visible=True):
+            refresh_character_task.delay(char.character_id, ['skills', 'implants'])
+
     fleet = get_object_or_404(Fleet, join_token=token)
     
     fc_name = EveCharacter.objects.filter(user=fleet.commander, is_main=True).values_list('character_name', flat=True).first()
