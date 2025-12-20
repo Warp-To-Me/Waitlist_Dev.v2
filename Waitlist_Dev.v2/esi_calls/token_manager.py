@@ -5,6 +5,7 @@ from django.utils import timezone
 from django.conf import settings
 from django.core.cache import cache
 from datetime import timedelta
+from email.utils import parsedate_to_datetime
 from pilot_data.models import EveCharacter, ItemType, CharacterSkill, CharacterQueue, CharacterImplant, CharacterHistory, SkillHistory, EsiHeaderCache
 from esi_calls.esi_network import call_esi
 from esi_calls.client import get_esi_client
@@ -89,6 +90,41 @@ def check_esi_status():
 # Token refresh is now handled automatically by call_esi() via django-esi.
 
 # UPDATED: Added force_refresh parameter
+def _update_cache_headers(character, endpoint_name, headers):
+    """
+    Parses ESI Expires/ETag headers and updates the cache record.
+    This prevents the scheduler from re-running valid endpoints.
+    """
+    if not headers:
+        return
+
+    expires_header = headers.get('Expires')
+    etag_header = headers.get('ETag')
+    
+    expires_dt = None
+    if expires_header:
+        try:
+            # parsedate_to_datetime handles RFC 1123 (e.g. "Sat, 20 Dec 2025 16:01:21 GMT")
+            # and returns a timezone-aware datetime (UTC).
+            expires_dt = parsedate_to_datetime(expires_header)
+        except Exception as e:
+            logger.warning(f"[Cache Update] Failed to parse headers for {character.character_name}/{endpoint_name}: {e}")
+
+    try:
+        defaults = {
+            'expires': expires_dt,
+            'etag': etag_header
+        }
+        
+        # Update or Create (Always update to clear old expiry if new one is None)
+        EsiHeaderCache.objects.update_or_create(
+            character=character, 
+            endpoint_name=endpoint_name,
+            defaults=defaults
+        )
+    except Exception as e:
+        logger.error(f"[Cache Update] DB Error for {character.character_name}/{endpoint_name}: {e}")
+
 def update_character_data(character, target_endpoints=None, force_refresh=False):
     """
     Updates character data from ESI.
@@ -162,6 +198,7 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                     op.request_config.also_return_response = True
                     data, incoming_response = op.result(ignore_cache=force_refresh)
                     notify_user_ratelimit(character.user, incoming_response.headers)
+                    _update_cache_headers(character, ENDPOINT_PUBLIC_INFO, incoming_response.headers)
 
                     character.corporation_id = data.get('corporation_id')
                     character.alliance_id = data.get('alliance_id')
@@ -211,6 +248,7 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                     op.request_config.also_return_response = True
                     data, incoming_response = op.result(ignore_cache=force_refresh)
                     notify_user_ratelimit(character.user, incoming_response.headers)
+                    _update_cache_headers(character, ENDPOINT_SKILLS, incoming_response.headers)
 
                     character.total_sp = data.get('total_sp', 0)
                     character.save(update_fields=['total_sp'])
@@ -266,6 +304,7 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                     op.request_config.also_return_response = True
                     data, incoming_response = op.result(ignore_cache=force_refresh)
                     notify_user_ratelimit(character.user, incoming_response.headers)
+                    _update_cache_headers(character, ENDPOINT_QUEUE, incoming_response.headers)
 
                     CharacterQueue.objects.filter(character=character).delete()
                     # data is a list of objects for this endpoint
@@ -298,6 +337,7 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                     
                     # Notify Rate Limits (Manual Hook)
                     notify_user_ratelimit(character.user, incoming_response.headers)
+                    _update_cache_headers(character, ENDPOINT_SHIP, incoming_response.headers)
                     
                     character.current_ship_name = data.get('ship_name', 'Unknown')
                     character.current_ship_type_id = data.get('ship_type_id')
@@ -321,6 +361,7 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                     # Force refresh supported by django-esi if configured
                     data, incoming_response = op.result(ignore_cache=force_refresh)
                     notify_user_ratelimit(character.user, incoming_response.headers)
+                    _update_cache_headers(character, ENDPOINT_WALLET, incoming_response.headers)
 
                     character.wallet_balance = data
                     character.save(update_fields=['wallet_balance'])
@@ -341,6 +382,7 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                     op.request_config.also_return_response = True
                     data, incoming_response = op.result(ignore_cache=force_refresh)
                     notify_user_ratelimit(character.user, incoming_response.headers)
+                    _update_cache_headers(character, ENDPOINT_LP, incoming_response.headers)
 
                     # data is list of dicts: {'corporation_id': 123, 'loyalty_points': 500}
                     concord_entry = next((item for item in data if item.get('corporation_id') == 1000125), None)
@@ -363,6 +405,7 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                     op.request_config.also_return_response = True
                     data, incoming_response = op.result(ignore_cache=force_refresh)
                     notify_user_ratelimit(character.user, incoming_response.headers)
+                    _update_cache_headers(character, ENDPOINT_IMPLANTS, incoming_response.headers)
 
                     CharacterImplant.objects.filter(character=character).delete()
                     # data is list of integers (type_ids)
@@ -385,6 +428,7 @@ def update_character_data(character, target_endpoints=None, force_refresh=False)
                     op.request_config.also_return_response = True
                     data, incoming_response = op.result(ignore_cache=force_refresh)
                     notify_user_ratelimit(character.user, incoming_response.headers)
+                    _update_cache_headers(character, ENDPOINT_HISTORY, incoming_response.headers)
 
                     CharacterHistory.objects.filter(character=character).delete()
                     

@@ -164,7 +164,7 @@ SYSTEM_CAPABILITIES = [
 # --- BACKGROUND TASK CONFIG ---
 # Only these endpoints are processed by the background scheduler.
 BACKGROUND_ENDPOINTS = [
-    'online', 'skills', 'queue', 'ship', 'wallet', 
+    'skills', 'queue', 'ship', 'wallet', 
     'lp', 'implants', 'public_info', 'history'
 ]
 
@@ -247,97 +247,46 @@ def get_system_status():
         queue_length = 0
 
     # 2. Inspect Celery Workers
-    inspector = celery_app.control.inspect(timeout=1.0)
+    # We use a lightweight inspect (stats/ping only) to list active workers.
+    # Active task monitoring is handled via WebSocket events (celery_signals.py).
+    inspector = celery_app.control.inspect(timeout=2.0)
     
-    workers = {}
-    active_tasks = {}
-    reserved_tasks = {}
-    stats = {}
+    worker_stats = {}
+    worker_ping = {}
     
-    total_processed = 0
-
     try:
-        workers_ping = inspector.ping()
-        if workers_ping:
-            workers = workers_ping
-            active_tasks = inspector.active() or {}
-            reserved_tasks = inspector.reserved() or {}
-            stats = inspector.stats() or {}
+        worker_ping = inspector.ping() or {}
+        if worker_ping:
+            worker_stats = inspector.stats() or {}
     except Exception as e:
         if not redis_error:
             redis_error = f"Celery Inspect Error: {str(e)}"
 
-    char_name_map = {}
-    
-    if active_tasks:
-        all_char_ids = set()
-        for worker_tasks in active_tasks.values():
-            for task in worker_tasks:
-                if 'refresh_character' in task.get('name', ''):
-                    args = task.get('args', [])
-                    if args and len(args) > 0:
-                        try:
-                            char_id = int(args[0])
-                            all_char_ids.add(char_id)
-                            task['enriched_char_id'] = char_id
-                            
-                            endpoints = args[1] if len(args) > 1 else None
-                            force = args[2] if len(args) > 2 else False
-                            
-                            info_str = ""
-                            if force: info_str += "[FORCED] "
-                            
-                            if endpoints is None:
-                                info_str += "Full Update"
-                            else:
-                                ep_str = str(endpoints).replace("'", "").replace("[", "").replace("]", "")
-                                info_str += f"Partial: {ep_str}"
-                                
-                            task['enriched_info'] = info_str
-                        except (ValueError, TypeError, IndexError):
-                            pass
-        
-        if all_char_ids:
-            found = EveCharacter.objects.filter(character_id__in=list(all_char_ids)).values('character_id', 'character_name')
-            for f in found:
-                char_name_map[f['character_id']] = f['character_name']
-
     worker_data = []
-    current_raw_processed = 0
-
-    if workers:
-        for worker_name, response in workers.items():
-            w_active = active_tasks.get(worker_name, [])
-            w_reserved = reserved_tasks.get(worker_name, [])
-            w_stats = stats.get(worker_name, {})
-            w_total = sum(w_stats.get('total', {}).values())
-            
-            for task in w_active:
-                if 'enriched_char_id' in task:
-                    task['enriched_name'] = char_name_map.get(task['enriched_char_id'], 'Unknown Pilot')
-            
-            current_raw_processed += w_total
-            
-            worker_data.append({
-                'name': worker_name,
-                'status': 'Active' if response.get('ok') == 'pong' else 'Unknown',
-                'active_count': len(w_active),
-                'active_tasks': w_active,
-                'reserved_count': len(w_reserved),
-                'concurrency': w_stats.get('pool', {}).get('max-concurrency', 'N/A'),
-                'pid': w_stats.get('pid', 'N/A'),
-                'processed': w_total
-            })
-
-    cache_key_proc = 'monitor_total_processed_stable'
-    cached_total = cache.get(cache_key_proc) or 0
     
-    if workers:
-        total_processed = current_raw_processed
-        if total_processed > 0:
-            cache.set(cache_key_proc, total_processed, timeout=3600)
+    # Process Worker Data
+    for worker_name, response in worker_ping.items():
+        w_stats = worker_stats.get(worker_name, {})
+        w_total = sum(w_stats.get('total', {}).values())
+        
+        worker_data.append({
+            'name': worker_name,
+            'status': 'Active' if response == 'pong' else 'Unknown',
+            'active_count': 'N/A', # Not polling active tasks
+            'reserved_count': 'N/A',
+            'concurrency': w_stats.get('pool', {}).get('max-concurrency', 'N/A'),
+            'pid': w_stats.get('pid', 'N/A'),
+            'processed': w_total
+        })
+
+    # Cache total processed count
+    total_processed = 0
+    if worker_data:
+        current_total = sum(w['processed'] for w in worker_data if isinstance(w['processed'], int))
+        total_processed = current_total
+        cache.set('monitor_total_processed_stable', total_processed, timeout=3600)
     else:
-        total_processed = cached_total
+        total_processed = cache.get('monitor_total_processed_stable') or 0
 
     total_characters = EveCharacter.objects.count()
     stale_threshold = timezone.now() - timedelta(hours=24)

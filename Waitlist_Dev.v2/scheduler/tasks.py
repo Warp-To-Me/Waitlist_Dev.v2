@@ -80,6 +80,10 @@ def dispatch_stale_characters():
                 # Filter endpoints based on scopes
                 valid_endpoints = []
                 for ep in endpoints:
+                    # Skip deprecated 'online' endpoint
+                    if ep == 'online':
+                        continue
+
                     # Map endpoint to scope
                     scope_needed = None
                     if ep == 'wallet': scope_needed = 'esi-wallet.read_character_wallet.v1'
@@ -98,6 +102,14 @@ def dispatch_stale_characters():
                 
                 if valid_endpoints:
                     refresh_character_task.delay(char_id, valid_endpoints, force_refresh=False)
+                    
+                    # CLAIM: Bump expiry by 10 minutes to prevent re-queuing while task is pending/running
+                    # If the task succeeds, it will overwrite this with the real ESI expiry (e.g. +1h)
+                    EsiHeaderCache.objects.filter(
+                        character_id=char_id,
+                        endpoint_name__in=valid_endpoints
+                    ).update(expires=now + timedelta(minutes=10))
+                    
                     tasks_queued += 1
 
             except EveCharacter.DoesNotExist:

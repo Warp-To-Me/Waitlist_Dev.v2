@@ -1,15 +1,24 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { RefreshCw, Server, Activity, Database, AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import { RefreshCw, Server, Activity, Database, AlertCircle, CheckCircle, Clock, Zap } from 'lucide-react';
 import clsx from 'clsx';
 import { wsConnect, wsDisconnect } from '../../store/middleware/socketMiddleware';
-import { selectCeleryStatus, selectSystemConnectionStatus } from '../../store/slices/systemSlice';
+import { selectCeleryStatus, selectSystemConnectionStatus, selectActiveTasks, pruneTasks } from '../../store/slices/systemSlice';
 
 const ManagementCelery = () => {
     const dispatch = useDispatch();
     const data = useSelector(selectCeleryStatus); // Now contains the JSON object
+    const tasks = useSelector(selectActiveTasks);
     const status = useSelector(selectSystemConnectionStatus);
     const connected = status === 'connected';
+    
+    // Prune completed tasks periodically to remove them from DOM
+    useEffect(() => {
+        const interval = setInterval(() => {
+            dispatch(pruneTasks());
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [dispatch]);
 
     useEffect(() => {
         dispatch(wsConnect('/ws/system/monitor/', 'system'));
@@ -171,7 +180,7 @@ const ManagementCelery = () => {
                 </div>
             </div>
 
-            {/* Queued Breakdowns */}
+            {/* Queued Breakdowns & Workers */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="glass-panel p-6">
                     <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
@@ -180,39 +189,73 @@ const ManagementCelery = () => {
                     </h3>
                     <QueueTable items={data.queued_breakdown} emptyMsg="No tasks currently queued." />
                 </div>
+                
+                {/* Workers List */}
                 <div className="glass-panel p-6">
                     <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                         <Clock size={20} className="text-blue-400"/>
-                         Delayed / Throttled
+                        <div className="w-1 h-6 bg-purple-500 rounded-full"></div>
+                        Celery Workers ({data.worker_count})
                     </h3>
-                    <QueueTable items={data.delayed_breakdown} emptyMsg="No delayed tasks." />
+                    {data.workers && data.workers.length > 0 ? (
+                        <div className="grid grid-cols-1 gap-4">
+                            {data.workers.map((worker) => (
+                                <WorkerRow key={worker.name} worker={worker} />
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="p-8 text-center text-slate-500 bg-white/5 rounded-lg border border-white/5 border-dashed">
+                            No workers detected.
+                        </div>
+                    )}
                 </div>
             </div>
 
-            {/* Workers Section */}
+            {/* Real-time Task Stream */}
             <div className="glass-panel p-6">
                 <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                    <div className="w-1 h-6 bg-purple-500 rounded-full"></div>
-                    Celery Workers ({data.worker_count})
+                        <Zap size={20} className="text-blue-400"/>
+                        Live Task Stream
                 </h3>
                 
-                {data.workers && data.workers.length > 0 ? (
-                    <div className="grid grid-cols-1 gap-4">
-                        {data.workers.map((worker) => (
-                            <WorkerRow key={worker.name} worker={worker} />
-                        ))}
-                    </div>
-                ) : (
-                    <div className="p-8 text-center text-slate-500 bg-white/5 rounded-lg border border-white/5 border-dashed">
-                        No workers detected.
-                    </div>
-                )}
+                <div className="space-y-2 h-[400px] overflow-y-auto pr-2 custom-scrollbar relative">
+                    {tasks.length === 0 && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 italic">
+                            <Activity className="mb-2 opacity-50" />
+                            No active tasks processed recently.
+                        </div>
+                    )}
+                    
+                    {tasks.map((task) => (
+                        <TaskRow key={task.id} task={task} />
+                    ))}
+                </div>
             </div>
         </div>
     );
 };
 
 // --- Sub Components ---
+
+const WorkerRow = ({ worker }) => {
+    return (
+        <div className="bg-slate-900/50 border border-white/10 rounded-lg p-4">
+            <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
+                 <div className="flex items-center gap-3">
+                     <div className={clsx("w-3 h-3 rounded-full", worker.status === 'Active' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-red-500')}></div>
+                     <div>
+                         <div className="text-sm font-bold text-white">{worker.name}</div>
+                         <div className="text-xs text-slate-500 font-mono">PID: {worker.pid} | Concurrency: {worker.concurrency}</div>
+                     </div>
+                 </div>
+                 <div className="flex gap-4 text-xs">
+                     <div className="bg-slate-700/50 text-slate-400 px-3 py-1 rounded border border-white/10">
+                         Processed: <b>{worker.processed.toLocaleString()}</b>
+                     </div>
+                 </div>
+            </div>
+        </div>
+    )
+}
 
 const StatusCard = ({ label, value, sub, icon, color }) => {
     const colorClasses = {
@@ -280,47 +323,59 @@ const QueueTable = ({ items, emptyMsg }) => {
     )
 }
 
-const WorkerRow = ({ worker }) => {
+const TaskRow = ({ task }) => {
+    const isFinished = !!task.finishedAt;
+    const isSuccess = task.state === 'SUCCESS';
+    const isFailure = task.state === 'FAILURE';
+    
     return (
-        <div className="bg-slate-900/50 border border-white/10 rounded-lg p-4">
-            <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-4">
-                 <div className="flex items-center gap-3">
-                     <div className={clsx("w-3 h-3 rounded-full", worker.status === 'Active' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-red-500')}></div>
-                     <div>
-                         <div className="text-sm font-bold text-white">{worker.name}</div>
-                         <div className="text-xs text-slate-500 font-mono">PID: {worker.pid} | Concurrency: {worker.concurrency}</div>
-                     </div>
-                 </div>
-                 <div className="flex gap-4 text-xs">
-                     <div className="bg-blue-500/10 text-blue-400 px-3 py-1 rounded border border-blue-500/20">
-                         Active: <b>{worker.active_count}</b>
-                     </div>
-                     <div className="bg-orange-500/10 text-orange-400 px-3 py-1 rounded border border-orange-500/20">
-                         Reserved: <b>{worker.reserved_count}</b>
-                     </div>
-                     <div className="bg-slate-700/50 text-slate-400 px-3 py-1 rounded border border-white/10">
-                         Processed: <b>{worker.processed.toLocaleString()}</b>
-                     </div>
-                 </div>
+        <div 
+            className={clsx(
+                "rounded-lg border flex items-center justify-between gap-4 text-xs overflow-hidden",
+                // Base Layout
+                isFinished ? "opacity-0 max-h-0 mb-0 py-0 border-0" : "opacity-100 max-h-20 mb-2 py-3 border", 
+                // Colors
+                isFailure ? "bg-red-500/10 border-red-500/20" : 
+                isSuccess ? "bg-green-500/10 border-green-500/20" : 
+                "bg-slate-800/50 border-white/5"
+            )}
+            style={{ 
+                // Wait 2s to show result, then collapse over 1s
+                transitionProperty: 'all',
+                transitionDuration: '1000ms',
+                transitionDelay: isFinished ? '2000ms' : '0ms'
+            }}
+        >
+            <div className="flex items-center gap-3 overflow-hidden px-3">
+                <div className={clsx(
+                    "w-2 h-2 rounded-full shrink-0",
+                    isFailure ? "bg-red-500" :
+                    isSuccess ? "bg-green-500" :
+                    "bg-blue-400 animate-pulse"
+                )}></div>
+                <div className="flex flex-col overflow-hidden">
+                    <div className="font-mono text-slate-300 truncate">{task.name}</div>
+                    <div className="text-slate-500 flex gap-2 truncate">
+                        <span>{task.id.slice(0, 8)}...</span>
+                        {task.worker && <span>via {task.worker}</span>}
+                    </div>
+                </div>
             </div>
 
-            {/* Active Tasks Detail */}
-            {worker.active_tasks && worker.active_tasks.length > 0 && (
-                 <div className="space-y-2 mt-2 bg-black/20 p-3 rounded border border-white/5">
-                     <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-2">Processing Now</div>
-                     {worker.active_tasks.map((task) => (
-                         <div key={task.id} className="flex justify-between items-center text-xs border-b border-white/5 last:border-0 pb-1 last:pb-0">
-                             <span className="text-slate-300 truncate max-w-[60%]">{task.name}</span>
-                             <div className="flex items-center gap-2">
-                                {task.enriched_name && <span className="text-brand-400 font-bold">{task.enriched_name}</span>}
-                                {task.enriched_info && <span className="text-slate-500 italic">({task.enriched_info})</span>}
-                             </div>
-                         </div>
-                     ))}
+            {(task.enriched_name || task.enriched_info) && (
+                 <div className="text-right shrink-0 px-3">
+                    {task.enriched_name && <div className="font-bold text-brand-400">{task.enriched_name}</div>}
+                    {task.enriched_info && <div className="text-slate-500 italic">{task.enriched_info}</div>}
                  </div>
             )}
+            
+            {isFinished && (
+                <div className={clsx("font-bold uppercase tracking-wider text-[10px] pr-3", isSuccess ? "text-green-500" : "text-red-500")}>
+                    {task.state}
+                </div>
+            )}
         </div>
-    )
+    );
 }
 
 export default ManagementCelery;

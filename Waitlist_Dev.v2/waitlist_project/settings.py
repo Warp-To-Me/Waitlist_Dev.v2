@@ -103,6 +103,7 @@ else:
             'PASSWORD': os.getenv('DB_PASSWORD', ''),
             'HOST': os.getenv('DB_HOST', '127.0.0.1'),
             'PORT': os.getenv('DB_PORT', '3306'),
+            'CONN_MAX_AGE': 60,
         }
     }
 
@@ -194,6 +195,8 @@ CHANNEL_LAYERS = {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
             "hosts": [CELERY_BROKER_URL],
+            "capacity": 1500,
+            "expiry": 30,
         },
     },
 }
@@ -242,3 +245,5 @@ if 'celery' in sys.argv[0]:
 MIGRATION_MODULES = {
     'esi': 'esi.migrations'
 }
+
+CELERY_WORKER_CONCURRENCY = 20

@@ -17,6 +17,9 @@ class SystemMonitorConsumer(AsyncWebsocketConsumer):
 
         await self.accept()
         
+        # Join system broadcast group
+        await self.channel_layer.group_add("system", self.channel_name)
+
         # Start the background task
         self.keep_running = True
         self.task = asyncio.create_task(self.send_status_updates())
@@ -25,9 +28,14 @@ class SystemMonitorConsumer(AsyncWebsocketConsumer):
         self.keep_running = False
         if hasattr(self, 'task'):
             self.task.cancel()
-            # FIX: Do not await task here. 
-            # try: await self.task
-            # except asyncio.CancelledError: pass
+        
+        await self.channel_layer.group_discard("system", self.channel_name)
+
+    async def celery_task_update(self, event):
+        """
+        Relay Celery events to the frontend.
+        """
+        await self.send(text_data=json.dumps(event['data']))
 
     async def send_status_updates(self):
         while self.keep_running:

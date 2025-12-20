@@ -2,7 +2,7 @@ import email.utils
 import requests
 import time
 from django.core.cache import cache
-from pilot_data.models import EveCharacter, ItemType, ItemGroup
+from pilot_data.models import EveCharacter, ItemType, ItemGroup, EsiHeaderCache
 from esi_calls.esi_network import call_esi, get_esi_session
 from esi.models import Token # Updated import
 
@@ -55,6 +55,22 @@ def get_fleet_composition(fleet_id, fc_character):
     cache.set(cache_key, data, timeout=5)
     
     return data, None
+
+def cleanup_fleet_cache(character, fleet_id=None):
+    """
+    Removes EsiHeaderCache entries for fleet endpoints.
+    If fleet_id is provided, removes only for that fleet.
+    Otherwise, removes all fleet-related caches for the character.
+    """
+    try:
+        if fleet_id:
+            keys = [f'fleet_members_{fleet_id}', f'fleet_wings_{fleet_id}']
+            EsiHeaderCache.objects.filter(character=character, endpoint_name__in=keys).delete()
+        else:
+            # Delete all fleet related keys for this character
+            EsiHeaderCache.objects.filter(character=character, endpoint_name__startswith='fleet_').delete()
+    except Exception as e:
+        print(f"Error cleaning fleet cache for {character.character_name}: {e}")
 
 def resolve_unknown_names(char_ids):
     """
