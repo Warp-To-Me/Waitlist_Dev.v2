@@ -5,7 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
 from django.http import JsonResponse
 from django.utils import timezone
-from django.db.models import Sum
+from django.db.models import Sum, Q
 from django.conf import settings
 from itertools import chain 
 from rest_framework.decorators import api_view, permission_classes
@@ -103,7 +103,16 @@ def profile_view(request):
         else:
             scopes_missing = True
 
-    totals = characters.aggregate(wallet_sum=Sum('wallet_balance'), lp_sum=Sum('concord_lp'), sp_sum=Sum('total_sp'))
+    # Calculate Aggregate Totals considering visibility flags
+    totals_wallet = characters.filter(include_wallet_in_aggregate=True).aggregate(s=Sum('wallet_balance'))['s']
+    totals_lp = characters.filter(include_lp_in_aggregate=True).aggregate(s=Sum('concord_lp'))['s']
+    totals_sp = characters.filter(include_sp_in_aggregate=True).aggregate(s=Sum('total_sp'))['s']
+
+    totals = {
+        'wallet_sum': totals_wallet,
+        'lp_sum': totals_lp,
+        'sp_sum': totals_sp
+    }
     
     # Serialize Characters
     chars_data = []
@@ -127,11 +136,20 @@ def profile_view(request):
         ship_type_val = getattr(active_char, 'ship_type_name', 'Unknown Hull')
         ship_id_val = active_char.current_ship_type_id
 
+        # Flag missing scopes
+        missing_wallet_scope = False
+        missing_lp_scope = False
+        missing_sp_scope = False
+
         if granted is not None:
              if 'esi-wallet.read_character_wallet.v1' not in granted:
                  wallet_val = None
+                 missing_wallet_scope = True
              if 'esi-characters.read_loyalty.v1' not in granted:
                  lp_val = None
+                 missing_lp_scope = True
+             if 'esi-skills.read_skills.v1' not in granted:
+                 missing_sp_scope = True
              if 'esi-location.read_ship_type.v1' not in granted:
                  ship_name_val = None
                  ship_type_val = None
@@ -149,7 +167,15 @@ def profile_view(request):
             'current_ship_name': ship_name_val,
             'ship_type_name': ship_type_val,
             'current_ship_type_id': ship_id_val,
-            'last_updated': active_char.last_updated
+            'last_updated': active_char.last_updated,
+            # Aggregate Flags
+            'include_wallet': active_char.include_wallet_in_aggregate,
+            'include_lp': active_char.include_lp_in_aggregate,
+            'include_sp': active_char.include_sp_in_aggregate,
+            # Missing Scope Flags (for UI enable/disable)
+            'missing_wallet_scope': missing_wallet_scope,
+            'missing_lp_scope': missing_lp_scope,
+            'missing_sp_scope': missing_sp_scope
         }
 
     return Response({
@@ -223,3 +249,33 @@ def api_toggle_xup_visibility(request):
         'character_id': character.character_id, 
         'new_state': character.x_up_visible
     })
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def api_toggle_aggregate_setting(request):
+    """
+    Toggles the inclusion of specific metrics (wallet, lp, sp) in the account aggregate totals.
+    Payload: { character_id: int, setting: 'wallet' | 'lp' | 'sp', value: boolean }
+    """
+    char_id = request.data.get('character_id')
+    setting = request.data.get('setting')
+    value = request.data.get('value')
+
+    if not char_id or not setting:
+        return Response({'success': False, 'error': 'Missing parameters'}, status=400)
+
+    character = get_object_or_404(EveCharacter, character_id=char_id, user=request.user)
+
+    if setting == 'wallet':
+        character.include_wallet_in_aggregate = value
+        character.save(update_fields=['include_wallet_in_aggregate'])
+    elif setting == 'lp':
+        character.include_lp_in_aggregate = value
+        character.save(update_fields=['include_lp_in_aggregate'])
+    elif setting == 'sp':
+        character.include_sp_in_aggregate = value
+        character.save(update_fields=['include_sp_in_aggregate'])
+    else:
+        return Response({'success': False, 'error': 'Invalid setting type'}, status=400)
+
+    return Response({'success': True})
