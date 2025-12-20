@@ -146,6 +146,32 @@ const Profile = () => {
 
     const { active_char, characters, esi, service_record, totals, is_inspection_mode, token_missing, scopes_missing, obfuscate_financials } = profile;
 
+    const handleToggleAggregate = async (setting, currentValue) => {
+        if (is_inspection_mode) return;
+
+        try {
+            const res = await fetch('/api/profile/toggle_aggregate/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({
+                    character_id: active_char.character_id,
+                    setting: setting,
+                    value: !currentValue
+                })
+            });
+
+            if (res.ok) {
+                // Optimistic update or full refresh
+                dispatch(fetchProfileData());
+            }
+        } catch (error) {
+            console.error("Failed to toggle aggregate setting", error);
+        }
+    };
+
     // Filter Logic
     const filteredLogs = (service_record?.history_logs || []).filter(log => serviceFilters.size === 0 || serviceFilters.has(log.action));
     const filteredPilots = characters.filter(c => 
@@ -290,16 +316,36 @@ const Profile = () => {
                                         value={active_char.wallet_balance !== null ? `${active_char.wallet_balance?.toLocaleString()} ISK` : "Missing Scope"} 
                                         color={active_char.wallet_balance !== null ? "text-green-400" : "text-slate-500 italic"} 
                                         font="mono" 
-                                        obfuscated={obfuscate_financials} 
+                                        obfuscated={obfuscate_financials}
+                                        canToggle={!is_inspection_mode && !active_char.missing_wallet_scope}
+                                        includeInAggregate={active_char.include_wallet}
+                                        onToggle={() => handleToggleAggregate('wallet', active_char.include_wallet)}
                                     />
                                     <StatsBox 
                                         label="CONCORD LP" 
                                         value={active_char.concord_lp !== null ? `${active_char.concord_lp?.toLocaleString()} LP` : "Missing Scope"} 
                                         color={active_char.concord_lp !== null ? "text-purple-400" : "text-slate-500 italic"} 
                                         font="mono" 
-                                        obfuscated={obfuscate_financials} 
+                                        obfuscated={obfuscate_financials}
+                                        canToggle={!is_inspection_mode && !active_char.missing_lp_scope}
+                                        includeInAggregate={active_char.include_lp}
+                                        onToggle={() => handleToggleAggregate('lp', active_char.include_lp)}
                                     />
-                                    <div className="col-span-1 sm:col-span-2 bg-white/5 p-3 rounded-lg border border-white/5 flex items-center justify-between gap-4">
+                                    <div className="col-span-1 sm:col-span-2 bg-white/5 p-3 rounded-lg border border-white/5 flex items-center justify-between gap-4 group relative">
+                                        {!is_inspection_mode && (
+                                            <div className="absolute top-2 right-2">
+                                                <label className={clsx("flex items-center gap-1", active_char.missing_sp_scope ? "opacity-50 cursor-not-allowed" : "cursor-pointer")}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={active_char.include_sp}
+                                                        onChange={!active_char.missing_sp_scope ? () => handleToggleAggregate('sp', active_char.include_sp) : undefined}
+                                                        disabled={active_char.missing_sp_scope}
+                                                        className="checkbox checkbox-xs rounded-sm border-white/20 bg-black/20 checked:bg-brand-500"
+                                                    />
+                                                    <span className="text-[10px] text-slate-500 select-none">Include</span>
+                                                </label>
+                                            </div>
+                                        )}
                                         <div>
                                             <div className="label-text mb-0">Skill Points</div>
                                             <div className="text-brand-400 font-mono text-lg font-bold leading-tight">{active_char.total_sp?.toLocaleString() || 0} SP</div>
@@ -681,11 +727,25 @@ const StatRow = ({ label, value, badge, highlight, obfuscated }) => (
     </div>
 );
 
-const StatsBox = ({ label, value, color = "text-slate-200", font = "sans", obfuscated }) => (
-    <div className="bg-white/5 p-3 rounded-lg border border-white/5 flex flex-col justify-center space-y-1">
+const StatsBox = ({ label, value, color = "text-slate-200", font = "sans", obfuscated, canToggle, includeInAggregate, onToggle }) => (
+    <div className="bg-white/5 p-3 rounded-lg border border-white/5 flex flex-col justify-center space-y-1 relative group">
+        {canToggle !== undefined && (
+            <div className="absolute top-2 right-2 opacity-100 transition">
+                <label className={clsx("flex items-center gap-1", canToggle ? "cursor-pointer" : "opacity-50 cursor-not-allowed")}>
+                    <input
+                        type="checkbox"
+                        checked={!!includeInAggregate}
+                        onChange={canToggle ? onToggle : undefined}
+                        disabled={!canToggle}
+                        className="checkbox checkbox-xs rounded-sm border-white/20 bg-black/20 checked:bg-brand-500"
+                    />
+                    <span className="text-[10px] text-slate-500 select-none hidden sm:inline">Include</span>
+                </label>
+            </div>
+        )}
         <div>
             <div className="label-text mb-0">{label}</div>
-            <div className={clsx("font-medium truncate leading-tight", color, font === "mono" && "font-mono")}>
+            <div className={clsx("font-medium truncate leading-tight pr-12", color, font === "mono" && "font-mono")}>
                 {obfuscated ? <span className="blur-sm select-none">******</span> : value}
             </div>
         </div>

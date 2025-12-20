@@ -34,6 +34,11 @@ class EveCharacter(models.Model):
     # Scopes
     granted_scopes = models.TextField(blank=True, default="")
 
+    # Aggregate Visibility Flags
+    include_wallet_in_aggregate = models.BooleanField(default=True)
+    include_lp_in_aggregate = models.BooleanField(default=True)
+    include_sp_in_aggregate = models.BooleanField(default=True)
+
     def __str__(self):
         return f"{self.character_name} ({self.character_id})"
 
