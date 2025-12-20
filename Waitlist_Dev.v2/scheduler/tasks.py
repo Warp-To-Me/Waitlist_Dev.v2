@@ -80,6 +80,10 @@ def dispatch_stale_characters():
                 # Filter endpoints based on scopes
                 valid_endpoints = []
                 for ep in endpoints:
+                    # Skip deprecated 'online' endpoint
+                    if ep == 'online':
+                        continue
+
                     # Map endpoint to scope
                     scope_needed = None
                     if ep == 'wallet': scope_needed = 'esi-wallet.read_character_wallet.v1'

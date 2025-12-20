@@ -164,7 +164,7 @@ SYSTEM_CAPABILITIES = [
 # --- BACKGROUND TASK CONFIG ---
 # Only these endpoints are processed by the background scheduler.
 BACKGROUND_ENDPOINTS = [
-    'online', 'skills', 'queue', 'ship', 'wallet', 
+    'skills', 'queue', 'ship', 'wallet',
     'lp', 'implants', 'public_info', 'history'
 ]
 
