@@ -408,22 +408,22 @@ const Profile = () => {
                                         onToggle={() => handleToggleAggregate('lp', active_char.include_lp)}
                                     />
                                     <div className="col-span-1 sm:col-span-2 bg-white/5 p-3 rounded-lg border border-white/5 flex items-center justify-between gap-4 group relative">
-                                        {!is_inspection_mode && (
-                                            <div className="absolute top-2 right-2">
-                                                <label className={clsx("flex items-center gap-1", active_char.missing_sp_scope ? "opacity-50 cursor-not-allowed" : "cursor-pointer")}>
-                                                    <input 
-                                                        type="checkbox" 
-                                                        checked={active_char.include_sp} 
-                                                        onChange={!active_char.missing_sp_scope ? () => handleToggleAggregate('sp', active_char.include_sp) : undefined}
-                                                        disabled={active_char.missing_sp_scope}
-                                                        className="checkbox checkbox-xs rounded-sm border-white/20 bg-black/20 checked:bg-brand-500" 
-                                                    />
-                                                    <span className="text-[10px] text-slate-500 select-none">Include</span>
-                                                </label>
-                                            </div>
-                                        )}
                                         <div>
-                                            <div className="label-text mb-0">Skill Points</div>
+                                            <div className="flex items-center gap-2 mb-0">
+                                                <div className="label-text">Skill Points</div>
+                                                {!is_inspection_mode && (
+                                                    <label className={clsx("flex items-center gap-1", active_char.missing_sp_scope ? "opacity-50 cursor-not-allowed" : "cursor-pointer")}>
+                                                        <input 
+                                                            type="checkbox" 
+                                                            checked={active_char.include_sp} 
+                                                            onChange={!active_char.missing_sp_scope ? () => handleToggleAggregate('sp', active_char.include_sp) : undefined}
+                                                            disabled={active_char.missing_sp_scope}
+                                                            className="checkbox checkbox-xs rounded-sm border-white/20 bg-black/20 checked:bg-brand-500" 
+                                                        />
+                                                        <span className="text-[10px] text-slate-500 select-none">Include</span>
+                                                    </label>
+                                                )}
+                                            </div>
                                             <div className="text-brand-400 font-mono text-lg font-bold leading-tight">{active_char.total_sp?.toLocaleString() || 0} SP</div>
                                         </div>
                                         <div className="flex items-center gap-3 text-right">
