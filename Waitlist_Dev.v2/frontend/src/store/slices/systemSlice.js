@@ -30,7 +30,7 @@ export const systemSlice = createSlice({
                         receivedAt: now
                     });
                     // Keep list size manageable
-                    if (state.activeTasks.length > 50) state.activeTasks.pop();
+                    if (state.activeTasks.length > 100) state.activeTasks.pop();
                 }
                 else if (event === 'finished') {
                     // Update existing task
@@ -50,10 +50,18 @@ export const systemSlice = createSlice({
         },
         pruneTasks: (state) => {
             const now = Date.now();
-            // Remove tasks that finished more than 6 seconds ago (5s fade + buffer)
             state.activeTasks = state.activeTasks.filter(t => {
-                if (!t.finishedAt) return true; // Still running
-                return (now - t.finishedAt) < 6000;
+                // 1. Remove tasks that finished more than 4 seconds ago (2s visible + 1s fade + buffer)
+                if (t.finishedAt) {
+                    return (now - t.finishedAt) < 4000;
+                }
+
+                // 2. Safety Net: Remove tasks stuck in 'STARTED' for > 15 minutes
+                if (t.receivedAt && (now - t.receivedAt) > 15 * 60 * 1000) {
+                    return false;
+                }
+
+                return true; // Keep active tasks
             });
         }
     },

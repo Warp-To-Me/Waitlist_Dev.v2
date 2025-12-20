@@ -331,15 +331,22 @@ const TaskRow = ({ task }) => {
     return (
         <div
             className={clsx(
-                "p-3 rounded-lg border transition-all duration-1000 flex items-center justify-between gap-4 text-xs",
-                isFinished ? "opacity-0" : "opacity-100", // Fade out when finished
+                "rounded-lg border flex items-center justify-between gap-4 text-xs overflow-hidden",
+                // Base Layout
+                isFinished ? "opacity-0 max-h-0 mb-0 py-0 border-0" : "opacity-100 max-h-20 mb-2 py-3 border",
+                // Colors
                 isFailure ? "bg-red-500/10 border-red-500/20" :
                 isSuccess ? "bg-green-500/10 border-green-500/20" :
                 "bg-slate-800/50 border-white/5"
             )}
-            style={{ transitionDuration: isFinished ? '5000ms' : '300ms' }}
+            style={{
+                // Wait 2s to show result, then collapse over 1s
+                transitionProperty: 'all',
+                transitionDuration: '1000ms',
+                transitionDelay: isFinished ? '2000ms' : '0ms'
+            }}
         >
-            <div className="flex items-center gap-3 overflow-hidden">
+            <div className="flex items-center gap-3 overflow-hidden px-3">
                 <div className={clsx(
                     "w-2 h-2 rounded-full shrink-0",
                     isFailure ? "bg-red-500" :
@@ -356,14 +363,14 @@ const TaskRow = ({ task }) => {
             </div>
 
             {(task.enriched_name || task.enriched_info) && (
-                 <div className="text-right shrink-0">
+                 <div className="text-right shrink-0 px-3">
                     {task.enriched_name && <div className="font-bold text-brand-400">{task.enriched_name}</div>}
                     {task.enriched_info && <div className="text-slate-500 italic">{task.enriched_info}</div>}
                  </div>
             )}
 
             {isFinished && (
-                <div className={clsx("font-bold uppercase tracking-wider text-[10px]", isSuccess ? "text-green-500" : "text-red-500")}>
+                <div className={clsx("font-bold uppercase tracking-wider text-[10px] pr-3", isSuccess ? "text-green-500" : "text-red-500")}>
                     {task.state}
                 </div>
             )}
