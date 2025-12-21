@@ -127,12 +127,18 @@ def profile_view(request):
         c_missing_lp = 'esi-characters.read_loyalty.v1' not in c_granted
         c_missing_sp = 'esi-skills.read_skills.v1' not in c_granted
 
+        # Data masking based on scopes
+        c_wallet = c.wallet_balance if not c_missing_wallet else None
+        c_lp = c.concord_lp if not c_missing_lp else None
+
         chars_data.append({
             'character_id': c.character_id,
             'character_name': c.character_name,
             'corporation_name': c.corporation_name,
             'is_main': c.is_main,
             'x_up_visible': c.x_up_visible,
+            'wallet_balance': c_wallet,
+            'concord_lp': c_lp,
             # Aggregate Flags
             'include_wallet': c.include_wallet_in_aggregate,
             'include_lp': c.include_lp_in_aggregate,

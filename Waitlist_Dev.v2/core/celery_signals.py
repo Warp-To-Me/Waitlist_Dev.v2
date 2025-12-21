@@ -3,43 +3,14 @@ from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 import logging
 import time
-import threading
-import sys
 
 logger = logging.getLogger(__name__)
-
-# --- GEVENT COMPATIBILITY FIX ---
-# If gevent is monkey-patching, threading.Thread becomes a Greenlet (same thread).
-# async_to_sync requires a clean thread without a running loop.
-# We fetch the original OS Thread class to spawn a real thread for the broadcast.
-try:
-    if 'gevent' in sys.modules:
-        from gevent import monkey
-        if monkey.is_module_patched('threading'):
-            Thread = monkey.get_original('threading', 'Thread')
-        else:
-            Thread = threading.Thread
-    else:
-        Thread = threading.Thread
-except ImportError:
-    Thread = threading.Thread
 
 # Whitelist of tasks to broadcast to the UI
 MONITORED_TASKS = [
     'scheduler.tasks.refresh_character_task',
     'scheduler.tasks.refresh_srp_wallet_task',
 ]
-
-def _threaded_broadcast(channel_layer, payload):
-    """
-    Runs the async broadcast in a separate thread.
-    This avoids conflicts with gevent's monkey-patching or the main worker's asyncio loop state.
-    async_to_sync will create a fresh loop for this thread.
-    """
-    try:
-        async_to_sync(channel_layer.group_send)("system", payload)
-    except Exception as e:
-        logger.error(f"Failed to send celery event: {e}")
 
 # Helper to broadcast
 def broadcast_celery_event(event_type, task_data):
@@ -54,15 +25,11 @@ def broadcast_celery_event(event_type, task_data):
                     "task": task_data
                 }
             }
-
-            # Run in a separate (real) thread to isolate the asyncio environment
-            t = Thread(target=_threaded_broadcast, args=(channel_layer, payload))
-            t.daemon = True # Don't block shutdown
-            t.start()
+            async_to_sync(channel_layer.group_send)("system", payload)
 
     except Exception as e:
         # Don't crash the task if websocket fails
-        logger.error(f"Failed to initiate broadcast thread: {e}")
+        logger.error(f"Failed to send celery event: {e}")
 
 @task_prerun.connect
 def on_task_prerun(sender=None, task_id=None, task=None, args=None, kwargs=None, **opts):

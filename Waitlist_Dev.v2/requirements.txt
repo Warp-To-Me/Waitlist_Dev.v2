@@ -35,7 +35,6 @@ channels_redis
 #apscheduler
 celery
 redis
-gevent  # Required for running Celery on Windows
 
 # Security
 django-fernet-fields-v2

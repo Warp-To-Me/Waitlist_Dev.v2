@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { RefreshCw, Search, X, LogIn, AlertTriangle, ShieldAlert, Plus, Check, Mail, Link as LinkIcon, LogOut, Wind, RotateCw, Anchor, ArrowRightLeft, ArrowUp, ArrowDown, Ban, Lock, Unlock, FileText, Hourglass, Copy, Star, Trash2, Crown } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../context/AuthContext';
-import { fetchProfileData, selectProfileData, selectProfileStatus } from '../store/slices/profileSlice';
+import { fetchProfileData, selectProfileData, selectProfileStatus, optimisticToggleAggregate, optimisticBulkToggleAggregate } from '../store/slices/profileSlice';
 
 const Profile = () => {
     const dispatch = useDispatch();
@@ -165,6 +165,13 @@ const Profile = () => {
     const handleToggleAggregate = async (setting, currentValue) => {
         if (is_inspection_mode) return;
 
+        // Optimistic Update
+        dispatch(optimisticToggleAggregate({ 
+            character_id: active_char.character_id, 
+            setting, 
+            value: !currentValue 
+        }));
+
         try {
             const res = await fetch('/api/profile/toggle_aggregate/', {
                 method: 'POST',
@@ -178,11 +185,8 @@ const Profile = () => {
                     value: !currentValue
                 })
             });
-
-            if (res.ok) {
-                // Optimistic update or full refresh
-                dispatch(fetchProfileData());
-            }
+            // If failed, we should probably revert, but for now we assume success.
+            // A full fetchProfileData() will eventually correct it if it drifts.
         } catch (error) {
             console.error("Failed to toggle aggregate setting", error);
         }
@@ -245,26 +249,35 @@ const Profile = () => {
     };
 
     const handleBulkToggle = async (setting, currentValue) => {
+        // Optimistic Update
+        dispatch(optimisticBulkToggleAggregate({ setting, value: !currentValue }));
+
         try {
-            const res = await fetch('/api/profile/toggle_aggregate/bulk/', {
+            await fetch('/api/profile/toggle_aggregate/bulk/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
                 body: JSON.stringify({ setting, value: !currentValue })
             });
-            if (res.ok) dispatch(fetchProfileData());
+            // No need to refetch immediately, state is already updated.
         } catch (error) {
             console.error(error);
         }
     };
 
     const handleIndividualToggle = async (charId, setting, currentValue) => {
+        // Optimistic Update
+        dispatch(optimisticToggleAggregate({ 
+            character_id: charId, 
+            setting, 
+            value: !currentValue 
+        }));
+
         try {
-            const res = await fetch('/api/profile/toggle_aggregate/', {
+            await fetch('/api/profile/toggle_aggregate/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
                 body: JSON.stringify({ character_id: charId, setting, value: !currentValue })
             });
-            if (res.ok) dispatch(fetchProfileData());
         } catch (error) {
             console.error(error);
         }
@@ -749,7 +762,7 @@ const Profile = () => {
                                 </h3>
                                 
                                 {/* Bulk Toggles */}
-                                <div className="flex items-center gap-4 bg-white/5 px-3 py-1.5 rounded-lg border border-white/5">
+                                <div className="flex items-center gap-4 bg-white/5 px-3 py-1.5 rounded-lg border border-white/5 mr-8">
                                     <span className="text-[10px] uppercase font-bold text-slate-500">Toggle All:</span>
                                     <label className="flex items-center gap-1.5 cursor-pointer group" title="Toggle Wallet for All">
                                         <input type="checkbox" checked={allWallet} onChange={() => handleBulkToggle('wallet', allWallet)} className="checkbox checkbox-xs rounded-sm border-slate-600 bg-black/40 checked:bg-green-500" />
@@ -765,7 +778,7 @@ const Profile = () => {
                                     </label>
                                 </div>
 
-                                <button onClick={() => setPilotModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white text-xl leading-none">&times;</button>
+                                <button onClick={() => setPilotModalOpen(false)} className="absolute top-5 right-5 text-slate-400 hover:text-white text-xl leading-none">&times;</button>
                             </div>
                             <div className="relative w-full">
                                 <Search className="absolute left-3 top-3 w-5 h-5 text-slate-500" />
@@ -781,88 +794,17 @@ const Profile = () => {
                         <div className="flex-grow overflow-y-auto custom-scrollbar p-6 bg-dark-900/50">
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {filteredPilots.map(char => (
-                                    <div 
+                                    <PilotDirectoryCard
                                         key={char.character_id}
-                                        className="relative group flex flex-col p-3 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 transition"
-                                    >
-                                        {/* Hover Overlay Buttons */}
-                                        
-                                        {/* Top Left: X-Up Toggle */}
-                                        <div className="absolute -top-2 -left-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                            <button 
-                                                onClick={(e) => { e.stopPropagation(); handleToggleXUp(char.character_id); }}
-                                                className={clsx(
-                                                    "w-8 h-8 rounded-full flex items-center justify-center shadow-lg border transition transform hover:scale-110",
-                                                    char.x_up_visible ? "bg-brand-500 text-white border-brand-400" : "bg-slate-800 text-slate-500 border-slate-600 hover:bg-slate-700 hover:text-slate-300"
-                                                )}
-                                                title={char.x_up_visible ? "Visible in X-Up" : "Hidden from X-Up"}
-                                            >
-                                                <Star size={14} fill={char.x_up_visible ? "currentColor" : "none"} />
-                                            </button>
-                                        </div>
-
-                                        {/* Top Right: Make Main */}
-                                        <div className="absolute -top-2 -right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                            <button 
-                                                onClick={(e) => { e.stopPropagation(); handleMakeMain(char.character_id); }}
-                                                disabled={char.is_main}
-                                                className={clsx(
-                                                    "w-8 h-8 rounded-full flex items-center justify-center shadow-lg border transition transform",
-                                                    char.is_main ? "bg-brand-500 text-white border-brand-400 cursor-default" : "bg-slate-800 text-slate-500 border-slate-600 hover:bg-slate-700 hover:text-brand-400 hover:scale-110"
-                                                )}
-                                                title={char.is_main ? "Current Main" : "Make Main"}
-                                            >
-                                                <Crown size={14} fill={char.is_main ? "currentColor" : "none"} />
-                                            </button>
-                                        </div>
-
-                                        {/* Bottom Right: Remove (Admin) */}
-                                        {profile.is_admin_user && (
-                                            <div className="absolute -bottom-2 -right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                                <button 
-                                                    onClick={(e) => { e.stopPropagation(); handleUnlinkChar(char.character_id); }}
-                                                    className="w-8 h-8 rounded-full bg-red-900/90 text-red-400 border border-red-500/50 flex items-center justify-center shadow-lg hover:bg-red-600 hover:text-white hover:border-red-400 transition transform hover:scale-110"
-                                                    title="Remove from Account (Admin Only)"
-                                                >
-                                                    <X size={16} />
-                                                </button>
-                                            </div>
-                                        )}
-
-                                        {/* Main Card Content */}
-                                        <div 
-                                            className="flex items-center gap-3 cursor-pointer mb-3"
-                                            onClick={() => handleSwitchChar(char.character_id)}
-                                        >
-                                            <div className="relative">
-                                                <img src={`https://images.evetech.net/characters/${char.character_id}/portrait?size=64`} className="w-12 h-12 rounded-lg border border-white/10 bg-black group-hover:border-white/30 transition" alt="" />
-                                                {char.character_id === active_char.character_id && <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-slate-900 rounded-full"></div>}
-                                            </div>
-                                            <div className="flex-grow min-w-0">
-                                                <div className="flex justify-between items-start">
-                                                    <h4 className="font-bold text-slate-200 group-hover:text-white truncate transition">{char.character_name}</h4>
-                                                    {char.is_main && <span className="text-[9px] font-bold text-brand-400 bg-brand-900/20 px-1.5 py-0.5 rounded border border-brand-500/20 uppercase">Main</span>}
-                                                </div>
-                                                <div className="text-xs text-slate-500 truncate mt-0.5">{char.corporation_name || "Unknown Corp"}</div>
-                                            </div>
-                                        </div>
-
-                                        {/* Toggles Footer */}
-                                        <div className="mt-auto pt-2 border-t border-white/5 flex justify-between items-center px-1">
-                                            <label className="flex items-center gap-1.5 cursor-pointer opacity-70 hover:opacity-100 transition" title="Include Wallet">
-                                                <input type="checkbox" checked={char.include_wallet} onChange={() => handleIndividualToggle(char.character_id, 'wallet', char.include_wallet)} disabled={char.missing_wallet_scope} className="checkbox checkbox-xs rounded-sm border-white/20 bg-black/20 checked:bg-green-500 disabled:opacity-30" />
-                                                <span className="text-[10px] font-bold text-slate-400">ISK</span>
-                                            </label>
-                                            <label className="flex items-center gap-1.5 cursor-pointer opacity-70 hover:opacity-100 transition" title="Include LP">
-                                                <input type="checkbox" checked={char.include_lp} onChange={() => handleIndividualToggle(char.character_id, 'lp', char.include_lp)} disabled={char.missing_lp_scope} className="checkbox checkbox-xs rounded-sm border-white/20 bg-black/20 checked:bg-purple-500 disabled:opacity-30" />
-                                                <span className="text-[10px] font-bold text-slate-400">LP</span>
-                                            </label>
-                                            <label className="flex items-center gap-1.5 cursor-pointer opacity-70 hover:opacity-100 transition" title="Include SP">
-                                                <input type="checkbox" checked={char.include_sp} onChange={() => handleIndividualToggle(char.character_id, 'sp', char.include_sp)} disabled={char.missing_sp_scope} className="checkbox checkbox-xs rounded-sm border-white/20 bg-black/20 checked:bg-brand-500 disabled:opacity-30" />
-                                                <span className="text-[10px] font-bold text-slate-400">SP</span>
-                                            </label>
-                                        </div>
-                                    </div>
+                                        char={char}
+                                        isActive={char.character_id === active_char.character_id}
+                                        isAdmin={profile.is_admin_user}
+                                        onToggleXUp={handleToggleXUp}
+                                        onMakeMain={handleMakeMain}
+                                        onUnlink={handleUnlinkChar}
+                                        onSwitch={handleSwitchChar}
+                                        onToggleAggregate={handleIndividualToggle}
+                                    />
                                 ))}
                             </div>
                             {filteredPilots.length === 0 && <div className="text-center py-12 text-slate-500 italic">No pilots found.</div>}
@@ -953,5 +895,103 @@ const getActionColor = (action) => {
         default: return 'bg-slate-600';
     }
 }
+
+const PilotDirectoryCard = React.memo(({ char, isActive, isAdmin, onToggleXUp, onMakeMain, onUnlink, onSwitch, onToggleAggregate }) => (
+    <div className="relative group flex flex-col p-3 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 transition">
+        {/* Hover Overlay Buttons */}
+        
+        {/* Top Left: X-Up Toggle */}
+        <div className="absolute -top-2 -left-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <button 
+                onClick={(e) => { e.stopPropagation(); onToggleXUp(char.character_id); }}
+                className={clsx(
+                    "w-8 h-8 rounded-full flex items-center justify-center shadow-lg border transition transform hover:scale-110",
+                    char.x_up_visible ? "bg-brand-500 text-white border-brand-400" : "bg-slate-800 text-slate-500 border-slate-600 hover:bg-slate-700 hover:text-slate-300"
+                )}
+                title={char.x_up_visible ? "Visible in X-Up" : "Hidden from X-Up"}
+            >
+                <Star size={14} fill={char.x_up_visible ? "currentColor" : "none"} />
+            </button>
+        </div>
+
+        {/* Top Right: Make Main */}
+        <div className="absolute -top-2 -right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <button 
+                onClick={(e) => { e.stopPropagation(); onMakeMain(char.character_id); }}
+                disabled={char.is_main}
+                className={clsx(
+                    "w-8 h-8 rounded-full flex items-center justify-center shadow-lg border transition transform",
+                    char.is_main ? "bg-brand-500 text-white border-brand-400 cursor-default" : "bg-slate-800 text-slate-500 border-slate-600 hover:bg-slate-700 hover:text-brand-400 hover:scale-110"
+                )}
+                title={char.is_main ? "Current Main" : "Make Main"}
+            >
+                <Crown size={14} fill={char.is_main ? "currentColor" : "none"} />
+            </button>
+        </div>
+
+        {/* Bottom Right: Remove (Admin) */}
+        {isAdmin && (
+            <div className="absolute -bottom-2 -right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                <button 
+                    onClick={(e) => { e.stopPropagation(); onUnlink(char.character_id); }}
+                    className="w-8 h-8 rounded-full bg-red-900/90 text-red-400 border border-red-500/50 flex items-center justify-center shadow-lg hover:bg-red-600 hover:text-white hover:border-red-400 transition transform hover:scale-110"
+                    title="Remove from Account (Admin Only)"
+                >
+                    <X size={16} />
+                </button>
+            </div>
+        )}
+
+        {/* Main Card Content */}
+        <div 
+            className="flex items-center gap-3 cursor-pointer mb-3"
+            onClick={() => onSwitch(char.character_id)}
+        >
+            <div className="relative">
+                <img src={`https://images.evetech.net/characters/${char.character_id}/portrait?size=64`} className="w-12 h-12 rounded-lg border border-white/10 bg-black group-hover:border-white/30 transition" alt="" />
+                {isActive && <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-slate-900 rounded-full"></div>}
+            </div>
+            <div className="flex-grow min-w-0">
+                <div className="flex justify-between items-start">
+                    <h4 className="font-bold text-slate-200 group-hover:text-white truncate transition">{char.character_name}</h4>
+                    {char.is_main && <span className="text-[9px] font-bold text-brand-400 bg-brand-900/20 px-1.5 py-0.5 rounded border border-brand-500/20 uppercase">Main</span>}
+                </div>
+                <div className="text-xs text-slate-500 truncate mt-0.5">{char.corporation_name || "Unknown Corp"}</div>
+                
+                {/* Financial Stats */}
+                <div className="mt-2 text-[10px] font-mono grid grid-cols-2 gap-1 border-t border-white/5 pt-1">
+                    <div className="flex flex-col">
+                        <span className="text-slate-600 text-[9px] uppercase">Wallet</span>
+                        <span className={clsx(char.wallet_balance !== null ? "text-green-400" : "text-slate-600 italic")}>
+                            {char.wallet_balance !== null ? char.wallet_balance?.toLocaleString() : "N/A"}
+                        </span>
+                    </div>
+                    <div className="flex flex-col text-right">
+                        <span className="text-slate-600 text-[9px] uppercase">LP</span>
+                        <span className={clsx(char.concord_lp !== null ? "text-purple-400" : "text-slate-600 italic")}>
+                            {char.concord_lp !== null ? char.concord_lp?.toLocaleString() : "N/A"}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {/* Toggles Footer */}
+        <div className="mt-auto pt-2 border-t border-white/5 flex justify-between items-center px-4">
+            <label className="flex items-center gap-1.5 cursor-pointer opacity-70 hover:opacity-100 transition" title="Include Wallet">
+                <input type="checkbox" checked={char.include_wallet} onChange={() => onToggleAggregate(char.character_id, 'wallet', char.include_wallet)} disabled={char.missing_wallet_scope} className="checkbox checkbox-xs rounded-sm border-white/20 bg-black/20 checked:bg-green-500 disabled:opacity-30" />
+                <span className="text-[10px] font-bold text-slate-400">ISK</span>
+            </label>
+            <label className="flex items-center gap-1.5 cursor-pointer opacity-70 hover:opacity-100 transition" title="Include LP">
+                <input type="checkbox" checked={char.include_lp} onChange={() => onToggleAggregate(char.character_id, 'lp', char.include_lp)} disabled={char.missing_lp_scope} className="checkbox checkbox-xs rounded-sm border-white/20 bg-black/20 checked:bg-purple-500 disabled:opacity-30" />
+                <span className="text-[10px] font-bold text-slate-400">LP</span>
+            </label>
+            <label className="flex items-center gap-1.5 cursor-pointer opacity-70 hover:opacity-100 transition" title="Include SP">
+                <input type="checkbox" checked={char.include_sp} onChange={() => onToggleAggregate(char.character_id, 'sp', char.include_sp)} disabled={char.missing_sp_scope} className="checkbox checkbox-xs rounded-sm border-white/20 bg-black/20 checked:bg-brand-500 disabled:opacity-30" />
+                <span className="text-[10px] font-bold text-slate-400">SP</span>
+            </label>
+        </div>
+    </div>
+));
 
 export default Profile;
