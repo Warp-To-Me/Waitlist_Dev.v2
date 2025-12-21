@@ -1,6 +1,7 @@
 import requests
 import base64
 import os
+from django.db import transaction
 from django.utils import timezone
 from django.conf import settings
 from django.core.cache import cache
@@ -117,11 +118,14 @@ def _update_cache_headers(character, endpoint_name, headers):
         }
         
         # Update or Create (Always update to clear old expiry if new one is None)
-        EsiHeaderCache.objects.update_or_create(
-            character=character, 
-            endpoint_name=endpoint_name,
-            defaults=defaults
-        )
+        # Wrap in atomic block to prevent 'select_for_update outside transaction' errors
+        # which can occur if the DB backend implicitly uses locks for update_or_create.
+        with transaction.atomic():
+            EsiHeaderCache.objects.update_or_create(
+                character=character,
+                endpoint_name=endpoint_name,
+                defaults=defaults
+            )
     except Exception as e:
         logger.error(f"[Cache Update] DB Error for {character.character_name}/{endpoint_name}: {e}")
 

@@ -3,6 +3,7 @@ from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 import logging
 import time
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -17,17 +18,28 @@ def broadcast_celery_event(event_type, task_data):
     try:
         channel_layer = get_channel_layer()
         if channel_layer:
-            async_to_sync(channel_layer.group_send)(
-                "system",
-                {
+            payload = {
+                "type": "celery_task_update",
+                "data": {
                     "type": "celery_task_update",
-                    "data": {
-                        "type": "celery_task_update",
-                        "event": event_type,
-                        "task": task_data
-                    }
+                    "event": event_type,
+                    "task": task_data
                 }
-            )
+            }
+
+            # Check if we are already in an event loop (common with gevent/asgi)
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+
+            if loop and loop.is_running():
+                # Schedule the coroutine on the existing loop
+                loop.create_task(channel_layer.group_send("system", payload))
+            else:
+                # Use standard sync-to-async bridge
+                async_to_sync(channel_layer.group_send)("system", payload)
+
     except Exception as e:
         # Don't crash the task if websocket fails
         logger.error(f"Failed to broadcast celery event: {e}")
