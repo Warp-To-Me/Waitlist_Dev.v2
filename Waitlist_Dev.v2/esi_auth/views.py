@@ -69,7 +69,14 @@ def auth_login_options(request):
             })
             
         base_options = []
-        for scope in base_scopes:
+        # Copy base_scopes to avoid mutating the original setting list in memory if it was mutable (though split() creates new)
+        current_base_scopes = list(base_scopes)
+
+        # If SRP Config/Auth mode, treat SRP scopes as Base (Required) scopes
+        if mode == 'srp_config' or mode == 'srp_auth':
+             current_base_scopes.extend(srp_scopes)
+
+        for scope in current_base_scopes:
              meta = settings.SCOPE_DESCRIPTIONS.get(scope, {'label': scope, 'description': ''})
              base_options.append({
                 'scope': scope,
