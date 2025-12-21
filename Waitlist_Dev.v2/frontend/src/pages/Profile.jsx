@@ -319,7 +319,7 @@ const Profile = () => {
                                         <div className="text-xs font-bold text-slate-400 group-hover:text-white truncate max-w-[80px]">{char.character_name}</div>
                                     </button>
                                 ))}
-                                {characters.length > 5 && (
+                                {characters.length > 1 && (
                                     <button onClick={() => setPilotModalOpen(true)} className="ml-auto btn-secondary text-[10px] px-2 py-1 h-8 border-white/10 hover:border-white/30 text-slate-400 hover:text-white flex items-center gap-1">
                                         <Search size={12} /> All Pilots
                                     </button>
