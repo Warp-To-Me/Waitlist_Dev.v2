@@ -329,7 +329,7 @@ const Profile = () => {
                     </div>
 
                     {/* Right: Account Totals */}
-                    <div className="w-full lg:w-80 flex-shrink-0 p-6 bg-black/20 flex flex-col justify-center border-t lg:border-t-0 border-white/5">
+                    <div className="w-full lg:w-96 flex-shrink-0 p-6 bg-black/20 flex flex-col justify-center border-t lg:border-t-0 border-white/5">
                         <h3 className="label-text mb-4 pb-2 border-b border-white/5 flex items-center gap-2">
                             <span>📊</span> Account Aggregate
                         </h3>
@@ -448,7 +448,7 @@ const Profile = () => {
                         </div>
 
                         {/* Right: Implants */}
-                        <div className="p-4 lg:w-72 bg-black/20 flex flex-col border-l border-white/5">
+                        <div className="p-6 lg:w-96 bg-black/20 flex flex-col border-l border-white/5">
                             <div className="flex justify-between items-center mb-3">
                                 <h3 className="label-text mb-0 flex items-center gap-2">🧠 Implants</h3>
                                 <span className="text-[10px] text-slate-500">{esi.implants.length} Active</span>
