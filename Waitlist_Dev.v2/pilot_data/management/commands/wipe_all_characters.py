@@ -1,8 +1,9 @@
-﻿from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand
 from django.db import connection, transaction
+from django.core.management import call_command
 
 class Command(BaseCommand):
-    help = 'FACTORY RESET: Wipes Characters, Users, Fleets, and all related data via Raw SQL.'
+    help = 'FACTORY RESET: Wipes ALL database tables and re-runs migrations.'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -16,11 +17,8 @@ class Command(BaseCommand):
         if not options['force']:
             self.stdout.write(self.style.WARNING(
                 "⚠️  WARNING: This is a FACTORY RESET.\n"
-                "It will delete:\n"
-                " - All EVE Characters (Skills, Implants, History)\n"
-                " - All Django Users (Login accounts)\n"
-                " - All Fleets\n"
-                " - All Sessions and Admin Logs\n"
+                "It will delete ALL DATA in the database (Tables will be dropped).\n"
+                "This action is irreversible.\n"
             ))
             confirm = input("Are you sure you want to proceed? [y/N]: ")
             if confirm.lower() != 'y':
@@ -29,41 +27,46 @@ class Command(BaseCommand):
 
         self.stdout.write("Initializing Factory Reset...")
 
-        # We use a transaction block to ensure everything commits
-        with transaction.atomic():
-            with connection.cursor() as cursor:
-                # 1. Disable Foreign Key Checks (Crucial for Raw SQL deletion order)
+        # We use a transaction block where possible, but DDL statements (DROP TABLE)
+        # often cause implicit commits in MySQL, so atomic might not cover everything.
+        # However, we are destroying everything anyway.
+
+        with connection.cursor() as cursor:
+            if connection.vendor == 'mysql':
+                self.stdout.write("Detected MySQL backend.")
                 cursor.execute("SET FOREIGN_KEY_CHECKS = 0;")
+                cursor.execute("SHOW TABLES;")
+                tables = cursor.fetchall()
 
-                tables_to_wipe = [
-                    # Child Data
-                    'pilot_data_characterskill',
-                    'pilot_data_characterqueue',
-                    'pilot_data_characterimplant',
-                    'pilot_data_characterhistory',
-                    'pilot_data_esiheadercache',
-                    
-                    # App Data
-                    'waitlist_data_fleet',
-                    'django_admin_log',
-                    
-                    # Core Data
-                    'pilot_data_evecharacter',
-                    
-                    # Auth Data (User & Groups)
-                    'auth_user_groups',
-                    'auth_user_user_permissions',
-                    'auth_user',
-                    
-                    # Session Data (Logs everyone out)
-                    'django_session',
-                ]
+                for table in tables:
+                    table_name = table[0]
+                    self.stdout.write(f" -> Dropping table {table_name}...")
+                    cursor.execute(f"DROP TABLE IF EXISTS `{table_name}`;")
 
-                for table in tables_to_wipe:
-                    self.stdout.write(f" -> Wiping {table}...")
-                    cursor.execute(f"DELETE FROM {table};")
-
-                # 2. Re-enable Foreign Key Checks
                 cursor.execute("SET FOREIGN_KEY_CHECKS = 1;")
 
-        self.stdout.write(self.style.SUCCESS("SUCCESS: Factory Reset Complete. Database is clean."))
+            elif connection.vendor == 'sqlite':
+                self.stdout.write("Detected SQLite backend.")
+                cursor.execute("PRAGMA foreign_keys = OFF;")
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+                tables = cursor.fetchall()
+
+                for table in tables:
+                    table_name = table[0]
+                    if table_name.startswith('sqlite_'):
+                        continue
+                    self.stdout.write(f" -> Dropping table {table_name}...")
+                    cursor.execute(f'DROP TABLE IF EXISTS "{table_name}";')
+
+                cursor.execute("PRAGMA foreign_keys = ON;")
+
+            else:
+                self.stdout.write(self.style.ERROR(f"Unsupported database vendor: {connection.vendor}"))
+                return
+
+        self.stdout.write(self.style.SUCCESS("All tables dropped. Running migrations..."))
+
+        # Run Migrations
+        call_command('migrate')
+
+        self.stdout.write(self.style.SUCCESS("SUCCESS: Factory Reset Complete. Database is clean and schema is fresh."))

@@ -114,7 +114,7 @@ def auth_login_options(request):
                 return HttpResponse("Authentication required to add alt", status=403)
             request.session['is_adding_alt'] = True
         
-        elif mode == 'srp_auth':
+        elif mode == 'srp_auth' or mode == 'srp_config':
             if not request.user.is_authenticated or not can_manage_srp(request.user):
                  return HttpResponse("Permission denied for SRP auth", status=403)
             request.session['is_adding_alt'] = True
@@ -130,7 +130,7 @@ def auth_login_options(request):
                 final_scopes.add(s)
 
         # If SRP Auth mode, enforce SRP scopes
-        if mode == 'srp_auth':
+        if mode == 'srp_auth' or mode == 'srp_config':
              for s in srp_scopes:
                  final_scopes.add(s)
         
@@ -174,6 +174,11 @@ def srp_auth(request):
     request.session['is_adding_alt'] = True
     request.session['is_srp_auth'] = True
     return _start_sso_flow(request)
+
+@login_required
+@user_passes_test(can_manage_srp)
+def srp_config(request):
+    return srp_auth(request)
 
 def _clear_session_flags(request):
     keys = ['is_adding_alt', 'is_srp_auth', 'sso_state']

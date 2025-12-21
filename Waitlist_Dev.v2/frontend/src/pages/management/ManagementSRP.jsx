@@ -103,6 +103,24 @@ const ManagementSRP = () => {
 
     if (!status && !summary && loading) return <div className="p-10 text-center text-slate-500"><RefreshCw className="animate-spin inline mr-2"/> Loading Dashboard...</div>;
 
+    // Check for Unconfigured State (No status or summary, and not loading, implying no config)
+    if ((!status || !summary) && !loading && !status?.last_sync) {
+        return (
+            <div className="flex flex-col items-center justify-center p-12 glass-panel border-dashed border-2 border-white/10 text-center">
+                <div className="bg-brand-500/10 p-4 rounded-full mb-4">
+                    <DollarSign size={48} className="text-brand-500" />
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-2">SRP Not Configured</h2>
+                <p className="text-slate-400 max-w-md mb-6">
+                    The Corporation Wallet source has not been configured yet. Please designate a character to pull wallet data from.
+                </p>
+                <a href="/management/srp/config" className="btn-primary">
+                    Go to Configuration
+                </a>
+            </div>
+        );
+    }
+
     return (
         <div className="flex flex-col gap-6 pb-12">
             {/* HEADER / FILTERS */}
