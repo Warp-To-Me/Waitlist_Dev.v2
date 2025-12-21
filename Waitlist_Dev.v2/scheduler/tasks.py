@@ -1,5 +1,6 @@
 from celery import shared_task
 from django.utils import timezone
+from django.core.cache import cache
 from datetime import timedelta
 from django.db.models import Q
 import logging
@@ -64,22 +65,37 @@ def dispatch_stale_characters():
 def refresh_character_task(char_id, target_endpoints=None, force_refresh=False):
     """
     Refreshes a single character.
+    Includes locking mechanism to prevent concurrent updates for the same character.
     """
-    try:
-        char = EveCharacter.objects.get(character_id=char_id)
-        
-        # Pass force_refresh to manager (which uses call_esi which uses esi.Token)
-        success = update_character_data(char, target_endpoints, force_refresh=force_refresh)
-        
-        if not success:
-            # On failure, bump timestamp slightly to prevent immediate loop, but ensure retry
-            char.last_updated = timezone.now()
-            char.save(update_fields=['last_updated'])
+    # Create a unique lock key for this character
+    lock_id = f"lock_refresh_char_{char_id}"
 
-    except EveCharacter.DoesNotExist:
-        logger.error(f"[Worker] Character ID {char_id} not found.")
-    except Exception as e:
-        logger.error(f"[Worker] Crash on {char_id}: {e}")
+    # Try to acquire the lock (expires in 60s)
+    # cache.add returns True if key was added (lock acquired), False if it already exists
+    if not cache.add(lock_id, "true", timeout=60):
+        # logger.info(f"[Worker] Skipping duplicate update for {char_id} (Locked)")
+        return "Locked"
+
+    try:
+        try:
+            char = EveCharacter.objects.get(character_id=char_id)
+
+            # Pass force_refresh to manager (which uses call_esi which uses esi.Token)
+            success = update_character_data(char, target_endpoints, force_refresh=force_refresh)
+
+            if not success:
+                # On failure, bump timestamp slightly to prevent immediate loop, but ensure retry
+                char.last_updated = timezone.now()
+                char.save(update_fields=['last_updated'])
+
+        except EveCharacter.DoesNotExist:
+            logger.error(f"[Worker] Character ID {char_id} not found.")
+        except Exception as e:
+            logger.error(f"[Worker] Crash on {char_id}: {e}")
+
+    finally:
+        # Always release the lock
+        cache.delete(lock_id)
 
 # --- NEW: SRP WALLET SYNC TASK ---
 @shared_task(bind=True, max_retries=3)
