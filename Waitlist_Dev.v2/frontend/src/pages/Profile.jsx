@@ -149,6 +149,9 @@ const Profile = () => {
     // --- FIX START: Handle case where no active character exists (e.g. all deleted) ---
     const { active_char, characters, esi, service_record, totals, is_inspection_mode, token_missing, scopes_missing, obfuscate_financials } = profile;
 
+    // Destructure is_inspection_mode to ensure it's available in scope if profile is null (handled by loader) but defensive
+    // Actually profile is checked above. This destructuring makes is_inspection_mode available.
+
     if (!active_char) {
         return (
             <div className="flex items-center justify-center min-h-screen">
