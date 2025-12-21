@@ -765,15 +765,15 @@ const Profile = () => {
                                 <div className="flex items-center gap-4 bg-white/5 px-3 py-1.5 rounded-lg border border-white/5 mr-8">
                                     <span className="text-[10px] uppercase font-bold text-slate-500">Toggle All:</span>
                                     <label className="flex items-center gap-1.5 cursor-pointer group" title="Toggle Wallet for All">
-                                        <input type="checkbox" checked={allWallet} onChange={() => handleBulkToggle('wallet', allWallet)} className="checkbox checkbox-xs rounded-sm border-slate-600 bg-black/40 checked:bg-green-500" />
+                                        <input type="checkbox" checked={allWallet} onChange={() => handleBulkToggle('wallet', allWallet)} disabled={is_inspection_mode} className="checkbox checkbox-xs rounded-sm border-slate-600 bg-black/40 checked:bg-green-500 disabled:opacity-30 disabled:cursor-not-allowed" />
                                         <span className="text-xs font-bold text-slate-400 group-hover:text-green-400">ISK</span>
                                     </label>
                                     <label className="flex items-center gap-1.5 cursor-pointer group" title="Toggle LP for All">
-                                        <input type="checkbox" checked={allLP} onChange={() => handleBulkToggle('lp', allLP)} className="checkbox checkbox-xs rounded-sm border-slate-600 bg-black/40 checked:bg-purple-500" />
+                                        <input type="checkbox" checked={allLP} onChange={() => handleBulkToggle('lp', allLP)} disabled={is_inspection_mode} className="checkbox checkbox-xs rounded-sm border-slate-600 bg-black/40 checked:bg-purple-500 disabled:opacity-30 disabled:cursor-not-allowed" />
                                         <span className="text-xs font-bold text-slate-400 group-hover:text-purple-400">LP</span>
                                     </label>
                                     <label className="flex items-center gap-1.5 cursor-pointer group" title="Toggle SP for All">
-                                        <input type="checkbox" checked={allSP} onChange={() => handleBulkToggle('sp', allSP)} className="checkbox checkbox-xs rounded-sm border-slate-600 bg-black/40 checked:bg-brand-500" />
+                                        <input type="checkbox" checked={allSP} onChange={() => handleBulkToggle('sp', allSP)} disabled={is_inspection_mode} className="checkbox checkbox-xs rounded-sm border-slate-600 bg-black/40 checked:bg-brand-500 disabled:opacity-30 disabled:cursor-not-allowed" />
                                         <span className="text-xs font-bold text-slate-400 group-hover:text-brand-400">SP</span>
                                     </label>
                                 </div>
@@ -798,6 +798,7 @@ const Profile = () => {
                                         key={char.character_id}
                                         char={char}
                                         isActive={char.character_id === active_char.character_id}
+                                        isInspection={is_inspection_mode}
                                         isAdmin={profile.is_admin_user}
                                         onToggleXUp={handleToggleXUp}
                                         onMakeMain={handleMakeMain}
@@ -896,7 +897,7 @@ const getActionColor = (action) => {
     }
 }
 
-const PilotDirectoryCard = React.memo(({ char, isActive, isAdmin, onToggleXUp, onMakeMain, onUnlink, onSwitch, onToggleAggregate }) => (
+const PilotDirectoryCard = React.memo(({ char, isActive, isInspection, isAdmin, onToggleXUp, onMakeMain, onUnlink, onSwitch, onToggleAggregate }) => (
     <div className="relative group flex flex-col p-3 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 transition">
         {/* Hover Overlay Buttons */}
         
@@ -904,8 +905,10 @@ const PilotDirectoryCard = React.memo(({ char, isActive, isAdmin, onToggleXUp, o
         <div className="absolute -top-2 -left-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
             <button 
                 onClick={(e) => { e.stopPropagation(); onToggleXUp(char.character_id); }}
+                disabled={isInspection}
                 className={clsx(
                     "w-8 h-8 rounded-full flex items-center justify-center shadow-lg border transition transform hover:scale-110",
+                    isInspection ? "opacity-30 cursor-not-allowed" : "",
                     char.x_up_visible ? "bg-brand-500 text-white border-brand-400" : "bg-slate-800 text-slate-500 border-slate-600 hover:bg-slate-700 hover:text-slate-300"
                 )}
                 title={char.x_up_visible ? "Visible in X-Up" : "Hidden from X-Up"}
@@ -918,9 +921,10 @@ const PilotDirectoryCard = React.memo(({ char, isActive, isAdmin, onToggleXUp, o
         <div className="absolute -top-2 -right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
             <button 
                 onClick={(e) => { e.stopPropagation(); onMakeMain(char.character_id); }}
-                disabled={char.is_main}
+                disabled={char.is_main || isInspection}
                 className={clsx(
                     "w-8 h-8 rounded-full flex items-center justify-center shadow-lg border transition transform",
+                    isInspection ? "opacity-30 cursor-not-allowed" : "",
                     char.is_main ? "bg-brand-500 text-white border-brand-400 cursor-default" : "bg-slate-800 text-slate-500 border-slate-600 hover:bg-slate-700 hover:text-brand-400 hover:scale-110"
                 )}
                 title={char.is_main ? "Current Main" : "Make Main"}
@@ -979,15 +983,15 @@ const PilotDirectoryCard = React.memo(({ char, isActive, isAdmin, onToggleXUp, o
         {/* Toggles Footer */}
         <div className="mt-auto pt-2 border-t border-white/5 flex justify-between items-center px-4">
             <label className="flex items-center gap-1.5 cursor-pointer opacity-70 hover:opacity-100 transition" title="Include Wallet">
-                <input type="checkbox" checked={char.include_wallet} onChange={() => onToggleAggregate(char.character_id, 'wallet', char.include_wallet)} disabled={char.missing_wallet_scope} className="checkbox checkbox-xs rounded-sm border-white/20 bg-black/20 checked:bg-green-500 disabled:opacity-30" />
+                <input type="checkbox" checked={char.include_wallet} onChange={() => onToggleAggregate(char.character_id, 'wallet', char.include_wallet)} disabled={char.missing_wallet_scope || isInspection} className="checkbox checkbox-xs rounded-sm border-white/20 bg-black/20 checked:bg-green-500 disabled:opacity-30 disabled:cursor-not-allowed" />
                 <span className="text-[10px] font-bold text-slate-400">ISK</span>
             </label>
             <label className="flex items-center gap-1.5 cursor-pointer opacity-70 hover:opacity-100 transition" title="Include LP">
-                <input type="checkbox" checked={char.include_lp} onChange={() => onToggleAggregate(char.character_id, 'lp', char.include_lp)} disabled={char.missing_lp_scope} className="checkbox checkbox-xs rounded-sm border-white/20 bg-black/20 checked:bg-purple-500 disabled:opacity-30" />
+                <input type="checkbox" checked={char.include_lp} onChange={() => onToggleAggregate(char.character_id, 'lp', char.include_lp)} disabled={char.missing_lp_scope || isInspection} className="checkbox checkbox-xs rounded-sm border-white/20 bg-black/20 checked:bg-purple-500 disabled:opacity-30 disabled:cursor-not-allowed" />
                 <span className="text-[10px] font-bold text-slate-400">LP</span>
             </label>
             <label className="flex items-center gap-1.5 cursor-pointer opacity-70 hover:opacity-100 transition" title="Include SP">
-                <input type="checkbox" checked={char.include_sp} onChange={() => onToggleAggregate(char.character_id, 'sp', char.include_sp)} disabled={char.missing_sp_scope} className="checkbox checkbox-xs rounded-sm border-white/20 bg-black/20 checked:bg-brand-500 disabled:opacity-30" />
+                <input type="checkbox" checked={char.include_sp} onChange={() => onToggleAggregate(char.character_id, 'sp', char.include_sp)} disabled={char.missing_sp_scope || isInspection} className="checkbox checkbox-xs rounded-sm border-white/20 bg-black/20 checked:bg-brand-500 disabled:opacity-30 disabled:cursor-not-allowed" />
                 <span className="text-[10px] font-bold text-slate-400">SP</span>
             </label>
         </div>
