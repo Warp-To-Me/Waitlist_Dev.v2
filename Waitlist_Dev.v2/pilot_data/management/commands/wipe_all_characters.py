@@ -1,6 +1,7 @@
 from django.core.management.base import BaseCommand
-from django.db import connection, transaction
+from django.db import connection
 from django.core.management import call_command
+import time
 
 class Command(BaseCommand):
     help = 'FACTORY RESET: Wipes ALL database tables and re-runs migrations.'
@@ -27,13 +28,39 @@ class Command(BaseCommand):
 
         self.stdout.write("Initializing Factory Reset...")
 
-        # We use a transaction block where possible, but DDL statements (DROP TABLE)
-        # often cause implicit commits in MySQL, so atomic might not cover everything.
-        # However, we are destroying everything anyway.
-
         with connection.cursor() as cursor:
             if connection.vendor == 'mysql':
                 self.stdout.write("Detected MySQL backend.")
+
+                # 1. Kill other connections to free locks
+                try:
+                    self.stdout.write("Attempting to kill active connections...")
+                    cursor.execute("SELECT DATABASE()")
+                    db_name = cursor.fetchone()[0]
+
+                    cursor.execute(
+                        "SELECT id FROM information_schema.processlist WHERE db = %s AND id != CONNECTION_ID()",
+                        [db_name]
+                    )
+                    processes = cursor.fetchall()
+
+                    if processes:
+                        self.stdout.write(f"Found {len(processes)} active connections. Terminating...")
+                        for (pid,) in processes:
+                            try:
+                                cursor.execute(f"KILL {pid}")
+                            except Exception as e:
+                                self.stdout.write(self.style.WARNING(f"Could not kill process {pid}: {e}"))
+
+                        # Give a moment for connections to close and locks to release
+                        time.sleep(1)
+                    else:
+                        self.stdout.write("No other active connections found.")
+
+                except Exception as e:
+                    self.stdout.write(self.style.WARNING(f"Error checking/killing connections: {e}"))
+
+                # 2. Drop Tables
                 cursor.execute("SET FOREIGN_KEY_CHECKS = 0;")
                 cursor.execute("SHOW TABLES;")
                 tables = cursor.fetchall()
@@ -41,7 +68,13 @@ class Command(BaseCommand):
                 for table in tables:
                     table_name = table[0]
                     self.stdout.write(f" -> Dropping table {table_name}...")
-                    cursor.execute(f"DROP TABLE IF EXISTS `{table_name}`;")
+                    try:
+                        cursor.execute(f"DROP TABLE IF EXISTS `{table_name}`;")
+                    except Exception as e:
+                        # Retry once if lock wait timeout happens (in case KILL didn't clear it fast enough)
+                        self.stdout.write(self.style.WARNING(f"Error dropping {table_name}: {e}. Retrying..."))
+                        time.sleep(2)
+                        cursor.execute(f"DROP TABLE IF EXISTS `{table_name}`;")
 
                 cursor.execute("SET FOREIGN_KEY_CHECKS = 1;")
 
