@@ -128,7 +128,7 @@
     <Compile Include="scriptsbackup\pilot_data\backfill_wallet_categories.py" />
     <Compile Include="scriptsbackup\pilot_data\import_legacy_wallet.py" />
     <Compile Include="pilot_data\management\commands\refresh_all_characters.py" />
-    <Compile Include="scriptsbackup\pilot_data\wipe_all_characters.py" />
+    <Compile Include="pilot_data\management\commands\wipe_all_characters.py" />
     <Compile Include="pilot_data\management\commands\__init__.py" />
     <Compile Include="pilot_data\management\__init__.py" />
     <Compile Include="scheduler\apps.py" />

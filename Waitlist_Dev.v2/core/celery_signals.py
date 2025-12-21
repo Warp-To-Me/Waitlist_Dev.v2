@@ -3,7 +3,7 @@ from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 import logging
 import time
-import asyncio
+import threading
 
 logger = logging.getLogger(__name__)
 
@@ -12,6 +12,17 @@ MONITORED_TASKS = [
     'scheduler.tasks.refresh_character_task',
     'scheduler.tasks.refresh_srp_wallet_task',
 ]
+
+def _threaded_broadcast(channel_layer, payload):
+    """
+    Runs the async broadcast in a separate thread.
+    This avoids conflicts with gevent's monkey-patching or the main worker's asyncio loop state.
+    async_to_sync will create a fresh loop for this thread.
+    """
+    try:
+        async_to_sync(channel_layer.group_send)("system", payload)
+    except Exception as e:
+        logger.error(f"Failed to send celery event: {e}")
 
 # Helper to broadcast
 def broadcast_celery_event(event_type, task_data):
@@ -27,22 +38,14 @@ def broadcast_celery_event(event_type, task_data):
                 }
             }
 
-            # Check if we are already in an event loop (common with gevent/asgi)
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                loop = None
-
-            if loop and loop.is_running():
-                # Schedule the coroutine on the existing loop
-                loop.create_task(channel_layer.group_send("system", payload))
-            else:
-                # Use standard sync-to-async bridge
-                async_to_sync(channel_layer.group_send)("system", payload)
+            # Run in a separate thread to isolate the asyncio environment
+            t = threading.Thread(target=_threaded_broadcast, args=(channel_layer, payload))
+            t.daemon = True # Don't block shutdown
+            t.start()
 
     except Exception as e:
         # Don't crash the task if websocket fails
-        logger.error(f"Failed to broadcast celery event: {e}")
+        logger.error(f"Failed to initiate broadcast thread: {e}")
 
 @task_prerun.connect
 def on_task_prerun(sender=None, task_id=None, task=None, args=None, kwargs=None, **opts):
