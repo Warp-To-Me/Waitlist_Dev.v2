@@ -144,7 +144,23 @@ const Profile = () => {
     );
     if (!profile) return null;
 
+    // --- FIX START: Handle case where no active character exists (e.g. all deleted) ---
     const { active_char, characters, esi, service_record, totals, is_inspection_mode, token_missing, scopes_missing, obfuscate_financials } = profile;
+
+    if (!active_char) {
+        return (
+            <div className="flex items-center justify-center min-h-screen">
+                <div className="glass-panel p-8 text-center max-w-md">
+                    <h2 className="text-xl font-bold text-white mb-4">No Characters Found</h2>
+                    <p className="text-slate-400 mb-6">You don't have any characters linked to this account.</p>
+                    <a href="/auth/add_alt" className="btn-primary inline-flex items-center gap-2">
+                        <Plus size={16} /> Link Character
+                    </a>
+                </div>
+            </div>
+        );
+    }
+    // --- FIX END ---
 
     const handleToggleAggregate = async (setting, currentValue) => {
         if (is_inspection_mode) return;
@@ -193,9 +209,20 @@ const Profile = () => {
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
                 body: JSON.stringify({ character_id: charId })
             });
+
             if (res.ok) {
-                dispatch(fetchProfileData());
-                refreshUser(); // Global auth state might change
+                const data = await res.json();
+
+                // If backend tells us we switched active chars (because we deleted the active one)
+                if (data.new_active_id) {
+                    await refreshUser(); // Update global auth context
+                    // Force re-fetch for the new active ID if necessary, or just generic fetch
+                    dispatch(fetchProfileData());
+                } else {
+                    // Standard update
+                    dispatch(fetchProfileData());
+                    refreshUser();
+                }
             }
         } catch (error) {
             console.error(error);
