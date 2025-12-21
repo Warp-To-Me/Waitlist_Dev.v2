@@ -144,7 +144,23 @@ const Profile = () => {
     );
     if (!profile) return null;
 
+    // --- FIX START: Handle case where no active character exists (e.g. all deleted) ---
     const { active_char, characters, esi, service_record, totals, is_inspection_mode, token_missing, scopes_missing, obfuscate_financials } = profile;
+
+    if (!active_char) {
+        return (
+            <div className="flex items-center justify-center min-h-screen">
+                <div className="glass-panel p-8 text-center max-w-md">
+                    <h2 className="text-xl font-bold text-white mb-4">No Characters Found</h2>
+                    <p className="text-slate-400 mb-6">You don't have any characters linked to this account.</p>
+                    <a href="/auth/add_alt" className="btn-primary inline-flex items-center gap-2">
+                        <Plus size={16} /> Link Character
+                    </a>
+                </div>
+            </div>
+        );
+    }
+    // --- FIX END ---
 
     const handleToggleAggregate = async (setting, currentValue) => {
         if (is_inspection_mode) return;
@@ -193,9 +209,20 @@ const Profile = () => {
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
                 body: JSON.stringify({ character_id: charId })
             });
+            
             if (res.ok) {
-                dispatch(fetchProfileData());
-                refreshUser(); // Global auth state might change
+                const data = await res.json();
+                
+                // If backend tells us we switched active chars (because we deleted the active one)
+                if (data.new_active_id) {
+                    await refreshUser(); // Update global auth context
+                    // Force re-fetch for the new active ID if necessary, or just generic fetch
+                    dispatch(fetchProfileData()); 
+                } else {
+                    // Standard update
+                    dispatch(fetchProfileData());
+                    refreshUser();
+                }
             }
         } catch (error) {
             console.error(error);
@@ -319,7 +346,7 @@ const Profile = () => {
                                         <div className="text-xs font-bold text-slate-400 group-hover:text-white truncate max-w-[80px]">{char.character_name}</div>
                                     </button>
                                 ))}
-                                {characters.length > 5 && (
+                                {characters.length > 1 && (
                                     <button onClick={() => setPilotModalOpen(true)} className="ml-auto btn-secondary text-[10px] px-2 py-1 h-8 border-white/10 hover:border-white/30 text-slate-400 hover:text-white flex items-center gap-1">
                                         <Search size={12} /> All Pilots
                                     </button>
@@ -329,7 +356,7 @@ const Profile = () => {
                     </div>
 
                     {/* Right: Account Totals */}
-                    <div className="w-full lg:w-80 flex-shrink-0 p-6 bg-black/20 flex flex-col justify-center border-t lg:border-t-0 border-white/5">
+                    <div className="w-full lg:w-96 flex-shrink-0 p-6 bg-black/20 flex flex-col justify-center border-t lg:border-t-0 border-white/5">
                         <h3 className="label-text mb-4 pb-2 border-b border-white/5 flex items-center gap-2">
                             <span>📊</span> Account Aggregate
                         </h3>
@@ -448,7 +475,7 @@ const Profile = () => {
                         </div>
 
                         {/* Right: Implants */}
-                        <div className="p-4 lg:w-72 bg-black/20 flex flex-col border-l border-white/5">
+                        <div className="p-6 lg:w-96 bg-black/20 flex flex-col border-l border-white/5">
                             <div className="flex justify-between items-center mb-3">
                                 <h3 className="label-text mb-0 flex items-center gap-2">🧠 Implants</h3>
                                 <span className="text-[10px] text-slate-500">{esi.implants.length} Active</span>

@@ -4,8 +4,25 @@ from asgiref.sync import async_to_sync
 import logging
 import time
 import threading
+import sys
 
 logger = logging.getLogger(__name__)
+
+# --- GEVENT COMPATIBILITY FIX ---
+# If gevent is monkey-patching, threading.Thread becomes a Greenlet (same thread).
+# async_to_sync requires a clean thread without a running loop.
+# We fetch the original OS Thread class to spawn a real thread for the broadcast.
+try:
+    if 'gevent' in sys.modules:
+        from gevent import monkey
+        if monkey.is_module_patched('threading'):
+            Thread = monkey.get_original('threading', 'Thread')
+        else:
+            Thread = threading.Thread
+    else:
+        Thread = threading.Thread
+except ImportError:
+    Thread = threading.Thread
 
 # Whitelist of tasks to broadcast to the UI
 MONITORED_TASKS = [
@@ -38,8 +55,8 @@ def broadcast_celery_event(event_type, task_data):
                 }
             }
 
-            # Run in a separate thread to isolate the asyncio environment
-            t = threading.Thread(target=_threaded_broadcast, args=(channel_layer, payload))
+            # Run in a separate (real) thread to isolate the asyncio environment
+            t = Thread(target=_threaded_broadcast, args=(channel_layer, payload))
             t.daemon = True # Don't block shutdown
             t.start()
 

@@ -199,8 +199,8 @@ def profile_view(request):
     return Response({
         'active_char': active_char_data,
         'characters': chars_data,
-        'esi': esi_data, # Assuming this is JSON serializable dict
-        'grouped_skills': grouped_skills, # Assuming JSON serializable
+        'esi': esi_data or {}, 
+        'grouped_skills': grouped_skills or {}, 
         'service_record': service_record,
         'token_missing': token_missing,
         'scopes_missing': scopes_missing,
@@ -339,9 +339,29 @@ def api_unlink_character(request):
 
     character = get_object_or_404(EveCharacter, character_id=char_id, user=request.user)
     
-    # Prevent removing main character if it's the only one, or force new main assignment?
-    # Logic: Delete the character. If it was main, user has no main until they switch.
-    # Frontend handles switching active char if current is deleted.
+    was_main = character.is_main
+    deleted_id = character.character_id
     
+    # 1. Delete
     character.delete()
-    return Response({'success': True, 'character_id': char_id})
+    
+    # 2. Handle Session State if we just deleted the active character
+    active_char_id = request.session.get('active_char_id')
+    new_active_id = None
+    
+    if active_char_id == deleted_id:
+        # We must pick a new active character
+        remaining = request.user.characters.all().order_by('-is_main', '-created_at').first()
+        if remaining:
+            new_active_id = remaining.character_id
+            request.session['active_char_id'] = new_active_id
+            
+            # If we deleted the main, promote the new active one
+            if was_main:
+                remaining.is_main = True
+                remaining.save(update_fields=['is_main'])
+        else:
+            # No characters left!
+            del request.session['active_char_id']
+            
+    return Response({'success': True, 'character_id': deleted_id, 'new_active_id': new_active_id})

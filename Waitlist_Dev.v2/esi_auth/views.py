@@ -69,7 +69,14 @@ def auth_login_options(request):
             })
             
         base_options = []
-        for scope in base_scopes:
+        # Copy base_scopes to avoid mutating the original setting list in memory if it was mutable (though split() creates new)
+        current_base_scopes = list(base_scopes)
+        
+        # If SRP Config/Auth mode, treat SRP scopes as Base (Required) scopes
+        if mode == 'srp_config' or mode == 'srp_auth':
+             current_base_scopes.extend(srp_scopes)
+
+        for scope in current_base_scopes:
              meta = settings.SCOPE_DESCRIPTIONS.get(scope, {'label': scope, 'description': ''})
              base_options.append({
                 'scope': scope,
@@ -114,7 +121,7 @@ def auth_login_options(request):
                 return HttpResponse("Authentication required to add alt", status=403)
             request.session['is_adding_alt'] = True
         
-        elif mode == 'srp_auth':
+        elif mode == 'srp_auth' or mode == 'srp_config':
             if not request.user.is_authenticated or not can_manage_srp(request.user):
                  return HttpResponse("Permission denied for SRP auth", status=403)
             request.session['is_adding_alt'] = True
@@ -130,7 +137,7 @@ def auth_login_options(request):
                 final_scopes.add(s)
 
         # If SRP Auth mode, enforce SRP scopes
-        if mode == 'srp_auth':
+        if mode == 'srp_auth' or mode == 'srp_config':
              for s in srp_scopes:
                  final_scopes.add(s)
         
@@ -174,6 +181,11 @@ def srp_auth(request):
     request.session['is_adding_alt'] = True
     request.session['is_srp_auth'] = True
     return _start_sso_flow(request)
+
+@login_required
+@user_passes_test(can_manage_srp)
+def srp_config(request):
+    return srp_auth(request)
 
 def _clear_session_flags(request):
     keys = ['is_adding_alt', 'is_srp_auth', 'sso_state']
@@ -242,15 +254,33 @@ def sso_callback(request):
         esi_token.save()
         
         # Link/Update EveCharacter
+        
+        # NEW SCOPES: Get from the token we just created
+        new_scopes = set(s.name for s in esi_token.scopes.all())
+        
+        # Check for existing character
+        existing_char = EveCharacter.objects.filter(character_id=esi_token.character_id).first()
+        
+        final_scopes_str = ""
+        if existing_char and existing_char.granted_scopes:
+            # Merge existing scopes with new ones
+            existing_scopes = set(existing_char.granted_scopes.split())
+            merged_scopes = existing_scopes.union(new_scopes)
+            final_scopes_str = " ".join(merged_scopes)
+        else:
+            final_scopes_str = " ".join(new_scopes)
+
         defaults = {
             'user': user,
             'character_name': esi_token.character_name,
-            # We keep granted_scopes string for easy query filtering in legacy code
-            'granted_scopes': " ".join([s.name for s in esi_token.scopes.all()])
+            'granted_scopes': final_scopes_str
         }
 
-        if user.characters.filter(is_main=True).exclude(character_id=esi_token.character_id).exists():
-            defaults['is_main'] = False
+        # If adding a new char and there's already a main, this is NOT main.
+        # If updating existing, preserve 'is_main'.
+        if not existing_char:
+            if user.characters.filter(is_main=True).exclude(character_id=esi_token.character_id).exists():
+                defaults['is_main'] = False
 
         target_char, created = EveCharacter.objects.update_or_create(
             character_id=esi_token.character_id,
@@ -277,8 +307,12 @@ def sso_callback(request):
                 esi_token.user = user
                 esi_token.save()
                 
-            # Update scopes cache
-            target_char.granted_scopes = " ".join([s.name for s in esi_token.scopes.all()])
+            # Merge scopes logic for Login too (if re-logging in with more scopes)
+            new_scopes = set(s.name for s in esi_token.scopes.all())
+            existing_scopes = set(target_char.granted_scopes.split()) if target_char.granted_scopes else set()
+            merged_scopes = existing_scopes.union(new_scopes)
+            
+            target_char.granted_scopes = " ".join(merged_scopes)
             target_char.save()
             
         else:

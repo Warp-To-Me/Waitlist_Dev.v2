@@ -3,6 +3,7 @@ from django.utils import timezone
 from django.core.cache import cache
 from datetime import timedelta
 from django.db.models import Q
+from django.db import transaction, close_old_connections # Added imports
 import logging
 
 # Models
@@ -18,6 +19,9 @@ logger = logging.getLogger(__name__)
 # ----------------------------------------------------------------------
 @shared_task
 def dispatch_stale_characters():
+    # Ensure clean DB connection for the dispatcher
+    close_old_connections()
+    
     now = timezone.now()
     tasks_queued = 0
     processed_ids = set() # Track characters we have already queued
@@ -67,6 +71,9 @@ def refresh_character_task(char_id, target_endpoints=None, force_refresh=False):
     Refreshes a single character.
     Includes locking mechanism to prevent concurrent updates for the same character.
     """
+    # FIX: Clean up potential stale connections from previous tasks in this worker process
+    close_old_connections()
+
     # Create a unique lock key for this character
     lock_id = f"lock_refresh_char_{char_id}"
     
@@ -77,25 +84,33 @@ def refresh_character_task(char_id, target_endpoints=None, force_refresh=False):
         return "Locked"
 
     try:
-        try:
-            char = EveCharacter.objects.get(character_id=char_id)
-            
+        # FIX: Wrap in atomic transaction to ensure data integrity and prevent
+        # "TransactionManagementError" if a sub-operation fails.
+        with transaction.atomic():
+            try:
+                char = EveCharacter.objects.select_for_update().get(character_id=char_id)
+            except EveCharacter.DoesNotExist:
+                logger.error(f"[Worker] Character ID {char_id} not found.")
+                return "Not Found"
+
             # Pass force_refresh to manager (which uses call_esi which uses esi.Token)
             success = update_character_data(char, target_endpoints, force_refresh=force_refresh)
             
             if not success:
                 # On failure, bump timestamp slightly to prevent immediate loop, but ensure retry
+                # We need to refresh the object from DB or just update the field to avoid overwriting parallelism
+                # But since we have select_for_update, we are safe.
                 char.last_updated = timezone.now()
                 char.save(update_fields=['last_updated'])
 
-        except EveCharacter.DoesNotExist:
-            logger.error(f"[Worker] Character ID {char_id} not found.")
-        except Exception as e:
-            logger.error(f"[Worker] Crash on {char_id}: {e}")
+    except Exception as e:
+        logger.error(f"[Worker] Crash on {char_id}: {e}")
             
     finally:
         # Always release the lock
         cache.delete(lock_id)
+        # Close connection again to be safe
+        close_old_connections()
 
 # --- NEW: SRP WALLET SYNC TASK ---
 @shared_task(bind=True, max_retries=3)
@@ -104,6 +119,7 @@ def refresh_srp_wallet_task(self):
     Background task to sync Corporation Wallet Journal.
     Runs hourly via Beat or manually via Button.
     """
+    close_old_connections()
     try:
         config = SRPConfiguration.objects.first()
         if not config or not config.is_active:
@@ -126,3 +142,5 @@ def refresh_srp_wallet_task(self):
         logger.error(f"[SRP] Critical Error: {str(e)}")
         # Raise to let Celery know it failed
         raise e
+    finally:
+        close_old_connections()
