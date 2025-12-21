@@ -187,6 +187,19 @@ CELERY_TIMEZONE = "UTC"
 # 3. Connection Retry (Required for newer Celery versions)
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
+# 4. Transport Options (Stability Fixes)
+# socket_keepalive: Helps maintain connection to remote Redis (e.g. cloud) through firewalls/NAT.
+# health_check_interval: Periodically ping Redis to ensure connection is alive.
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    'socket_keepalive': True,
+    'health_check_interval': 10,
+}
+
+# 5. Pending Deprecation Handling
+# Explicitly set behavior for tasks on connection loss to silence warning.
+# False = Old behavior (Tasks may be lost or doubled, but no auto-cancel).
+CELERY_WORKER_CANCEL_LONG_RUNNING_TASKS_ON_CONNECTION_LOSS = False
+
 # --- CHANNEL LAYERS (Redis Config) ---
 # We reuse the CELERY_BROKER_URL for Channels to keep config DRY.
 # This ensures WebSockets work across multiple worker processes.
@@ -201,7 +214,7 @@ CHANNEL_LAYERS = {
     },
 }
 
-# 4. Beat Schedule (Replaces APScheduler)
+# 6. Beat Schedule (Replaces APScheduler)
 from celery.schedules import crontab
 
 # Run every 1 minute
@@ -224,7 +237,7 @@ CELERY_BEAT_SCHEDULE = {
     },
 }
 
-# 5. SAFETY & RATE LIMITS
+# 7. SAFETY & RATE LIMITS
 # This limits the worker to only grabbing 1 task at a time, preventing it from hoarding tasks if ESI is slow.
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 
