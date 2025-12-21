@@ -225,13 +225,18 @@ const Profile = () => {
                 
                 // If backend tells us we switched active chars (because we deleted the active one)
                 if (data.new_active_id) {
-                    await refreshUser(); // Update global auth context
+                    if (!profile.is_inspection_mode) {
+                        await refreshUser(); // Update global auth context only if it's our own profile
+                    }
                     // Force re-fetch for the new active ID if necessary, or just generic fetch
-                    dispatch(fetchProfileData()); 
+                    // Pass current inspected user ID to remain on that profile
+                    dispatch(fetchProfileData({ userId: inspectUserId }));
                 } else {
                     // Standard update
-                    dispatch(fetchProfileData());
-                    refreshUser();
+                    dispatch(fetchProfileData({ userId: inspectUserId }));
+                    if (!profile.is_inspection_mode) {
+                        refreshUser();
+                    }
                 }
             }
         } catch (error) {
