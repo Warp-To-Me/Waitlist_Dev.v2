@@ -2,11 +2,12 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 from django.db import transaction
 from pilot_data.models import CorpWalletJournal, EveCharacter, SRPConfiguration
+from esi_calls.wallet_service import determine_auto_category
 import datetime
 import os
 
 class Command(BaseCommand):
-    help = 'Imports legacy wallet history from SQL dump'
+    help = 'Imports legacy wallet history from SQL dump (Format: id, entry_id, amount, balance, ...)'
 
     def add_arguments(self, parser):
         parser.add_argument('file_path', type=str, help='Path to the SQL file')
@@ -60,19 +61,35 @@ class Command(BaseCommand):
             with transaction.atomic():
                 for i, parts in enumerate(rows):
                     try:
-                        # Filter out header rows or malformed lines
-                        # Basic heuristic: 1st col should be a number (ID)
-                        if not parts[0].replace("'", "").replace("`", "").isdigit():
-                            continue
+                        # Schema Mapping based on provided SQL:
+                        # 0: id (local)
+                        # 1: entry_id
+                        # 2: amount
+                        # 3: balance
+                        # 4: context_id
+                        # 5: context_id_type
+                        # 6: date
+                        # 7: description
+                        # 8: first_party_id
+                        # 9: second_party_id
+                        # 10: reason
+                        # 11: ref_type
+                        # 12: tax
+                        # 13: division
+                        # 14: first_party_name
+                        # 15: second_party_name
+                        # 16: config_id
+                        # 17: custom_category
 
-                        # Ensure we have enough columns (legacy format expected ~17 cols)
-                        if len(parts) < 17:
-                            continue
+                        if len(parts) < 18:
+                            # Try to be lenient if optional cols at end are missing, but warn if strict
+                            if len(parts) < 14:
+                                continue
 
-                        entry_id = int(parts[0])
-                        division = safe_val(parts[2], int, 1)
+                        entry_id = int(parts[1]) # Index 1 is ESI Entry ID
+                        division = safe_val(parts[13], int, 1) # Index 13
 
-                        # Check if exists (Performance: could batch this check too, but logic simpler this way for updates)
+                        # Check if exists
                         existing = CorpWalletJournal.objects.filter(entry_id=entry_id).first()
 
                         if existing:
@@ -84,35 +101,57 @@ class Command(BaseCommand):
                             skipped += 1
                             continue
 
-                        # Parse Date
-                        date_str = parts[3]
+                        # Parse Date (Index 6)
+                        date_str = parts[6]
                         try:
-                            # Try standard SQL format
-                            entry_date = datetime.datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+                            # Try standard SQL format: '2025-12-17 03:18:59.000000'
+                            # remove microseconds if causing issues or use flexible parser
+                            if '.' in date_str:
+                                dt_part, _ = date_str.split('.')
+                            else:
+                                dt_part = date_str
+
+                            entry_date = datetime.datetime.strptime(dt_part, '%Y-%m-%d %H:%M:%S')
                             entry_date = timezone.make_aware(entry_date)
                         except (ValueError, TypeError):
                             entry_date = timezone.now()
 
-                        first_party_id = safe_val(parts[5], int, 0)
-                        first_party_name = parts[6] if parts[6] != 'NULL' else ''
+                        first_party_id = safe_val(parts[8], int, 0)
+                        second_party_id = safe_val(parts[9], int, 0)
 
-                        description = parts[16] if parts[16] != 'NULL' else ''
-                        reason = parts[11] if parts[11] != 'NULL' else ''
+                        amount = safe_val(parts[2], float, 0.0)
+                        reason = parts[10] if parts[10] != 'NULL' else ''
+                        ref_type = parts[11] if parts[11] != 'NULL' else ''
+
+                        # Handle Custom Category
+                        # If the SQL has it (Index 17), use it. If 'NULL', try to calculate it.
+                        custom_cat = None
+                        if len(parts) > 17 and parts[17] != 'NULL':
+                            custom_cat = parts[17]
+
+                        if not custom_cat:
+                             custom_cat = determine_auto_category(
+                                 amount, reason, first_party_id, second_party_id,
+                                 default_config.character.corporation_id, ref_type
+                             )
 
                         entry = CorpWalletJournal(
                             entry_id=entry_id,
-                            amount=safe_val(parts[9], float, 0.0),
-                            balance=safe_val(parts[10], float, 0.0),
-                            description=description,
-                            reason=reason,
-                            ref_type=parts[4],
+                            amount=amount,
+                            balance=safe_val(parts[3], float, 0.0),
+                            context_id=safe_val(parts[4], int, 0),
+                            context_id_type=parts[5] if parts[5] != 'NULL' else '',
                             date=entry_date,
+                            description=parts[7] if parts[7] != 'NULL' else '',
                             first_party_id=first_party_id,
-                            first_party_name=first_party_name,
-                            second_party_id=safe_val(parts[7], int, 0),
-                            second_party_name=parts[8] if parts[8] != 'NULL' else '',
-                            tax=safe_val(parts[13], float, 0.0),
+                            second_party_id=second_party_id,
+                            reason=reason,
+                            ref_type=ref_type,
+                            tax=safe_val(parts[12], float, 0.0),
                             division=division,
+                            first_party_name=parts[14] if parts[14] != 'NULL' else '',
+                            second_party_name=parts[15] if parts[15] != 'NULL' else '',
+                            custom_category=custom_cat,
                             config=default_config
                         )
                         batch.append(entry)
@@ -124,6 +163,7 @@ class Command(BaseCommand):
                             self.stdout.write(f'Processed {count} entries...')
 
                     except Exception as e:
+                        # self.stdout.write(f"Row Error: {e}")
                         skipped += 1
                         continue
 
@@ -144,7 +184,6 @@ class Command(BaseCommand):
     def parse_sql_inserts(self, content):
         """
         Parses SQL content looking for INSERT INTO ... VALUES (...) tuples.
-        Handles escaped quotes and multiple INSERT statements.
         Yields a list of values for each valid row found.
         """
         length = len(content)
@@ -177,7 +216,6 @@ class Command(BaseCommand):
                     quote_char = char
                 elif char == ',' and not escaped:
                     val = "".join(current_val).strip()
-                    # Strip quoting from value if present (basic cleanup)
                     if len(val) >= 2 and val[0] == val[-1] and val[0] in ("'", '"'):
                         val = val[1:-1]
                     current_row.append(val)
