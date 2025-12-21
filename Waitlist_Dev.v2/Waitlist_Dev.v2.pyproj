@@ -25,6 +25,7 @@
     <Compile Include="core\admin.py" />
     <Compile Include="core\api_utils.py" />
     <Compile Include="core\apps.py" />
+    <Compile Include="core\celery_signals.py" />
     <Compile Include="core\command_data.py" />
     <Compile Include="core\consumers.py" />
     <Compile Include="core\context_processors.py" />

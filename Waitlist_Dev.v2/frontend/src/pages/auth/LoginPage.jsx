@@ -30,18 +30,22 @@ const LoginPage = () => {
     };
 
     useEffect(() => {
-        fetch('/auth/login-options/')
+        const fetchUrl = mode ? `/auth/login-options/?mode=${mode}` : '/auth/login-options/';
+        fetch(fetchUrl)
             .then(res => res.json())
             .then(data => {
                 setBaseScopes(data.base_scopes || []);
                 setOptionalScopes(data.optional_scopes || []);
+                if (data.preselected_scopes) {
+                    setSelectedScopes(new Set(data.preselected_scopes));
+                }
                 setLoading(false);
             })
             .catch(err => {
                 console.error("Failed to load scopes", err);
                 setLoading(false);
             });
-    }, []);
+    }, [mode]);
 
     const handleLogin = (useCustom) => {
         setRedirecting(true);
