@@ -52,7 +52,8 @@ def _process_category_icons(category):
 
 def _determine_slot(item_type):
     if not item_type: return 'cargo'
-    effects = set(TypeEffect.objects.filter(item=item_type).values_list('effect_id', flat=True))
+    # Use ID directly to ensure robust lookup in case of detached objects
+    effects = set(TypeEffect.objects.filter(item_id=item_type.type_id).values_list('effect_id', flat=True))
     if 12 in effects: return 'high'
     if 13 in effects: return 'mid'
     if 11 in effects: return 'low'
