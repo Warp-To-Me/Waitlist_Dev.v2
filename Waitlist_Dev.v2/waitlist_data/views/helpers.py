@@ -5,7 +5,10 @@ from waitlist_data.models import FleetActivity, FitModule, DoctrineCategory, Wai
 from pilot_data.models import ItemType, TypeEffect
 from waitlist_data.stats import calculate_pilot_stats
 from core.eft_parser import EFTParser
+import logging
 from waitlist_data.fitting_service import SmartFitMatcher
+
+logger = logging.getLogger(__name__)
 
 def _log_fleet_action(fleet, character, action, actor=None, ship_type=None, details="", eft_text=None):
     hull_name = ""
@@ -52,31 +55,20 @@ def _process_category_icons(category):
 
 def _determine_slot(item_type):
     if not item_type: return 'cargo'
-    # Use ID directly to ensure robust lookup in case of detached objects
-    effects = set(TypeEffect.objects.filter(item_id=item_type.type_id).values_list('effect_id', flat=True))
+
+    # Use object filtering to be safer against type mismatches in different contexts
+    effects = set(TypeEffect.objects.filter(item=item_type).values_list('effect_id', flat=True))
+
+    # Debug Logging to catch cases where SDE lookup fails in Web Context
+    if not effects:
+        logger.warning(f"Slot Determination - Item: {item_type.type_name} (ID: {item_type.type_id}) - Effects: {effects}")
+
     if 12 in effects: return 'high'
     if 13 in effects: return 'mid'
     if 11 in effects: return 'low'
     if 2663 in effects: return 'rig'
 
-    # Fallback Mechanism: Use Group IDs if TypeEffect lookup failed
-    # This prevents items defaulting to cargo if the SDE effect table is incomplete or context is detached
     try:
-        if item_type.group_id:
-            gid = item_type.group_id
-            # High Slots (Turrets, Launchers, Remote Reps, etc.)
-            if gid in [53, 55, 74, 54, 56, 506, 507, 508, 509, 510, 511, 512, 524, 771, 862, 1245, 1673, 1674, 325, 41, 67, 1697, 1698, 485]:
-                return 'high'
-            # Mid Slots (Shields, Prop, Ewar, Cap)
-            if gid in [40, 1156, 77, 1700, 43, 61, 76, 46, 475, 1189, 213, 209]:
-                return 'mid'
-            # Low Slots (Armor, Hull, Weapon Upgrades)
-            if gid in [60, 328, 1699, 62, 1199, 59, 205, 302, 367, 211, 767, 768, 769]:
-                return 'low'
-            # Rigs
-            if gid in [775, 776, 777]:
-                return 'rig'
-
         if item_type.group:
             cat_id = item_type.group.category_id
             if cat_id == 32: return 'subsystem'
