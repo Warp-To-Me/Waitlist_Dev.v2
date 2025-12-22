@@ -6,6 +6,7 @@ from django.views.decorators.http import require_POST
 from django.http import JsonResponse
 from django.utils import timezone
 from django.db.models import Sum, Q
+from django.db import transaction
 from django.conf import settings
 from itertools import chain 
 from rest_framework.decorators import api_view, permission_classes
@@ -343,31 +344,33 @@ def api_unlink_character(request):
     if not char_id:
         return Response({'success': False, 'error': 'Character ID required'}, status=400)
 
-    character = get_object_or_404(EveCharacter, character_id=char_id, user=request.user)
-    
-    was_main = character.is_main
-    deleted_id = character.character_id
-    
-    # 1. Delete
-    character.delete()
-    
-    # 2. Handle Session State if we just deleted the active character
-    active_char_id = request.session.get('active_char_id')
-    new_active_id = None
-    
-    if active_char_id == deleted_id:
-        # We must pick a new active character
-        remaining = request.user.characters.all().order_by('-is_main', '-created_at').first()
-        if remaining:
-            new_active_id = remaining.character_id
-            request.session['active_char_id'] = new_active_id
-            
-            # If we deleted the main, promote the new active one
-            if was_main:
-                remaining.is_main = True
-                remaining.save(update_fields=['is_main'])
-        else:
-            # No characters left!
-            del request.session['active_char_id']
+    with transaction.atomic():
+        # Acquire lock to prevent deadlock with background tasks
+        character = get_object_or_404(EveCharacter.objects.select_for_update(), character_id=char_id, user=request.user)
+        
+        was_main = character.is_main
+        deleted_id = character.character_id
+        
+        # 1. Delete
+        character.delete()
+        
+        # 2. Handle Session State if we just deleted the active character
+        active_char_id = request.session.get('active_char_id')
+        new_active_id = None
+        
+        if active_char_id == deleted_id:
+            # We must pick a new active character
+            remaining = request.user.characters.all().order_by('-is_main', '-created_at').first()
+            if remaining:
+                new_active_id = remaining.character_id
+                request.session['active_char_id'] = new_active_id
+                
+                # If we deleted the main, promote the new active one
+                if was_main:
+                    remaining.is_main = True
+                    remaining.save(update_fields=['is_main'])
+            else:
+                # No characters left!
+                del request.session['active_char_id']
             
     return Response({'success': True, 'character_id': deleted_id, 'new_active_id': new_active_id})

@@ -5,6 +5,7 @@ import { RefreshCw, Search, X, LogIn, AlertTriangle, ShieldAlert, Plus, Check, M
 import clsx from 'clsx';
 import { useAuth } from '../context/AuthContext';
 import { fetchProfileData, selectProfileData, selectProfileStatus, optimisticToggleAggregate, optimisticBulkToggleAggregate } from '../store/slices/profileSlice';
+import { selectHasCapability } from '../store/slices/authSlice';
 
 const Profile = () => {
     const dispatch = useDispatch();
@@ -12,6 +13,7 @@ const Profile = () => {
     const inspectUserId = searchParams.get('user_id');
 
     const profile = useSelector(selectProfileData);
+    const isAdmin = useSelector(selectHasCapability('access_admin'));
     const status = useSelector(selectProfileStatus);
     const loading = status === 'loading' && !profile; // Show full loader only if no data
     
@@ -147,6 +149,9 @@ const Profile = () => {
     // --- FIX START: Handle case where no active character exists (e.g. all deleted) ---
     const { active_char, characters, esi, service_record, totals, is_inspection_mode, token_missing, scopes_missing, obfuscate_financials } = profile;
 
+    // Destructure is_inspection_mode to ensure it's available in scope if profile is null (handled by loader) but defensive
+    // Actually profile is checked above. This destructuring makes is_inspection_mode available.
+    
     if (!active_char) {
         return (
             <div className="flex items-center justify-center min-h-screen">
@@ -208,7 +213,8 @@ const Profile = () => {
     const handleUnlinkChar = async (charId) => {
         if (!window.confirm("Are you sure you want to remove this character from the account?")) return;
         try {
-            const res = await fetch('/api/profile/unlink/', {
+            const endpoint = profile.is_inspection_mode ? '/api/mgmt/unlink_alt/' : '/api/profile/unlink/';
+            const res = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
                 body: JSON.stringify({ character_id: charId })
@@ -799,7 +805,7 @@ const Profile = () => {
                                         char={char}
                                         isActive={char.character_id === active_char.character_id}
                                         isInspection={is_inspection_mode}
-                                        isAdmin={profile.is_admin_user}
+                                        isAdmin={isAdmin}
                                         onToggleXUp={handleToggleXUp}
                                         onMakeMain={handleMakeMain}
                                         onUnlink={handleUnlinkChar}
@@ -820,7 +826,7 @@ const Profile = () => {
 // Sub-components for cleaner code
 const CharacterCard = ({ char, isActive, isInspection, onClick }) => (
     <div 
-        onClick={!isActive && !isInspection ? onClick : undefined}
+        onClick={!isActive ? onClick : undefined}
         className={clsx(
             "relative group p-1.5 rounded-xl border flex items-center gap-3 pr-5 min-w-[200px] transition",
             isActive 

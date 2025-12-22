@@ -10,7 +10,7 @@ from django.utils import timezone
 from datetime import timedelta
 from django.views.decorators.http import require_POST
 from django.core.exceptions import ObjectDoesNotExist
-from django.db import models
+from django.db import models, transaction
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -333,10 +333,11 @@ def api_unlink_alt(request):
     char_id = request.data.get('character_id')
     if not char_id: return Response({'success': False, 'error': 'Character ID required'}, status=400)
     
-    char = get_object_or_404(EveCharacter, character_id=char_id)
-    if char.is_main: return Response({'success': False, 'error': 'Cannot unlink a Main Character.'}, status=400)
-    
-    char.delete()
+    with transaction.atomic():
+        char = get_object_or_404(EveCharacter.objects.select_for_update(), character_id=char_id)
+        if char.is_main: return Response({'success': False, 'error': 'Cannot unlink a Main Character.'}, status=400)
+        char.delete()
+        
     return Response({'success': True})
 
 @api_view(['POST'])
