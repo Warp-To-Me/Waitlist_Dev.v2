@@ -26,11 +26,11 @@ SCOPE_DESCRIPTIONS = {
         "label": "Read Loyalty Points",
         "description": "View your Concord LP balance on your profile page. "
     },
-        "esi-characters.read_assets.v1": {
+    "esi-assets.read_assets.v1": {
         "label": "Read Assets",
         "description": "To be used to read abyssal module stats. (Coming soon)."
     },
-    "esi-locations.read_ship_type.v1": {
+    "esi-location.read_ship_type.v1": {
         "label": "Read Ship Type",
         "description": "To be used to your current boarded ship."
     },

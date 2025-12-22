@@ -16,8 +16,6 @@ ROLE_HIERARCHY_DEFAULT = [
     'Admin', 
     'Leadership', 
     'Officer', 
-    'Certified Trainer', 
-    'Training CT',
     'Fleet Commander', 
     'Training FC', 
     'Assault FC', 
@@ -33,7 +31,7 @@ ROLES_ADMIN = ['Admin']
 
 # Define FCs explicitly
 ROLES_FC = [
-    'Admin', 'Leadership', 'Officer', 'Certified Trainer', 'Training CT',
+    'Admin', 'Leadership', 'Officer',
     'Fleet Commander', 'Training FC', 'Assault FC'
 ]
 
