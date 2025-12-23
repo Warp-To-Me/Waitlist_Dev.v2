@@ -25,7 +25,7 @@ const Doctrines = () => {
     const fetchFitDetails = (id) => {
         setModalLoading(true);
         setSelectedFit(null); // Clear previous or show loading state
-        fetch(`/doctrines/api/${id}/`) // Using the endpoint seen in template JS
+        fetch(`/api/doctrines/fit/${id}/`) // Corrected endpoint matching urls.py
             .then(res => res.json())
             .then(data => {
                 setSelectedFit(data);

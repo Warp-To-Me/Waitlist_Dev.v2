@@ -59,6 +59,14 @@ def _determine_slot(item_type):
     # Use object filtering to be safer against type mismatches in different contexts
     effects = set(TypeEffect.objects.filter(item=item_type).values_list('effect_id', flat=True))
 
+    # Retry logic: If no effects found, try refreshing the item from DB
+    if not effects:
+        try:
+            item_type.refresh_from_db()
+            effects = set(TypeEffect.objects.filter(item=item_type).values_list('effect_id', flat=True))
+        except Exception as e:
+            logger.warning(f"Slot Determination Refresh Failed: {e}")
+
     # Debug Logging to catch cases where SDE lookup fails in Web Context
     if not effects:
         logger.warning(f"Slot Determination - Item: {item_type.type_name} (ID: {item_type.type_id}) - Effects: {effects}")
