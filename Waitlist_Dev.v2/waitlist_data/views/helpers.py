@@ -62,10 +62,23 @@ def _determine_slot(item_type):
     # Retry logic: If no effects found, try refreshing the item from DB
     if not effects:
         try:
+            # 1. ORM Refresh
             item_type.refresh_from_db()
             effects = set(TypeEffect.objects.filter(item=item_type).values_list('effect_id', flat=True))
+
+            # 2. Raw SQL Fallback (Bypasses Managers/Cache)
+            if not effects:
+                from django.db import connection
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT effect_id FROM pilot_data_typeeffect WHERE item_id = %s", [item_type.type_id])
+                    rows = cursor.fetchall()
+                    raw_effects = set(r[0] for r in rows)
+                    if raw_effects:
+                        effects = raw_effects
+                        logger.info(f"Slot Determination: ORM failed but Raw SQL found effects for {item_type.type_id}: {effects}")
+
         except Exception as e:
-            logger.warning(f"Slot Determination Refresh Failed: {e}")
+            logger.warning(f"Slot Determination Retry/RawSQL Failed: {e}")
 
     # Debug Logging to catch cases where SDE lookup fails in Web Context
     if not effects:
