@@ -30,6 +30,8 @@
     <Compile Include="core\decorators.py" />
     <Compile Include="core\eft_parser.py" />
     <Compile Include="core\management\commands\cleanup_sim_users.py" />
+    <Compile Include="core\management\commands\setup_project.py" />
+    <Compile Include="pilot_data\management\commands\wipe_all_characters.py" />
     <Compile Include="scriptsbackup\core\migrate_capabilities.py" />
     <Compile Include="scriptsbackup\core\setup_roles.py" />
     <Compile Include="scriptsbackup\core\setup_role_priorities.py" />

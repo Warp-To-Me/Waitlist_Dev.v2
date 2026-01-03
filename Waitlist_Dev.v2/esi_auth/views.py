@@ -36,53 +36,70 @@ def auth_login_options(request):
     POST: Accepts list of requested scopes, validates them, and returns SSO URL.
     """
     
-    # Define Available Scopes
+    # Define Scope Lists
     base_scopes = settings.EVE_SCOPES_BASE.split()
     optional_scopes = settings.EVE_SCOPES_OPTIONAL.split()
     fc_scopes = settings.EVE_SCOPES_FC.split()
     srp_scopes = settings.EVE_SCOPES_SRP.split()
     
-    # Only show FC/SRP scopes if user is authenticated and has permission?
-    # But for initial login, we might want to just show Base + Optional.
-    # If they are adding an alt, we might show more.
-    # For simplicity, we expose Base + Optional to everyone.
-    # Advanced scopes (FC/SRP) are usually handled by specific internal flows or can be added here if needed.
+    # Get Mode from params (POST or GET)
+    mode = request.GET.get('mode') or request.data.get('mode')
     
-    # We will combine Optional + FC into the "Optional" list for the UI, 
-    # but maybe we should flag them. For now, let's just use Base + Optional.
-    # If a user IS an FC, they should probably use the "Login as FC" button or we add FC scopes to optional list.
+    # Logic to determine dynamic required scopes based on mode
+    required_scopes = []
     
-    all_optional = optional_scopes + fc_scopes # Allow users to opt-in to FC scopes if they want
+    # Base is always required
+    required_scopes.extend(base_scopes)
+    
+    # Mode specific requirements
+    if mode == 'srp_auth':
+        required_scopes.extend(srp_scopes)
+    elif mode == 'fc_auth':
+        required_scopes.extend(fc_scopes)
+        
+    # Combine for uniqueness
+    required_scopes = list(set(required_scopes))
+
+    # Determine "Optional" pool
+    # The pool of optional scopes is (Optional) minus any that are already required
+    # FC Scopes are NOT included in optional by default, unless they are already required (which makes no sense)
+    # or explicitly added.
+    # Logic:
+    # - If mode == 'fc_auth', FC scopes are in required_scopes, so they are not optional.
+    # - If mode == 'add_alt', FC scopes are NOT in required_scopes, and should NOT be in optional (as requested).
+    # - If mode == 'srp_auth', FC scopes should NOT be in optional.
+    raw_optional_pool = optional_scopes
     
     if request.method == 'GET':
-        scope_options = []
-        for scope in all_optional:
-            meta = settings.SCOPE_DESCRIPTIONS.get(scope, {'label': scope, 'description': ''})
-            scope_options.append({
-                'scope': scope,
-                'label': meta['label'],
-                'description': meta['description']
-            })
+        resp_optional = []
+        for scope in set(raw_optional_pool):
+            if scope not in required_scopes:
+                meta = settings.SCOPE_DESCRIPTIONS.get(scope, {'label': scope, 'description': ''})
+                resp_optional.append({
+                    'scope': scope,
+                    'label': meta['label'],
+                    'description': meta['description']
+                })
             
-        base_options = []
-        for scope in base_scopes:
+        resp_required = []
+        for scope in required_scopes:
              meta = settings.SCOPE_DESCRIPTIONS.get(scope, {'label': scope, 'description': ''})
-             base_options.append({
+             resp_required.append({
                 'scope': scope,
                 'label': meta['label'],
                 'description': meta['description']
             })
 
         return JsonResponse({
-            'base_scopes': base_options,
-            'optional_scopes': scope_options
+            'required_scopes': resp_required,
+            'optional_scopes': resp_optional,
+            'mode': mode
         })
 
     if request.method == 'POST':
         data = request.data
         requested_custom = data.get('scopes', [])
-        mode = data.get('mode', None)
-
+        
         # Set session flags based on mode
         _clear_session_flags(request)
         if mode == 'add_alt':
@@ -96,20 +113,15 @@ def auth_login_options(request):
             request.session['is_adding_alt'] = True
             request.session['is_srp_auth'] = True
 
-        # Always include Base Scopes
-        final_scopes = set(base_scopes)
+        # Build Final Scopes
+        final_scopes = set(required_scopes) # Start with required
         
         # Add valid custom scopes
-        allowed_optional = set(all_optional)
+        allowed_optional = set(raw_optional_pool)
         for s in requested_custom:
             if s in allowed_optional:
                 final_scopes.add(s)
 
-        # If SRP Auth mode, enforce SRP scopes
-        if mode == 'srp_auth':
-             for s in srp_scopes:
-                 final_scopes.add(s)
-                
         # Generate State
         state_token = secrets.token_urlsafe(32)
         request.session['sso_state'] = state_token
@@ -259,9 +271,19 @@ def sso_callback(request):
     # 3. Handle Linking vs Login
     target_char = None
     
+    # Helper to merge scopes
+    def merge_scopes(char_obj, new_scopes_str):
+        existing = set(char_obj.granted_scopes.split()) if char_obj.granted_scopes else set()
+        new = set(new_scopes_str.split())
+        return " ".join(existing.union(new))
+
     if request.user.is_authenticated and is_adding:
         # --- ADDING / UPDATING ALT ---
         user = request.user
+        
+        # Prepare Defaults
+        # Note: We can't merge scopes yet because we don't have the object loaded in a guarantee
+        # We will do update_or_create then potentially fix the scopes if it was an update
         
         defaults = {
             'user': user,
@@ -269,7 +291,7 @@ def sso_callback(request):
             'access_token': access_token,
             'refresh_token': refresh_token,
             'token_expires': token_expiry,
-            'granted_scopes': granted_scopes_str
+            # We will handle granted_scopes manually after fetch to ensure merge
         }
 
         if user.characters.filter(is_main=True).exclude(character_id=char_id).exists():
@@ -286,6 +308,10 @@ def sso_callback(request):
                 character_id=char_id,
                 defaults=defaults
             )
+            
+        # Update Scopes (Merge)
+        target_char.granted_scopes = merge_scopes(target_char, granted_scopes_str)
+        target_char.save(update_fields=['granted_scopes'])
 
         refresh_character_task.delay(target_char.character_id)
         
@@ -308,7 +334,9 @@ def sso_callback(request):
             target_char.access_token = access_token
             target_char.refresh_token = refresh_token
             target_char.token_expires = token_expiry
-            target_char.granted_scopes = granted_scopes_str
+            
+            # Merge Scopes
+            target_char.granted_scopes = merge_scopes(target_char, granted_scopes_str)
             target_char.save()
         else:
             is_first_user = User.objects.count() == 0
@@ -330,7 +358,7 @@ def sso_callback(request):
                 access_token=access_token,
                 refresh_token=refresh_token,
                 token_expires=token_expiry,
-                granted_scopes=granted_scopes_str
+                granted_scopes=granted_scopes_str # Fresh create, no merge needed
             )
             refresh_character_task.delay(target_char.character_id)
 

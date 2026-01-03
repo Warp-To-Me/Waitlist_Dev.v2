@@ -3,15 +3,15 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Shield, Info, LogIn, CheckCircle } from 'lucide-react';
 
 const LoginPage = () => {
-    const [baseScopes, setBaseScopes] = useState([]);
+    const [requiredScopes, setRequiredScopes] = useState([]);
     const [optionalScopes, setOptionalScopes] = useState([]);
     const [selectedScopes, setSelectedScopes] = useState(new Set());
     const [loading, setLoading] = useState(true);
     const [redirecting, setRedirecting] = useState(false);
+    const [mode, setMode] = useState(null);
     
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
-    const mode = searchParams.get('mode');
 
     // Helper to get cookie for CSRF
     const getCookie = (name) => {
@@ -30,10 +30,15 @@ const LoginPage = () => {
     };
 
     useEffect(() => {
-        fetch('/auth/login-options/')
+        const queryMode = searchParams.get('mode');
+        setMode(queryMode);
+
+        const url = queryMode ? `/auth/login-options/?mode=${queryMode}` : '/auth/login-options/';
+
+        fetch(url)
             .then(res => res.json())
             .then(data => {
-                setBaseScopes(data.base_scopes || []);
+                setRequiredScopes(data.required_scopes || []);
                 setOptionalScopes(data.optional_scopes || []);
                 setLoading(false);
             })
@@ -41,7 +46,7 @@ const LoginPage = () => {
                 console.error("Failed to load scopes", err);
                 setLoading(false);
             });
-    }, []);
+    }, [searchParams]);
 
     const handleLogin = (useCustom) => {
         setRedirecting(true);
@@ -104,14 +109,14 @@ const LoginPage = () => {
                 </div>
 
                 <div className="p-8 space-y-8 overflow-y-auto custom-scrollbar flex-1">
-                    {/* Base Scopes */}
+                    {/* Required Scopes */}
                     <div>
                         <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider mb-4 flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full bg-brand-500"></span>
                             Required Permissions
                         </h3>
                         <div className="space-y-3">
-                            {baseScopes.map(s => (
+                            {requiredScopes.map(s => (
                                 <div key={s.scope} className="flex items-start gap-3 p-1.5 rounded-lg bg-white/5 border border-white/5 opacity-75 cursor-not-allowed">
                                     <div className="mt-0.5 text-brand-500">
                                         <CheckCircle size={18} fill="currentColor" className="text-black" />
@@ -126,6 +131,7 @@ const LoginPage = () => {
                     </div>
 
                     {/* Optional Scopes */}
+                    {optionalScopes.length > 0 && (
                     <div>
                         <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider mb-4 flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full bg-blue-500"></span>
@@ -151,6 +157,7 @@ const LoginPage = () => {
                             ))}
                         </div>
                     </div>
+                    )}
                 </div>
 
                 {/* Actions */}
@@ -160,7 +167,7 @@ const LoginPage = () => {
                         disabled={redirecting}
                         className="text-slate-400 hover:text-white text-sm font-bold px-4 py-2 rounded hover:bg-white/5 transition"
                     >
-                        Login with Base Only
+                        Login with Required Only
                     </button>
 
                     <button 
