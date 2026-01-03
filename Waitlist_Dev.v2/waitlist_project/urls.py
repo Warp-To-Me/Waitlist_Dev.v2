@@ -15,7 +15,8 @@ api_urlpatterns = [
     path('mgmt/srp/sync/', views_srp.api_sync_srp, name='api_sync_srp'),
     path('mgmt/srp/update_category/', views_srp.api_update_transaction_category, name='api_update_transaction_category'),
     path('mgmt/srp/divisions/', views_srp.api_divisions, name='api_divisions'),
-    
+    path('mgmt/srp/generate_list/', views_srp.api_srp_list_generator, name='api_srp_list_generator'),
+
     # --- SRP DASHBOARD ---
     path('srp/dashboard/', views_srp.srp_dashboard, name='srp_dashboard'),
     path('srp/data/', views_srp.api_srp_data, name='api_srp_data'),

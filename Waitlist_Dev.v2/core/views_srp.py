@@ -349,3 +349,52 @@ def api_srp_data(request):
         'transactions': paginated_transactions,
         'pagination': pagination_meta
     })
+
+@api_view(['POST'])
+@check_permission(can_view_srp)
+def api_srp_list_generator(request):
+    """
+    Generates a list of names based on transaction value thresholds.
+    """
+    config = SRPConfiguration.objects.first()
+    if not config: return Response({'error': 'Not Configured'}, status=404)
+
+    start_date_str = request.data.get('start_date')
+    end_date_str = request.data.get('end_date')
+    ref_type = request.data.get('ref_type', 'player_donation')
+    try:
+        amount = float(request.data.get('amount', 20000000))
+    except ValueError:
+        amount = 20000000
+
+    if amount <= 0:
+        return Response({'names': []})
+
+    qs = CorpWalletJournal.objects.filter(
+        config=config,
+        ref_type=ref_type,
+        amount__gte=amount
+    )
+
+    if start_date_str:
+        qs = qs.filter(date__gte=parse(start_date_str))
+    if end_date_str:
+        qs = qs.filter(date__lte=parse(end_date_str))
+
+    # Fetch relevant data
+    # We need to iterate and calculate count
+    transactions = qs.values('amount', 'first_party_name')
+
+    result_names = []
+    for tx in transactions:
+        tx_amt = float(tx['amount'])
+        count = int(tx_amt // amount)
+        if count > 0:
+            name = tx['first_party_name']
+            # Repeat name 'count' times
+            result_names.extend([name] * count)
+
+    # Sort alphabetically
+    result_names.sort()
+
+    return Response({'names': result_names})

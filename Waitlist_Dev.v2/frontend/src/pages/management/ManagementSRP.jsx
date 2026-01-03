@@ -5,11 +5,13 @@ import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Toolti
 import { Bar, Doughnut } from 'react-chartjs-2';
 import clsx from 'clsx';
 import { 
-    fetchSRPData, fetchSRPStatus, fetchSRPDivisions, updateSRPCategory,
+    fetchSRPData, fetchSRPStatus, fetchSRPDivisions, updateSRPCategory, generateSRPList,
     setFilter, setDateRange, toggleDivision, setPage, setLimit,
     selectSRPSummary, selectSRPStatus, selectSRPDivisions, selectSRPActiveDivisions,
     selectSRPFilters, selectSRPDateRange, selectSRPPagination, selectSRPLoading
 } from '../../store/slices/srpSlice';
+import toast from 'react-hot-toast';
+import { X, Copy, Check } from 'lucide-react';
 
 // Register ChartJS components
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement, DoughnutController, BarController);
@@ -29,6 +31,7 @@ const ManagementSRP = () => {
 
     // Local UI State for Sync Timer (as it needs to tick every second)
     const [syncTimerStr, setSyncTimerStr] = useState("Checking...");
+    const [showGenerator, setShowGenerator] = useState(false);
     const syncTimerRef = useRef(null);
     const statusPollRef = useRef(null);
 
@@ -104,7 +107,10 @@ const ManagementSRP = () => {
     if (!status && !summary && loading) return <div className="p-10 text-center text-slate-500"><RefreshCw className="animate-spin inline mr-2"/> Loading Dashboard...</div>;
 
     return (
-        <div className="flex flex-col gap-6 pb-12">
+        <div className="flex flex-col gap-6 pb-12 relative">
+            {/* GENERATOR MODAL */}
+            {showGenerator && <SRPGeneratorModal onClose={() => setShowGenerator(false)} />}
+
             {/* HEADER / FILTERS */}
             <div className="glass-panel p-4 flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-900/90 sticky top-0 z-20 backdrop-blur-md">
                 <div className="flex items-center gap-6">
@@ -161,6 +167,13 @@ const ManagementSRP = () => {
                             </label>
                         ))}
                     </div>
+
+                    <button
+                        onClick={() => setShowGenerator(true)}
+                        className="btn-secondary text-[10px] uppercase font-bold tracking-wider px-3 py-1.5"
+                    >
+                        Generate List
+                    </button>
 
                     <button onClick={() => dispatch(fetchSRPData())} className="btn-ghost p-1.5 text-slate-400 hover:text-white" title="Refresh">
                         <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
@@ -380,6 +393,129 @@ const getSuggestedCategory = (tx) => {
     if (tx.amount < 0 && desc.includes('giveaway')) return 'giveaway';
     
     return ''; // No suggestion
+};
+
+const SRPGeneratorModal = ({ onClose }) => {
+    const dispatch = useDispatch();
+    const [params, setParams] = useState({
+        start_date: '',
+        end_date: '',
+        amount: 20000000,
+        ref_type: 'player_donation'
+    });
+    const [generating, setGenerating] = useState(false);
+    const [result, setResult] = useState(null);
+
+    const handleGenerate = async () => {
+        setGenerating(true);
+        try {
+            const list = await dispatch(generateSRPList(params)).unwrap();
+            setResult(list);
+        } catch (err) {
+            toast.error("Failed to generate list: " + err);
+        } finally {
+            setGenerating(false);
+        }
+    };
+
+    const handleCopy = () => {
+        if (!result) return;
+        navigator.clipboard.writeText(result.join('\n'));
+        toast.success("Copied to clipboard!");
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+            <div className="glass-panel w-full max-w-lg flex flex-col shadow-2xl animate-in fade-in zoom-in duration-200">
+                <div className="p-4 border-b border-white/10 flex justify-between items-center bg-white/5">
+                    <h2 className="text-lg font-bold text-white">Generate Character List</h2>
+                    <button onClick={onClose} className="text-slate-400 hover:text-white"><X size={20} /></button>
+                </div>
+
+                <div className="p-6 space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="label-text mb-1 block">Start Date</label>
+                            <input
+                                type="date"
+                                className="input-text w-full text-xs"
+                                value={params.start_date}
+                                onChange={(e) => setParams({...params, start_date: e.target.value})}
+                            />
+                        </div>
+                        <div>
+                            <label className="label-text mb-1 block">End Date</label>
+                            <input
+                                type="date"
+                                className="input-text w-full text-xs"
+                                value={params.end_date}
+                                onChange={(e) => setParams({...params, end_date: e.target.value})}
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="label-text mb-1 block">Target Amount (ISK)</label>
+                        <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs">$</span>
+                            <input
+                                type="number"
+                                className="input-text w-full pl-6 font-mono text-sm"
+                                value={params.amount}
+                                onChange={(e) => setParams({...params, amount: e.target.value})}
+                            />
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-1">Characters get 1 entry for every {parseInt(params.amount).toLocaleString()} ISK paid.</p>
+                    </div>
+
+                    <div>
+                        <label className="label-text mb-1 block">Transaction Type</label>
+                        <select
+                            className="input-text w-full text-xs"
+                            value={params.ref_type}
+                            onChange={(e) => setParams({...params, ref_type: e.target.value})}
+                        >
+                            <option value="player_donation">Player Donation</option>
+                            <option value="market_transaction">Market Transaction</option>
+                            <option value="corp_account_withdrawal">Corp Account Withdrawal</option>
+                            <option value="bounty_prize">Bounty Prize</option>
+                            <option value="insurance">Insurance</option>
+                            {/* Allow custom input via a different UI pattern if needed, but select is safer for now */}
+                        </select>
+                    </div>
+
+                    {result ? (
+                        <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+                             <div className="flex justify-between items-center mb-2">
+                                <span className="text-xs font-bold text-green-400">{result.length} Entries Generated</span>
+                                <button onClick={handleCopy} className="btn-primary py-1 px-3 text-xs flex items-center gap-2">
+                                    <Copy size={12} /> Copy List
+                                </button>
+                            </div>
+                            <textarea
+                                readOnly
+                                className="w-full h-48 bg-black/40 border border-white/10 rounded p-2 text-xs font-mono text-slate-300 outline-none resize-none focus:border-brand-500"
+                                value={result.join('\n')}
+                            />
+                            <div className="flex justify-end mt-4">
+                                <button onClick={() => setResult(null)} className="text-xs text-slate-400 hover:text-white underline mr-4">Reset</button>
+                                <button onClick={onClose} className="btn-secondary py-1.5 px-4 text-xs">Close</button>
+                            </div>
+                        </div>
+                    ) : (
+                        <button
+                            onClick={handleGenerate}
+                            disabled={generating}
+                            className="btn-primary w-full py-2.5 mt-2 flex justify-center items-center gap-2"
+                        >
+                            {generating && <RefreshCw className="animate-spin" size={16} />}
+                            {generating ? "Generating..." : "Generate List"}
+                        </button>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
 };
 
 const TransactionRow = ({ tx, onUpdateCategory, divisionMap }) => {
