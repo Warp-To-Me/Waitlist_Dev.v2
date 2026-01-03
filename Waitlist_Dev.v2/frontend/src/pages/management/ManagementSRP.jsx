@@ -436,21 +436,25 @@ const SRPGeneratorModal = ({ onClose }) => {
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="label-text mb-1 block">Start Date</label>
-                            <input
-                                type="date"
-                                className="input-text w-full text-xs"
-                                value={params.start_date}
-                                onChange={(e) => setParams({...params, start_date: e.target.value})}
-                            />
+                            <div className="flex items-center gap-2 bg-black/30 p-1.5 rounded border border-white/10">
+                                <input
+                                    type="date"
+                                    className="bg-transparent text-xs text-white outline-none w-full"
+                                    value={params.start_date}
+                                    onChange={(e) => setParams({...params, start_date: e.target.value})}
+                                />
+                            </div>
                         </div>
                         <div>
                             <label className="label-text mb-1 block">End Date</label>
-                            <input
-                                type="date"
-                                className="input-text w-full text-xs"
-                                value={params.end_date}
-                                onChange={(e) => setParams({...params, end_date: e.target.value})}
-                            />
+                            <div className="flex items-center gap-2 bg-black/30 p-1.5 rounded border border-white/10">
+                                <input
+                                    type="date"
+                                    className="bg-transparent text-xs text-white outline-none w-full"
+                                    value={params.end_date}
+                                    onChange={(e) => setParams({...params, end_date: e.target.value})}
+                                />
+                            </div>
                         </div>
                     </div>
 
@@ -460,7 +464,7 @@ const SRPGeneratorModal = ({ onClose }) => {
                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs">$</span>
                             <input
                                 type="number"
-                                className="input-text w-full pl-6 font-mono text-sm"
+                                className="w-full bg-black/40 border border-white/10 rounded pl-6 pr-2 py-1.5 text-xs text-slate-300 focus:border-brand-500 outline-none font-mono"
                                 value={params.amount}
                                 onChange={(e) => setParams({...params, amount: e.target.value})}
                             />
@@ -471,7 +475,7 @@ const SRPGeneratorModal = ({ onClose }) => {
                     <div>
                         <label className="label-text mb-1 block">Transaction Type</label>
                         <select
-                            className="input-text w-full text-xs"
+                            className="w-full bg-black/40 border border-white/10 rounded px-2 py-1.5 text-xs text-slate-300 focus:border-brand-500 outline-none"
                             value={params.ref_type}
                             onChange={(e) => setParams({...params, ref_type: e.target.value})}
                         >
