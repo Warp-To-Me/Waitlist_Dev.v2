@@ -79,6 +79,27 @@ export const updateSRPCategory = createAsyncThunk(
   }
 );
 
+export const generateSRPList = createAsyncThunk(
+  'srp/generateList',
+  async ({ start_date, end_date, amount, ref_type }, { rejectWithValue }) => {
+    try {
+      const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+      const res = await apiCall('/api/mgmt/srp/generate_list/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': csrf
+        },
+        body: JSON.stringify({ start_date, end_date, amount, ref_type })
+      });
+      const data = await res.json();
+      return data.names || [];
+    } catch (err) {
+      return rejectWithValue(err.message);
+    }
+  }
+);
+
 // --- Slice ---
 
 const now = new Date();
