@@ -61,12 +61,14 @@ def auth_login_options(request):
     required_scopes = list(set(required_scopes))
 
     # Determine "Optional" pool
-    # The pool of optional scopes is (Optional + FC) minus any that are already required
-    # (e.g. if FC is required, don't show it in optional)
-    raw_optional_pool = optional_scopes + fc_scopes
-
-    # If mode is SRP, we might want to expose FC scopes as optional too, so 'raw_optional_pool' is correct.
-    # If mode is FC, FC scopes are in required_scopes, so we filter them out below.
+    # The pool of optional scopes is (Optional) minus any that are already required
+    # FC Scopes are NOT included in optional by default, unless they are already required (which makes no sense)
+    # or explicitly added.
+    # Logic:
+    # - If mode == 'fc_auth', FC scopes are in required_scopes, so they are not optional.
+    # - If mode == 'add_alt', FC scopes are NOT in required_scopes, and should NOT be in optional (as requested).
+    # - If mode == 'srp_auth', FC scopes should NOT be in optional.
+    raw_optional_pool = optional_scopes
     
     if request.method == 'GET':
         resp_optional = []
