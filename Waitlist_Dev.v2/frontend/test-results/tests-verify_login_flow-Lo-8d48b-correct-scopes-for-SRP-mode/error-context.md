@@ -1,0 +1,72 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - navigation [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - link "W WarpToMe" [ref=e7] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e8]: W
+          - generic [ref=e9]: WarpToMe
+        - link "Doctrines" [ref=e11] [cursor=pointer]:
+          - /url: /doctrines
+      - generic [ref=e12]:
+        - button [ref=e14] [cursor=pointer]:
+          - img [ref=e15]
+        - link "Log In" [ref=e17] [cursor=pointer]:
+          - /url: /auth/login
+          - generic [ref=e18]: Log In
+  - main [ref=e19]:
+    - generic [ref=e21]:
+      - generic [ref=e22]:
+        - heading "Login Configuration" [level=1] [ref=e23]:
+          - img [ref=e24]
+          - text: Login Configuration
+        - paragraph [ref=e26]: Customize the permissions you grant to this application.
+      - generic [ref=e27]:
+        - heading "Required Permissions" [level=3] [ref=e29]: Required Permissions
+        - generic [ref=e31]:
+          - heading "Optional Permissions" [level=3] [ref=e32]: Optional Permissions
+          - generic [ref=e34]:
+            - generic [ref=e35] [cursor=pointer]:
+              - generic [ref=e36]:
+                - checkbox "Read Wallet Balance View your wallet balance on your profile page." [ref=e37]
+                - img
+              - generic [ref=e38]:
+                - generic [ref=e39]: Read Wallet Balance
+                - generic [ref=e40]: View your wallet balance on your profile page.
+            - generic [ref=e41] [cursor=pointer]:
+              - generic [ref=e42]:
+                - checkbox "Read Loyalty Points View your Concord LP balance on your profile page." [ref=e43]
+                - img
+              - generic [ref=e44]:
+                - generic [ref=e45]: Read Loyalty Points
+                - generic [ref=e46]: View your Concord LP balance on your profile page.
+            - generic [ref=e47] [cursor=pointer]:
+              - generic [ref=e48]:
+                - checkbox "Write Fleet Manage fleet settings and members (Required for FCs)." [ref=e49]
+                - img
+              - generic [ref=e50]:
+                - generic [ref=e51]: Write Fleet
+                - generic [ref=e52]: Manage fleet settings and members (Required for FCs).
+            - generic [ref=e53] [cursor=pointer]:
+              - generic [ref=e54]:
+                - checkbox "Read Fleet View fleet composition (Required for FCs)." [ref=e55]
+                - img
+              - generic [ref=e56]:
+                - generic [ref=e57]: Read Fleet
+                - generic [ref=e58]: View fleet composition (Required for FCs).
+            - generic [ref=e59] [cursor=pointer]:
+              - generic [ref=e60]:
+                - checkbox "Read Assets To be used to read abyssal module stats. (Coming soon)." [ref=e61]
+                - img
+              - generic [ref=e62]:
+                - generic [ref=e63]: Read Assets
+                - generic [ref=e64]: To be used to read abyssal module stats. (Coming soon).
+      - generic [ref=e65]:
+        - button "Login with Base Only" [ref=e66] [cursor=pointer]
+        - button "Login with Selected" [ref=e67] [cursor=pointer]:
+          - img [ref=e68]
+          - text: Login with Selected
+```
