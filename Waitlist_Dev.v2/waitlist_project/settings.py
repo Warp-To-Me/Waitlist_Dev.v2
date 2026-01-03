@@ -140,7 +140,7 @@ EVE_SCOPES_BASE = (
 EVE_SCOPES_OPTIONAL = (
     "esi-wallet.read_character_wallet.v1 "
     "esi-characters.read_loyalty.v1 "
-    "esi-characters.read_assets.v1"
+    "esi-assets.read_assets.v1"
 )
 
 # 3. FC Scopes (Required only for Fleet Commanders)
