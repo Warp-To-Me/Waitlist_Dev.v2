@@ -4,7 +4,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { RefreshCw, Search, X, LogIn, AlertTriangle, ShieldAlert, Plus, Check, Mail, Link as LinkIcon, LogOut, Wind, RotateCw, Anchor, ArrowRightLeft, ArrowUp, ArrowDown, Ban, Lock, Unlock, FileText, Hourglass, Copy } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../context/AuthContext';
-import { fetchProfileData, selectProfileData, selectProfileStatus } from '../store/slices/profileSlice';
+import { fetchProfileData, selectProfileData, selectProfileStatus, profileSlice } from '../store/slices/profileSlice';
+const { optimisticToggleAggregate, optimisticBulkToggleAggregate } = profileSlice.actions;
 
 const Profile = () => {
     const dispatch = useDispatch();
@@ -136,6 +137,49 @@ const Profile = () => {
         const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
         if (match) return match[2];
     }
+
+    const handleToggleAggregate = (charId, type) => {
+        if (is_inspection_mode) return; // Read only
+
+        // Optimistic Update
+        dispatch(optimisticToggleAggregate({ character_id: charId, type }));
+
+        // API Call
+        fetch('/api/profile/toggle_aggregate/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({ character_id: charId, type })
+        }).then(res => res.json()).then(data => {
+            if (data.success) {
+                // Optionally re-fetch to get correct Totals
+                dispatch(fetchProfileData({ userId: inspectUserId }));
+            }
+        });
+    };
+
+    const handleBulkToggle = (type, enabled) => {
+         if (is_inspection_mode) return;
+
+         // Optimistic
+         dispatch(optimisticBulkToggleAggregate({ type, enabled }));
+
+         // API Call
+         fetch('/api/profile/toggle_aggregate/bulk/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({ type, enabled })
+        }).then(res => res.json()).then(data => {
+            if (data.success) {
+                 dispatch(fetchProfileData({ userId: inspectUserId }));
+            }
+        });
+    };
 
     if (loading) return (
         <div className="flex items-center justify-center min-h-screen text-slate-500 gap-2">
@@ -600,6 +644,36 @@ const Profile = () => {
                                 </h3>
                                 <button onClick={() => setPilotModalOpen(false)} className="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
                             </div>
+
+                            {/* Bulk Toggles */}
+                            {!is_inspection_mode && (
+                                <div className="flex gap-2 p-3 bg-white/5 rounded-lg border border-white/5 items-center justify-between mr-8">
+                                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">Bulk Toggles</span>
+                                    <div className="flex gap-2">
+                                        {['wallet', 'lp', 'sp'].map(type => (
+                                            <div key={type} className="flex items-center gap-1 bg-black/20 px-2 py-1 rounded border border-white/5">
+                                                <span className="text-[10px] font-bold text-slate-500 uppercase w-8">{type === 'wallet' ? 'ISK' : type.toUpperCase()}</span>
+                                                <button
+                                                    onClick={() => handleBulkToggle(type, true)}
+                                                    className="text-[10px] px-1.5 py-0.5 rounded hover:bg-green-500/20 text-slate-400 hover:text-green-400 transition"
+                                                    title={`Include all ${type}`}
+                                                >
+                                                    ALL
+                                                </button>
+                                                <span className="text-slate-600">/</span>
+                                                <button
+                                                    onClick={() => handleBulkToggle(type, false)}
+                                                    className="text-[10px] px-1.5 py-0.5 rounded hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition"
+                                                    title={`Exclude all ${type}`}
+                                                >
+                                                    NONE
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="relative w-full">
                                 <Search className="absolute left-3 top-3 w-5 h-5 text-slate-500" />
                                 <input 
@@ -628,8 +702,29 @@ const Profile = () => {
                                                 <h4 className="font-bold text-slate-200 group-hover:text-white truncate">{char.character_name}</h4>
                                                 {char.is_main && <span className="text-[9px] font-bold text-brand-400 bg-brand-900/20 px-1.5 py-0.5 rounded border border-brand-500/20 uppercase">Main</span>}
                                             </div>
-                                            <div className="text-xs text-slate-500 truncate mt-0.5">{char.corporation_name || "Unknown Corp"}</div>
-                                            <div className="text-[10px] text-slate-600 font-mono mt-1">{(char.total_sp || 0).toLocaleString()} SP</div>
+                                            <div className="text-xs text-slate-500 truncate mt-0.5 mb-2">{char.corporation_name || "Unknown Corp"}</div>
+
+                                            {/* Aggregate Toggles */}
+                                            <div className="flex gap-2" onClick={e => e.stopPropagation()}>
+                                                <AggregateCheckbox
+                                                    label="ISK"
+                                                    checked={char.include_wallet_in_aggregate}
+                                                    onChange={() => handleToggleAggregate(char.character_id, 'wallet')}
+                                                    disabled={is_inspection_mode}
+                                                />
+                                                <AggregateCheckbox
+                                                    label="LP"
+                                                    checked={char.include_lp_in_aggregate}
+                                                    onChange={() => handleToggleAggregate(char.character_id, 'lp')}
+                                                    disabled={is_inspection_mode}
+                                                />
+                                                <AggregateCheckbox
+                                                    label="SP"
+                                                    checked={char.include_sp_in_aggregate}
+                                                    onChange={() => handleToggleAggregate(char.character_id, 'sp')}
+                                                    disabled={is_inspection_mode}
+                                                />
+                                            </div>
                                         </div>
                                     </div>
                                 ))}
@@ -690,6 +785,23 @@ const StatsBox = ({ label, value, color = "text-slate-200", font = "sans", obfus
             </div>
         </div>
     </div>
+);
+
+const AggregateCheckbox = ({ label, checked, onChange, disabled }) => (
+    <button
+        onClick={onChange}
+        disabled={disabled}
+        className={clsx(
+            "flex items-center gap-1.5 px-2 py-1 rounded border text-[10px] font-bold transition",
+            checked
+                ? "bg-brand-500/20 border-brand-500/50 text-brand-400 hover:bg-brand-500/30"
+                : "bg-black/20 border-white/10 text-slate-600 hover:border-white/30 hover:text-slate-400",
+            disabled && "opacity-50 cursor-not-allowed"
+        )}
+    >
+        <div className={clsx("w-2 h-2 rounded-sm border", checked ? "bg-brand-500 border-brand-500" : "border-slate-600")}></div>
+        {label}
+    </button>
 );
 
 const getActionColor = (action) => {

@@ -41,6 +41,40 @@ export const profileSlice = createSlice({
     // For now, simple fetching is enough
     resetProfileStatus: (state) => {
         state.status = 'idle';
+    },
+    optimisticToggleAggregate: (state, action) => {
+      // payload: { character_id, type }
+      const { character_id, type } = action.payload;
+      if (!state.data || !state.data.characters) return;
+
+      const char = state.data.characters.find(c => c.character_id === character_id);
+      if (char) {
+        const fieldMap = {
+          wallet: 'include_wallet_in_aggregate',
+          lp: 'include_lp_in_aggregate',
+          sp: 'include_sp_in_aggregate'
+        };
+        const field = fieldMap[type];
+        if (field) {
+          char[field] = !char[field];
+        }
+      }
+    },
+    optimisticBulkToggleAggregate: (state, action) => {
+        const { type, enabled } = action.payload;
+        if (!state.data || !state.data.characters) return;
+
+        const fieldMap = {
+          wallet: 'include_wallet_in_aggregate',
+          lp: 'include_lp_in_aggregate',
+          sp: 'include_sp_in_aggregate'
+        };
+        const field = fieldMap[type];
+        if (field) {
+            state.data.characters.forEach(c => {
+                c[field] = enabled;
+            });
+        }
     }
   },
   extraReducers: (builder) => {

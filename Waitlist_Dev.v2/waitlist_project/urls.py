@@ -101,6 +101,8 @@ api_urlpatterns = [
     path('profile/status/<int:char_id>/', views_profile.api_pilot_status, name='api_pilot_status'), 
     
     path('profile/toggle_visibility/', views_profile.api_toggle_xup_visibility, name='api_toggle_xup_visibility'),
+    path('profile/toggle_aggregate/', views_profile.api_toggle_aggregate, name='api_toggle_aggregate'),
+    path('profile/toggle_aggregate/bulk/', views_profile.api_bulk_toggle_aggregate, name='api_bulk_toggle_aggregate'),
     
     # Doctrines API
     path('doctrines/', core_views.doctrine_list, name='doctrine_list_api'),

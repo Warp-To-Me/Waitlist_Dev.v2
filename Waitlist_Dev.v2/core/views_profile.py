@@ -5,7 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
 from django.http import JsonResponse
 from django.utils import timezone
-from django.db.models import Sum
+from django.db.models import Sum, Q
 from django.conf import settings
 from itertools import chain 
 from rest_framework.decorators import api_view, permission_classes
@@ -104,7 +104,18 @@ def profile_view(request):
                     scopes_missing = True
         except Exception: pass
 
-    totals = characters.aggregate(wallet_sum=Sum('wallet_balance'), lp_sum=Sum('concord_lp'), sp_sum=Sum('total_sp'))
+    # Calculate Totals based on inclusion flags
+    totals = characters.aggregate(
+        wallet=Sum('wallet_balance', filter=Q(include_wallet_in_aggregate=True)),
+        lp=Sum('concord_lp', filter=Q(include_lp_in_aggregate=True)),
+        sp=Sum('total_sp', filter=Q(include_sp_in_aggregate=True))
+    )
+    # Handle None values
+    totals = {
+        'wallet': totals['wallet'] or 0,
+        'lp': totals['lp'] or 0,
+        'sp': totals['sp'] or 0
+    }
     
     # Serialize Characters
     chars_data = []
@@ -114,7 +125,10 @@ def profile_view(request):
             'character_name': c.character_name,
             'corporation_name': c.corporation_name,
             'is_main': c.is_main,
-            'x_up_visible': c.x_up_visible
+            'x_up_visible': c.x_up_visible,
+            'include_wallet_in_aggregate': c.include_wallet_in_aggregate,
+            'include_lp_in_aggregate': c.include_lp_in_aggregate,
+            'include_sp_in_aggregate': c.include_sp_in_aggregate,
         })
 
     active_char_data = None
@@ -161,11 +175,7 @@ def profile_view(request):
         'service_record': service_record,
         'token_missing': token_missing,
         'scopes_missing': scopes_missing,
-        'totals': {
-            'wallet': totals['wallet_sum'] or 0,
-            'lp': totals['lp_sum'] or 0,
-            'sp': totals['sp_sum'] or 0
-        },
+        'totals': totals,
         'is_admin_user': is_admin(request.user)
     })
 
@@ -222,4 +232,65 @@ def api_toggle_xup_visibility(request):
         'success': True, 
         'character_id': character.character_id, 
         'new_state': character.x_up_visible
+    })
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def api_toggle_aggregate(request):
+    char_id = request.data.get('character_id')
+    toggle_type = request.data.get('type') # 'wallet', 'lp', 'sp'
+
+    if not char_id or not toggle_type:
+        return Response({'success': False, 'error': 'Missing parameters'}, status=400)
+
+    character = get_object_or_404(EveCharacter, character_id=char_id, user=request.user)
+
+    field_map = {
+        'wallet': 'include_wallet_in_aggregate',
+        'lp': 'include_lp_in_aggregate',
+        'sp': 'include_sp_in_aggregate'
+    }
+
+    if toggle_type not in field_map:
+        return Response({'success': False, 'error': 'Invalid type'}, status=400)
+
+    field_name = field_map[toggle_type]
+    current_val = getattr(character, field_name)
+    setattr(character, field_name, not current_val)
+    character.save(update_fields=[field_name])
+
+    return Response({
+        'success': True,
+        'character_id': character.character_id,
+        'type': toggle_type,
+        'new_state': getattr(character, field_name)
+    })
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def api_bulk_toggle_aggregate(request):
+    toggle_type = request.data.get('type') # 'wallet', 'lp', 'sp'
+    enabled = request.data.get('enabled') # boolean
+
+    if toggle_type is None or enabled is None:
+        return Response({'success': False, 'error': 'Missing parameters'}, status=400)
+
+    field_map = {
+        'wallet': 'include_wallet_in_aggregate',
+        'lp': 'include_lp_in_aggregate',
+        'sp': 'include_sp_in_aggregate'
+    }
+
+    if toggle_type not in field_map:
+        return Response({'success': False, 'error': 'Invalid type'}, status=400)
+
+    field_name = field_map[toggle_type]
+
+    # Update all characters for this user
+    request.user.characters.all().update(**{field_name: enabled})
+
+    return Response({
+        'success': True,
+        'type': toggle_type,
+        'new_state': enabled
     })

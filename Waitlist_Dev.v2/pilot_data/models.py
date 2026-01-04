@@ -10,6 +10,11 @@ class EveCharacter(models.Model):
     
     # Controls visibility in the X-Up Modal
     x_up_visible = models.BooleanField(default=True)
+
+    # Aggregate Inclusion Flags
+    include_wallet_in_aggregate = models.BooleanField(default=True)
+    include_lp_in_aggregate = models.BooleanField(default=True)
+    include_sp_in_aggregate = models.BooleanField(default=True)
     
     corporation_id = models.BigIntegerField(default=0)
     corporation_name = models.CharField(max_length=255, blank=True, default="")
