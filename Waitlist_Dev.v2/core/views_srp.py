@@ -185,6 +185,36 @@ def api_srp_status(request):
 
 @api_view(['GET'])
 @check_permission(can_view_srp)
+def api_srp_balances(request):
+    """
+    Fetches live wallet balances from ESI.
+    Separated from api_srp_data to prevent ESI spam during filtering.
+    """
+    config = SRPConfiguration.objects.first()
+    if not config or not config.character:
+        return Response({'error': 'Not Configured'}, status=404)
+
+    # Try ESI first, fallback to DB if needed (get_corp_balances handles caching)
+    live_balances = get_corp_balances(config.character)
+
+    # If ESI failed/empty, try fallback to DB last known
+    if not live_balances:
+        # Fallback to Journal
+        # We need to iterate known divisions
+        div_balances = {}
+        for div_id in range(1, 8):
+            latest_entry = CorpWalletJournal.objects.filter(
+                config=config,
+                division=div_id
+            ).order_by('-entry_id').values('balance').first()
+            if latest_entry:
+                div_balances[div_id] = latest_entry['balance']
+        return Response(div_balances)
+
+    return Response(live_balances)
+
+@api_view(['GET'])
+@check_permission(can_view_srp)
 def api_srp_data(request):
     """
     Powerhouse API for the Dashboard Charts and Table.
@@ -256,26 +286,9 @@ def api_srp_data(request):
     total_outcome = agg_qs.filter(amount__lt=0).aggregate(s=Sum('amount'))['s'] or 0
     net_change = total_income + total_outcome
 
-    # 4. Division Balances (Try ESI first, fallback to DB)
+    # 4. Division Balances - REMOVED
+    # Fetched separately via api_srp_balances to prevent ESI spam on filter change
     div_balances = {}
-    live_balances = get_corp_balances(config.character)
-    
-    if divisions:
-        for div_id_str in divisions:
-            try:
-                div_id = int(div_id_str)
-            except:
-                continue
-                
-            if live_balances and div_id in live_balances:
-                div_balances[div_id] = live_balances[div_id]
-            else:
-                # Fallback to Journal
-                latest_entry = CorpWalletJournal.objects.filter(
-                    config=config, 
-                    division=div_id
-                ).order_by('-entry_id').values('balance').first()
-                div_balances[div_id] = latest_entry['balance'] if latest_entry else 0
 
     # 5. Process Data for Charts
     chart_data = qs.values('amount', 'date', 'ref_type', 'first_party_name', 'second_party_name', 'custom_category').order_by('date')

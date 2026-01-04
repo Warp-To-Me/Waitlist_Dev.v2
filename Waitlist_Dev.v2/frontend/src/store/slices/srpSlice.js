@@ -29,6 +29,18 @@ export const fetchSRPStatus = createAsyncThunk(
   }
 );
 
+export const fetchSRPBalances = createAsyncThunk(
+  'srp/fetchBalances',
+  async (_, { rejectWithValue }) => {
+    try {
+      const res = await apiCall('/api/srp/balances/');
+      return await res.json();
+    } catch (err) {
+      return rejectWithValue(err.message);
+    }
+  }
+);
+
 export const fetchSRPData = createAsyncThunk(
   'srp/fetchData',
   async (_, { getState, rejectWithValue }) => {
@@ -108,6 +120,7 @@ const end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().spl
 
 const initialState = {
   summary: null,      // The main data object (transactions, charts, etc.)
+  balances: {},       // Live wallet balances
   status: null,       // { last_sync, next_sync }
   divisionMap: {},    // { 1: "Wallet", ... }
   
@@ -178,6 +191,10 @@ export const srpSlice = createSlice({
       .addCase(fetchSRPStatus.fulfilled, (state, action) => {
         state.status = action.payload;
       })
+      // Balances
+      .addCase(fetchSRPBalances.fulfilled, (state, action) => {
+        state.balances = action.payload;
+      })
       // Data
       .addCase(fetchSRPData.pending, (state) => {
         state.loading = true;
@@ -202,6 +219,7 @@ export const srpSlice = createSlice({
 export const { setFilter, setFilters, setDateRange, toggleDivision, setPage, setLimit } = srpSlice.actions;
 
 export const selectSRPSummary = (state) => state.srp.summary;
+export const selectSRPBalances = (state) => state.srp.balances;
 export const selectSRPStatus = (state) => state.srp.status;
 export const selectSRPDivisions = (state) => state.srp.divisionMap;
 export const selectSRPActiveDivisions = (state) => state.srp.activeDivisions;

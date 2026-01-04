@@ -20,6 +20,7 @@ api_urlpatterns = [
     # --- SRP DASHBOARD ---
     path('srp/dashboard/', views_srp.srp_dashboard, name='srp_dashboard'),
     path('srp/data/', views_srp.api_srp_data, name='api_srp_data'),
+    path('srp/balances/', views_srp.api_srp_balances, name='api_srp_balances'),
     path('srp/status/', views_srp.api_srp_status, name='api_srp_status'),
     
     # --- CORE MANAGEMENT ---

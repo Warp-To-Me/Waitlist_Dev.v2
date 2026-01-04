@@ -5,9 +5,9 @@ import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Toolti
 import { Bar, Doughnut } from 'react-chartjs-2';
 import clsx from 'clsx';
 import { 
-    fetchSRPData, fetchSRPStatus, fetchSRPDivisions, updateSRPCategory, generateSRPList,
+    fetchSRPData, fetchSRPBalances, fetchSRPStatus, fetchSRPDivisions, updateSRPCategory, generateSRPList,
     setFilter, setFilters, setDateRange, toggleDivision, setPage, setLimit,
-    selectSRPSummary, selectSRPStatus, selectSRPDivisions, selectSRPActiveDivisions,
+    selectSRPSummary, selectSRPBalances, selectSRPStatus, selectSRPDivisions, selectSRPActiveDivisions,
     selectSRPFilters, selectSRPDateRange, selectSRPPagination, selectSRPLoading
 } from '../../store/slices/srpSlice';
 import toast from 'react-hot-toast';
@@ -21,6 +21,7 @@ const ManagementSRP = () => {
 
     // Redux State
     const summary = useSelector(selectSRPSummary);
+    const balances = useSelector(selectSRPBalances);
     const status = useSelector(selectSRPStatus);
     const divisionMap = useSelector(selectSRPDivisions);
     const activeDivisions = useSelector(selectSRPActiveDivisions);
@@ -50,6 +51,7 @@ const ManagementSRP = () => {
         // Initial Fetch
         dispatch(fetchSRPDivisions());
         dispatch(fetchSRPStatus());
+        dispatch(fetchSRPBalances());
         dispatch(fetchSRPData());
 
         // Polling Status (Keep this for sync timer updates)
@@ -195,16 +197,16 @@ const ManagementSRP = () => {
                         Generate List
                     </button>
 
-                    <button onClick={() => dispatch(fetchSRPData())} className="btn-ghost p-1.5 text-slate-400 hover:text-white" title="Refresh">
+                    <button onClick={() => { dispatch(fetchSRPData()); dispatch(fetchSRPBalances()); }} className="btn-ghost p-1.5 text-slate-400 hover:text-white" title="Refresh">
                         <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
                     </button>
                 </div>
             </div>
 
             {/* DIVISION BALANCES */}
-            {summary?.division_balances && Object.keys(summary.division_balances).length > 0 && (
+            {balances && Object.keys(balances).length > 0 && (
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-                    {Object.entries(summary.division_balances).map(([div, bal]) => (
+                    {Object.entries(balances).map(([div, bal]) => (
                         <div key={div} className="glass-panel p-3 flex flex-col justify-center items-center border border-white/5 bg-slate-900/50">
                             <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-1 truncate w-full text-center" title={divisionMap[div] || `Division ${div}`}>
                                 {divisionMap[div] || `Division ${div}`}
