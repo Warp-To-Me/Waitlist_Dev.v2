@@ -145,6 +145,10 @@ export const srpSlice = createSlice({
       state.filters[key] = value;
       state.pagination.page = 1; // Reset page on filter change
     },
+    setFilters: (state, action) => {
+      state.filters = { ...state.filters, ...action.payload };
+      state.pagination.page = 1;
+    },
     setDateRange: (state, action) => {
       state.dateRange = { ...state.dateRange, ...action.payload };
     },
@@ -195,7 +199,7 @@ export const srpSlice = createSlice({
   }
 });
 
-export const { setFilter, setDateRange, toggleDivision, setPage, setLimit } = srpSlice.actions;
+export const { setFilter, setFilters, setDateRange, toggleDivision, setPage, setLimit } = srpSlice.actions;
 
 export const selectSRPSummary = (state) => state.srp.summary;
 export const selectSRPStatus = (state) => state.srp.status;

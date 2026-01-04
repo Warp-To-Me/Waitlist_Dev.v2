@@ -6,7 +6,7 @@ import { Bar, Doughnut } from 'react-chartjs-2';
 import clsx from 'clsx';
 import { 
     fetchSRPData, fetchSRPStatus, fetchSRPDivisions, updateSRPCategory, generateSRPList,
-    setFilter, setDateRange, toggleDivision, setPage, setLimit,
+    setFilter, setFilters, setDateRange, toggleDivision, setPage, setLimit,
     selectSRPSummary, selectSRPStatus, selectSRPDivisions, selectSRPActiveDivisions,
     selectSRPFilters, selectSRPDateRange, selectSRPPagination, selectSRPLoading
 } from '../../store/slices/srpSlice';
@@ -32,8 +32,18 @@ const ManagementSRP = () => {
     // Local UI State for Sync Timer (as it needs to tick every second)
     const [syncTimerStr, setSyncTimerStr] = useState("Checking...");
     const [showGenerator, setShowGenerator] = useState(false);
+
+    // Debounce state for filters
+    const [localFilters, setLocalFilters] = useState(filters);
+
     const syncTimerRef = useRef(null);
     const statusPollRef = useRef(null);
+    const debounceRef = useRef(null);
+
+    // Sync local filters with Redux state if it changes externally
+    useEffect(() => {
+        setLocalFilters(filters);
+    }, [filters]);
 
     // --- INITIALIZATION ---
     useEffect(() => {
@@ -80,7 +90,17 @@ const ManagementSRP = () => {
     };
 
     const handleFilterChange = (key, value) => {
-         dispatch(setFilter({ key, value }));
+        setLocalFilters(prev => {
+            const next = { ...prev, [key]: value };
+
+            // Debounce the dispatch: Dispatch ALL filters to avoid race conditions
+            if (debounceRef.current) clearTimeout(debounceRef.current);
+            debounceRef.current = setTimeout(() => {
+                dispatch(setFilters(next));
+            }, 500);
+
+            return next;
+        });
     };
 
     // --- HELPERS ---
@@ -249,22 +269,22 @@ const ManagementSRP = () => {
                             <tr className="bg-slate-900/90 border-b border-white/10">
                                 <td className="p-1"></td>
                                 <td className="p-1">
-                                    <input placeholder="#" value={filters.f_div} onChange={(e) => handleFilterChange('f_div', e.target.value)} className="w-full bg-black/40 border border-white/10 rounded px-1 py-0.5 text-[10px] text-center text-slate-300 focus:border-brand-500 outline-none" />
+                                    <input placeholder="#" value={localFilters.f_div} onChange={(e) => handleFilterChange('f_div', e.target.value)} className="w-full bg-black/40 border border-white/10 rounded px-1 py-0.5 text-[10px] text-center text-slate-300 focus:border-brand-500 outline-none" />
                                 </td>
                                 <td className="p-1">
-                                    <input placeholder="Min..." value={filters.f_amount} onChange={(e) => handleFilterChange('f_amount', e.target.value)} className="w-full bg-black/40 border border-white/10 rounded px-1 py-0.5 text-[10px] text-right text-slate-300 focus:border-brand-500 outline-none" />
+                                    <input placeholder="Min..." value={localFilters.f_amount} onChange={(e) => handleFilterChange('f_amount', e.target.value)} className="w-full bg-black/40 border border-white/10 rounded px-1 py-0.5 text-[10px] text-right text-slate-300 focus:border-brand-500 outline-none" />
                                 </td>
                                 <td className="p-1">
-                                    <input placeholder="From..." value={filters.f_from} onChange={(e) => handleFilterChange('f_from', e.target.value)} className="w-full bg-black/40 border border-white/10 rounded px-1 py-0.5 text-[10px] text-slate-300 focus:border-brand-500 outline-none" />
+                                    <input placeholder="From..." value={localFilters.f_from} onChange={(e) => handleFilterChange('f_from', e.target.value)} className="w-full bg-black/40 border border-white/10 rounded px-1 py-0.5 text-[10px] text-slate-300 focus:border-brand-500 outline-none" />
                                 </td>
                                 <td className="p-1">
-                                    <input placeholder="To..." value={filters.f_to} onChange={(e) => handleFilterChange('f_to', e.target.value)} className="w-full bg-black/40 border border-white/10 rounded px-1 py-0.5 text-[10px] text-slate-300 focus:border-brand-500 outline-none" />
+                                    <input placeholder="To..." value={localFilters.f_to} onChange={(e) => handleFilterChange('f_to', e.target.value)} className="w-full bg-black/40 border border-white/10 rounded px-1 py-0.5 text-[10px] text-slate-300 focus:border-brand-500 outline-none" />
                                 </td>
                                 <td className="p-1">
-                                    <input placeholder="Type..." value={filters.f_type} onChange={(e) => handleFilterChange('f_type', e.target.value)} className="w-full bg-black/40 border border-white/10 rounded px-1 py-0.5 text-[10px] text-slate-300 focus:border-brand-500 outline-none" />
+                                    <input placeholder="Type..." value={localFilters.f_type} onChange={(e) => handleFilterChange('f_type', e.target.value)} className="w-full bg-black/40 border border-white/10 rounded px-1 py-0.5 text-[10px] text-slate-300 focus:border-brand-500 outline-none" />
                                 </td>
                                 <td className="p-1">
-                                    <select value={filters.f_category} onChange={(e) => handleFilterChange('f_category', e.target.value)} className="w-full bg-black/40 border border-white/10 rounded px-1 py-0.5 text-[10px] text-slate-300 focus:border-brand-500 outline-none">
+                                    <select value={localFilters.f_category} onChange={(e) => handleFilterChange('f_category', e.target.value)} className="w-full bg-black/40 border border-white/10 rounded px-1 py-0.5 text-[10px] text-slate-300 focus:border-brand-500 outline-none">
                                         <option value="">All</option>
                                         <option value="uncategorised">Uncategorised</option>
                                         <option value="srp_in">SRP In</option>
@@ -278,7 +298,7 @@ const ManagementSRP = () => {
                                     </select>
                                 </td>
                                 <td className="p-1">
-                                    <input placeholder="Reason..." value={filters.f_reason} onChange={(e) => handleFilterChange('f_reason', e.target.value)} className="w-full bg-black/40 border border-white/10 rounded px-1 py-0.5 text-[10px] text-slate-300 focus:border-brand-500 outline-none" />
+                                    <input placeholder="Reason..." value={localFilters.f_reason} onChange={(e) => handleFilterChange('f_reason', e.target.value)} className="w-full bg-black/40 border border-white/10 rounded px-1 py-0.5 text-[10px] text-slate-300 focus:border-brand-500 outline-none" />
                                 </td>
                             </tr>
                         </thead>
